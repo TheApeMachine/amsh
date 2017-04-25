@@ -9,9 +9,17 @@ class Interpreter
   end
 
   def method_missing(m, *args, &block)
-    require "./bin/#{m}"
-    @m = Object.const_get(m.to_s.capitalize).new
-    @m.run
+    begin
+      res = `#{m.to_s}`
+    rescue Errno::ENOENT
+      begin
+        require "./bin/#{m}"
+        @m = Object.const_get(m.to_s.capitalize).new
+        @m.run
+      rescue LoadError
+        return 'Command failed!'
+      end
+    end
   end
 
 end
