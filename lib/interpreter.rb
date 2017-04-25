@@ -4,7 +4,7 @@ class Interpreter
     if response == 'escalate-command'
       send(command)
     else
-      return response
+      return "#{response}\n"
     end
   end
 
@@ -17,7 +17,7 @@ class Interpreter
         @m = Object.const_get(m.to_s.capitalize).new
         @m.run
       rescue LoadError
-        return 'Command failed!'
+        return "Command failed!\n"
       end
     end
   end
