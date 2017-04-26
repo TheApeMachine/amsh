@@ -35,7 +35,17 @@ This first tries to include a file from the ./bin directory, with the filename e
 It then converts the method name into a Class, and tries to instantiate that, before running the .run method on the newly instantiated class.
 The way this is implemented means, obviously, that additional commands are basically hot-swappable, and there is no need to restart amsh when making changes to, or adding new commands in the ./bin directory.
 
-### IMRPOVEMENTS
+### INSTALLATION
 
-- After trying to pass the command to the shell, and the exit status being anything else than 0, try to pass the command
+* Make sure to install all the gems required at the top of amsh.rb
+* Install mpg123 (for text-to-speech)
+
+```
+sudo apt-get install mpg123 #for debain based
+brew install mpg123 #mac
+```
+
+### IMPROVEMENTS
+
+* After trying to pass the command to the shell, and the exit status being anything else than 0, try to pass the command
 to Ruby itself, and see if we can run it that way. Then, and only then, try to handle it as an internal command.
