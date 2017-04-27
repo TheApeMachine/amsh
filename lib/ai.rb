@@ -8,7 +8,22 @@ class Ai
   end
 
   def run(command)
-    return @client.text_request(command)[:result][:fulfillment][:speech]
+    response = @client.text_request(command)[:result][:fulfillment][:speech]
+    send(response)
+  end
+
+  def method_missing(m, *args, &block)
+    begin
+      res = `#{m.to_s}`
+    rescue Errno::ENOENT
+      begin
+        require "./bin/#{m}"
+        @m = Object.const_get(m.to_s.capitalize).new(args)
+        @m.run
+      rescue LoadError
+        return "#{m} #{args.join(' ')}"
+      end
+    end
   end
 
 end
