@@ -10,7 +10,6 @@ require './lib/interpreter'
 class Amsh
 
   def initialize
-    @ai = Ai.new
     @interpreter = Interpreter.new
 
     puts "\e[H\e[2J"
@@ -24,13 +23,11 @@ class Amsh
       printf "AM>"
       @cmd = gets.gsub("\n", '')
 
-      @response    = @ai.run(@cmd)
-      @interpreted = @interpreter.run(@response, @cmd)
-
-      puts @interpreted.yellow
+      @response = @interpreter.run(@response, @cmd)
+      puts @response.yellow
 
       Thread.new do
-        @interpreted.play
+        @response.play
       end
     end
   end

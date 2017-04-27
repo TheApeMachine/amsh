@@ -1,11 +1,11 @@
 class Interpreter
 
+  def initialize
+    @ai = Ai.new
+  end
+
   def run(response, command)
-    if response == 'escalate-command'
-      send(command)
-    else
-      return "#{response}\n"
-    end
+    send(command)
   end
 
   def method_missing(m, *args, &block)
@@ -14,10 +14,10 @@ class Interpreter
     rescue Errno::ENOENT
       begin
         require "./bin/#{m}"
-        @m = Object.const_get(m.to_s.capitalize).new
+        @m = Object.const_get(m.to_s.capitalize).new(args)
         @m.run
       rescue LoadError
-        return "Command failed!\n"
+        @ai.run("#{m} #{args.join(' ')}")
       end
     end
   end
