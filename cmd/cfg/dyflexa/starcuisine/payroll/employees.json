@@ -1,0 +1,11 @@
+{
+  "operation": "shift",
+  "spec": {
+    "FirstName": "firstName",
+    "LastName": "lastName",
+    "Function": "jsonDescription",
+    "DateStarted": "employmentStart",
+    "LeaveDate": "employmentEnd",
+    "ID": "personnelNumber"
+  }
+}
