@@ -6,8 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/theapemachine/amsh/editor"
-	"golang.org/x/term"
+	"github.com/theapemachine/amsh/internal/app"
 )
 
 var (
@@ -16,11 +15,11 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "amsh",
-	Short: "A brief description of your application",
+	Short: "A minimal shell and vim-like text editor with A.I. capabilities",
 	Long:  roottxt,
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		p := tea.NewProgram(
-			newModel(path),
+			app.NewModel(path),
 			tea.WithAltScreen(),
 		)
 
@@ -31,92 +30,6 @@ var rootCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-type model struct {
-	fileBrowser *editor.FileBrowser
-	buffer      *editor.Buffer
-	activeView  string
-}
-
-func newModel(initialPath string) model {
-	w, h, _ := term.GetSize(int(os.Stdout.Fd()))
-	
-	m := model{
-		fileBrowser: editor.NewFileBrowser(),
-		activeView:  "fileBrowser",
-	}
-	
-	m.fileBrowser.SetSize(w, h)
-	
-	if initialPath != "" {
-		m.buffer = editor.NewBuffer(initialPath)
-		m.buffer.SetSize(w, h)
-		m.activeView = "buffer"
-	}
-	
-	return m
-}
-
-func (m model) Init() tea.Cmd {
-	return nil
-}
-
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		if m.fileBrowser != nil {
-			m.fileBrowser.SetSize(msg.Width, msg.Height)
-		}
-		if m.buffer != nil {
-			m.buffer.SetSize(msg.Width, msg.Height)
-		}
-	case editor.FileSelectedMsg:
-		if m.buffer == nil {
-			m.buffer = editor.NewBuffer(msg.Path)
-		} else {
-			var newBuffer tea.Model
-			newBuffer, cmd = m.buffer.Update(msg)
-			if updatedBuffer, ok := newBuffer.(*editor.Buffer); ok {
-				m.buffer = updatedBuffer
-			} else {
-				// Handle the case where the type assertion fails
-				// This shouldn't happen in normal circumstances
-				fmt.Println("Error: Failed to update buffer")
-				return m, tea.Quit
-			}
-		}
-		m.buffer.SetSize(msg.Width, msg.Height)
-		m.activeView = "buffer"
-		return m, cmd
-	}
-
-	if m.activeView == "fileBrowser" {
-		newFileBrowser, newCmd := m.fileBrowser.Update(msg)
-		m.fileBrowser = newFileBrowser.(*editor.FileBrowser)
-		cmd = newCmd
-	} else if m.activeView == "buffer" {
-		var newBuffer tea.Model
-		newBuffer, cmd = m.buffer.Update(msg)
-		if updatedBuffer, ok := newBuffer.(*editor.Buffer); ok {
-			m.buffer = updatedBuffer
-		} else {
-			// Handle the case where the type assertion fails
-			fmt.Println("Error: Failed to update buffer")
-			return m, tea.Quit
-		}
-	}
-
-	return m, cmd
-}
-
-func (m model) View() string {
-	if m.activeView == "fileBrowser" {
-		return m.fileBrowser.View()
-	}
-	return m.buffer.View()
 }
 
 func Execute() {

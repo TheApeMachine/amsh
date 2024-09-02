@@ -17,12 +17,6 @@ type TextareaComponent struct {
 	textarea textarea.Model
 }
 
-func (buffer *Buffer) adjustComponentSizes(width, height int) {
-	for _, component := range buffer.components {
-		component.SetSize(width, height)
-	}
-}
-
 func (t *TextareaComponent) Init() tea.Cmd {
 	return textarea.Blink
 }
