@@ -5,55 +5,67 @@ import (
 )
 
 type KeyHandler struct {
-	buffer *Buffer
+	editor       *Model
+	spacePressed bool
 }
 
-func NewKeyHandler(buffer *Buffer) *KeyHandler {
+func NewKeyHandler(editor *Model) *KeyHandler {
 	return &KeyHandler{
-		buffer: buffer,
+		editor:       editor,
+		spacePressed: false,
 	}
 }
 
 func (kh *KeyHandler) Handle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch kh.buffer.mode {
+	switch kh.editor.mode {
 	case NormalMode:
 		return kh.handleNormalMode(msg)
 	case InsertMode:
 		return kh.handleInsertMode(msg)
 	}
-	return kh.buffer, nil
+	return kh.editor, nil
 }
 
 func (kh *KeyHandler) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "i":
-		kh.buffer.mode = InsertMode
+		kh.editor.mode = InsertMode
+		return kh.editor, kh.editor.sendStatusUpdate()
 	case "esc":
-		kh.buffer.mode = NormalMode
+		kh.editor.mode = NormalMode
+		return kh.editor, kh.editor.sendStatusUpdate()
 	case "h", "left", "j", "down", "k", "up", "l", "right":
-		newModel, cmd := kh.buffer.components[kh.buffer.activeComponent].Update(msg)
-		if textareaComponent, ok := newModel.(*TextareaComponent); ok {
-			kh.buffer.components[kh.buffer.activeComponent] = textareaComponent
-		}
-		return kh.buffer, cmd
+		return kh.editor.Update(msg)
 	case "q":
-		return kh.buffer, tea.Quit
+		return kh.editor, tea.Quit
 	case "tab":
-		kh.buffer.switchEditor()
+		kh.editor.activeEditor = (kh.editor.activeEditor + 1) % len(kh.editor.components)
+		return kh.editor, nil
+	case " ":
+		kh.spacePressed = true
+	case ",":
+		if kh.spacePressed {
+			// Open file browser (not implemented yet)
+			kh.spacePressed = false
+		}
+	default:
+		kh.spacePressed = false
 	}
-	return kh.buffer, nil
+	return kh.editor, nil
 }
 
 func (kh *KeyHandler) handleInsertMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		kh.buffer.mode = NormalMode
-		return kh.buffer, nil
+		kh.editor.mode = NormalMode
+		return kh.editor, kh.editor.sendStatusUpdate()
 	default:
-		newModel, cmd := kh.buffer.components[kh.buffer.activeComponent].Update(msg)
-		if textareaComponent, ok := newModel.(*TextareaComponent); ok {
-			kh.buffer.components[kh.buffer.activeComponent] = textareaComponent
-		}
-		return kh.buffer, cmd
+		// Pass the key to the active textarea
+		newTextarea, cmd := kh.editor.components[kh.editor.activeEditor].Update(msg)
+		kh.editor.components[kh.editor.activeEditor] = newTextarea
+		kh.editor.syncContent(kh.editor.activeEditor)
+		return kh.editor, cmd
 	}
 }
+
+// Remove the Init method as it's likely part of the buffer package now

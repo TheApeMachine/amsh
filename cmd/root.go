@@ -6,7 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/theapemachine/amsh/internal/app"
+	"github.com/theapemachine/amsh/buffer"
+	"github.com/theapemachine/amsh/filebrowser"
 )
 
 var (
@@ -18,8 +19,16 @@ var rootCmd = &cobra.Command{
 	Short: "A minimal shell and vim-like text editor with A.I. capabilities",
 	Long:  roottxt,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var initialModel tea.Model
+
+		if path != "" {
+			initialModel = buffer.New(path)
+		} else {
+			initialModel = filebrowser.NewModel()
+		}
+
 		p := tea.NewProgram(
-			app.NewModel(path),
+			initialModel,
 			tea.WithAltScreen(),
 		)
 

@@ -33,4 +33,11 @@ var (
 	)
 
 	blurredBorderStyle = lipgloss.NewStyle().Border(lipgloss.HiddenBorder())
+
+	statusBarStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("15")).
+		Background(lipgloss.Color("57")).
+		Width(80).  // This will be overridden in renderStatusBar
+		Padding(0, 1).
+		MarginTop(1)
 )
