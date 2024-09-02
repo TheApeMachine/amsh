@@ -10,6 +10,8 @@ const (
 )
 
 var (
+	appStyle = lipgloss.NewStyle().Padding(1, 2, 1, 2)
+
 	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
 
 	cursorLineStyle = lipgloss.NewStyle().Background(

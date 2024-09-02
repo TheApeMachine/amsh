@@ -4,6 +4,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 )
 
+type keymap = struct {
+	next, prev, add, remove, quit key.Binding
+}
+
 type KeyboardManager struct {
 	KeyMap keymap
 }
@@ -28,8 +32,8 @@ func NewKeyboardManager() *KeyboardManager {
 				key.WithHelp("ctrl+w", "remove an editor"),
 			),
 			quit: key.NewBinding(
-				key.WithKeys("esc", "ctrl+c"),
-				key.WithHelp("esc", "quit"),
+				key.WithKeys("q", "ctrl+c"),
+				key.WithHelp("q", "quit"),
 			),
 		},
 	}
