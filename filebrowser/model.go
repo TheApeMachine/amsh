@@ -16,7 +16,7 @@ type Model struct {
 	height       int
 }
 
-func NewModel() *Model {
+func New() *Model {
 	m := &Model{
 		currentPath: ".",
 		width:       80,

@@ -15,41 +15,32 @@ const (
 	InsertMode
 )
 
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch m.mode {
-		case NormalMode:
-			if msg.String() == "i" {
-				m.mode = InsertMode
-				return m, m.sendStatusUpdate()
-			}
-		case InsertMode:
-			if msg.String() == "esc" {
-				m.mode = NormalMode
-				return m, m.sendStatusUpdate()
-			}
-		}
-	case tea.WindowSizeMsg:
-		m.SetSize(msg.Width, msg.Height)
-	case SetFilenameMsg:
-		m.filename = string(msg)
-		m.loadContent()
-	}
-
-	m.updateContent()
-	return m, cmd
+type ComponentMsg struct {
+	ComponentName string
+	InnerMsg      tea.Msg
 }
 
-func (m *Model) sendStatusUpdate() tea.Cmd {
-	return func() tea.Msg {
-		return StatusUpdateMsg{
-			Filename: m.filename,
-			Mode:     m.mode,
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case ComponentMsg:
+		if component, ok := m.components[msg.ComponentName]; ok {
+			_, cmd := component.Update(msg.InnerMsg)
+			return m, cmd
 		}
+	case tea.WindowSizeMsg:
+		// Handle window size changes
 	}
+
+	var cmds []tea.Cmd
+	for name, component := range m.components {
+		_, cmd := component.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		m.UpdateComponentView(name, component.View())
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 type StatusUpdateMsg struct {

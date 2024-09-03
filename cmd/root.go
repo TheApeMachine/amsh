@@ -13,6 +13,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/buffer"
+	"github.com/theapemachine/amsh/editor"
+	"github.com/theapemachine/amsh/filebrowser"
+	"github.com/theapemachine/amsh/statusbar"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -33,8 +36,12 @@ var (
 		Short: "A minimal shell and vim-like text editor with A.I. capabilities",
 		Long:  roottxt,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			buf := buffer.New()
+			buf.RegisterComponent("editor", editor.New(path))
+			buf.RegisterComponent("filebrowser", filebrowser.New())
+			buf.RegisterComponent("statusbar", statusbar.New())
 			prog := tea.NewProgram(
-				buffer.New(path),
+				buf,
 				tea.WithAltScreen(),
 			)
 

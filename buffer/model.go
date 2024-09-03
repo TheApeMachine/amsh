@@ -1,50 +1,43 @@
 package buffer
 
 import (
-	"os"
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type Component interface {
+	Update(msg tea.Msg) (tea.Model, tea.Cmd)
+	View() string
+}
+
 type Model struct {
-	filename  string
-	content   string
-	lastSaved string
-	saveMutex sync.Mutex
-	width     int
-	height    int
-	mode      Mode
+	filename   string
+	mode       Mode
+	components map[string]Component
+	views      map[string]string
+	mutex      sync.RWMutex
 }
 
-func New(filename string) *Model {
-	m := &Model{
-		filename: filename,
-		mode:     NormalMode,
+func New() *Model {
+	return &Model{
+		components: make(map[string]Component),
+		views:      make(map[string]string),
 	}
-	m.loadContent()
-	return m
 }
 
-// Add Init method to implement tea.Model interface
+func (m *Model) RegisterComponent(name string, component Component) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.components[name] = component
+}
+
+func (m *Model) UpdateComponentView(name, view string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.views[name] = view
+}
+
 func (m *Model) Init() tea.Cmd {
 	return nil
-}
-
-func (m *Model) loadContent() {
-	content, err := os.ReadFile(m.filename)
-	if err == nil {
-		m.content = string(content)
-		m.lastSaved = m.content
-	}
-}
-
-func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
-}
-
-func (m *Model) updateContent() {
-	m.saveMutex.Lock()
-	defer m.saveMutex.Unlock()
 }

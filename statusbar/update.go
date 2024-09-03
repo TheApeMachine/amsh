@@ -18,7 +18,7 @@ const (
 	InsertMode
 )
 
-func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case StatusUpdateMsg:
 		m.filename = msg.Filename
