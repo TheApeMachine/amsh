@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/theapemachine/amsh/messages"
 )
 
 type Model struct {
@@ -70,8 +69,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.WindowSizeMsg:
 		m.SetSize(msg.Width, msg.Height)
-	case messages.OpenFileBrowserMsg:
-		m.SetSize(msg.Width, msg.Height)
+	case OpenFileBrowserMsg:
 		return m, nil
 	}
 
@@ -87,11 +85,7 @@ func (m Model) View() string {
 
 func (m *Model) sendFileSelected() tea.Cmd {
 	return func() tea.Msg {
-		return messages.FileSelectedMsg{
-			Path:   m.selectedFile,
-			Width:  m.width,
-			Height: m.height,
-		}
+		return FileSelectedMsg(m.selectedFile)
 	}
 }
 

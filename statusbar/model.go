@@ -3,19 +3,18 @@ package statusbar
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/theapemachine/amsh/messages"
 )
 
 type Model struct {
 	filename string
-	mode     messages.Mode
+	mode     string
 	width    int
 	style    lipgloss.Style
 }
 
 func New() Model {
 	return Model{
-		mode:  messages.NormalMode,
+		mode:  "Normal",
 		width: 80,
 		style: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("15")).

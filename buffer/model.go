@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/theapemachine/amsh/messages"
 )
 
 type Model struct {
@@ -15,13 +14,13 @@ type Model struct {
 	saveMutex sync.Mutex
 	width     int
 	height    int
-	mode      messages.Mode
+	mode      Mode
 }
 
 func New(filename string) *Model {
 	m := &Model{
 		filename: filename,
-		mode:     messages.NormalMode,
+		mode:     NormalMode,
 	}
 	m.loadContent()
 	return m
@@ -48,13 +47,4 @@ func (m *Model) SetSize(width, height int) {
 func (m *Model) updateContent() {
 	m.saveMutex.Lock()
 	defer m.saveMutex.Unlock()
-}
-
-func (m *Model) sendStatusUpdate() tea.Cmd {
-	return func() tea.Msg {
-		return messages.StatusUpdateMsg{
-			Filename: m.filename,
-			Mode:     m.mode,
-		}
-	}
 }

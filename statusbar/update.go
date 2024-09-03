@@ -2,16 +2,29 @@ package statusbar
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/theapemachine/amsh/messages"
+)
+
+// Define message types within the statusbar package
+type StatusUpdateMsg struct {
+	Filename string
+	Mode     Mode
+}
+
+// Mode represents the editor mode
+type Mode int
+
+const (
+	NormalMode Mode = iota
+	InsertMode
 )
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case messages.StatusUpdateMsg:
+	case StatusUpdateMsg:
 		m.filename = msg.Filename
-		m.mode = msg.Mode
+		m.mode = "Normal"
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
+		m.SetSize(msg.Width)
 	}
 	return m, nil
 }
