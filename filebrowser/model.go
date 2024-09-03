@@ -1,95 +1,146 @@
 package filebrowser
 
 import (
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/theapemachine/amsh/messages"
 )
 
+/*
+fileItem represents a file or directory in the file browser.
+It implements the list.Item interface, allowing it to be used with the list bubble.
+*/
+type fileItem struct {
+	path string
+	info fs.FileInfo
+}
+
+// FilterValue returns the path of the file item, used for filtering in the list.
+func (i fileItem) FilterValue() string { return i.path }
+
+// Title returns the name of the file or directory.
+func (i fileItem) Title() string { return i.info.Name() }
+
+// Description returns either "Directory" for directories or the file size for files.
+func (i fileItem) Description() string {
+	if i.info.IsDir() {
+		return "Directory"
+	}
+	return fmt.Sprintf("%d bytes", i.info.Size())
+}
+
+/*
+Model represents the state of the file browser component.
+It manages the list of files/directories, current path, and selected file.
+*/
 type Model struct {
 	list         list.Model
 	currentPath  string
 	selectedFile string
-	width        int
-	height       int
+	err          error
 }
 
+/*
+New creates a new file browser model.
+It initializes the model with the current directory and sets up the file list.
+*/
 func New() *Model {
 	m := &Model{
 		currentPath: ".",
-		width:       80,
-		height:      24,
 	}
 	m.initList()
 	return m
 }
 
-func (m *Model) initList() {
-	items := m.getFileItems()
-	m.list = list.New(items, list.NewDefaultDelegate(), m.width, m.height)
-	m.list.Title = "File Browser"
+// Init initializes the file browser model. It's part of the tea.Model interface.
+func (m *Model) Init() tea.Cmd {
+	return nil
 }
 
+/*
+SetSize adjusts the size of the file browser list.
+This method is crucial for responsive design, ensuring the file browser
+adapts to window size changes.
+*/
 func (m *Model) SetSize(width, height int) {
-	m.width = width
-	m.height = height
-	m.list.SetSize(width, height)
+	m.list.SetSize(width, height-1) // Leave space for status line
 }
 
-func (m *Model) getFileItems() []list.Item {
-	files, _ := os.ReadDir(m.currentPath)
-	items := make([]list.Item, 0, len(files))
+/*
+initList initializes the file list with items from the current directory.
+This method is called when creating a new model or changing directories.
+*/
+func (m *Model) initList() {
+	items, err := m.getFilesInDirectory(m.currentPath)
+	if err != nil {
+		m.err = err
+		return
+	}
+
+	delegate := list.NewDefaultDelegate()
+	m.list = list.New(items, delegate, 0, 0)
+	m.list.Title = "File Browser"
+	m.list.SetShowHelp(false)
+}
+
+/*
+getFilesInDirectory retrieves all files and directories in the given path.
+It sorts the items to display directories first, then files, both in alphabetical order.
+This method is crucial for populating the file browser with accurate and organized content.
+*/
+func (m *Model) getFilesInDirectory(path string) ([]list.Item, error) {
+	var items []list.Item
+
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort directories first, then files, both alphabetically
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].IsDir() == files[j].IsDir() {
+			return files[i].Name() < files[j].Name()
+		}
+		return files[i].IsDir()
+	})
+
 	for _, file := range files {
+		info, err := file.Info()
+		if err != nil {
+			continue
+		}
 		items = append(items, fileItem{
-			name:  file.Name(),
-			path:  filepath.Join(m.currentPath, file.Name()),
-			isDir: file.IsDir(),
+			path: filepath.Join(path, file.Name()),
+			info: info,
 		})
 	}
-	return items
+
+	return items, nil
 }
 
-type fileItem struct {
-	name  string
-	path  string
-	isDir bool
+/*
+statusLine generates a string representing the current directory.
+This provides context to the user about their location in the file system.
+*/
+func (m *Model) statusLine() string {
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("241")).
+		Render(fmt.Sprintf("Current directory: %s", m.currentPath))
 }
 
-func (i fileItem) Title() string       { return i.name }
-func (i fileItem) Description() string { return i.path }
-func (i fileItem) FilterValue() string { return i.name }
-
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "enter" {
-			return m.handleEnterKey()
-		}
-	case tea.WindowSizeMsg:
-		m.SetSize(msg.Width, msg.Height)
-	case OpenFileBrowserMsg:
-		return m, nil
-	}
-
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-
-	return m, cmd
-}
-
-func (m Model) View() string {
-	return m.list.View()
-}
-
+/*
+sendFileSelected creates a command to send a FileSelectedMsg.
+This is used when a file is selected to notify other components.
+*/
 func (m *Model) sendFileSelected() tea.Cmd {
 	return func() tea.Msg {
-		return FileSelectedMsg(m.selectedFile)
+		return messages.FileSelectedMsg(m.selectedFile)
 	}
-}
-
-// Add Init method to implement tea.Model interface
-func (m Model) Init() tea.Cmd {
-	return nil
 }

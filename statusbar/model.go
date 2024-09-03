@@ -5,6 +5,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+/*
+Model represents the state of the statusbar component.
+It manages the current filename, mode, width, and styling of the statusbar.
+This structure is crucial for displaying relevant information at the bottom of the application.
+*/
 type Model struct {
 	filename string
 	mode     string
@@ -12,6 +17,11 @@ type Model struct {
 	style    lipgloss.Style
 }
 
+/*
+New creates a new statusbar model with default values.
+It initializes the statusbar with a default mode, width, and style.
+This factory function ensures that every new statusbar instance starts with a consistent initial state.
+*/
 func New() Model {
 	return Model{
 		mode:  "Normal",
@@ -23,10 +33,21 @@ func New() Model {
 	}
 }
 
+/*
+Init initializes the statusbar model.
+This method is part of the tea.Model interface and is called when the statusbar component starts.
+Currently, it doesn't perform any initialization actions, but it's included for consistency
+and potential future use.
+*/
 func (m Model) Init() tea.Cmd {
 	return nil
 }
 
+/*
+SetSize adjusts the width of the statusbar.
+This method is crucial for responsive design, ensuring the statusbar
+adapts to window size changes and maintains a consistent appearance.
+*/
 func (m *Model) SetSize(width int) {
 	m.width = width
 }

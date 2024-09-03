@@ -3,28 +3,28 @@ package ui
 import "github.com/charmbracelet/bubbles/key"
 
 type Event struct {
-	keymap struct {
-		next, prev, add, remove, quit key.Binding
+	Keymap struct {
+		Next, Prev, Add, Remove, Quit key.Binding
 	}
 }
 
 func NewEvent() *Event {
-	return &Event{keymap: struct {
-		next, prev, add, remove, quit key.Binding
+	return &Event{Keymap: struct {
+		Next, Prev, Add, Remove, Quit key.Binding
 	}{
-		next: key.NewBinding(
+		Next: key.NewBinding(
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "next"),
 		),
-		prev: key.NewBinding(
+		Prev: key.NewBinding(
 			key.WithKeys("shift+tab"),
 			key.WithHelp("shift+tab", "prev"),
 		),
-		add: key.NewBinding(
+		Add: key.NewBinding(
 			key.WithKeys("ctrl+n"),
 			key.WithHelp("ctrl+n", "add an editor"),
 		),
-		remove: key.NewBinding(
+		Remove: key.NewBinding(
 			key.WithKeys("ctrl+w"),
 			key.WithHelp("ctrl+w", "remove an editor"),
 		),

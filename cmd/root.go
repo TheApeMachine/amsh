@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -15,6 +16,7 @@ import (
 	"github.com/theapemachine/amsh/buffer"
 	"github.com/theapemachine/amsh/editor"
 	"github.com/theapemachine/amsh/filebrowser"
+	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/statusbar"
 	"github.com/theapemachine/amsh/utils"
 )
@@ -37,9 +39,22 @@ var (
 		Long:  roottxt,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buf := buffer.New()
-			buf.RegisterComponent("editor", editor.New(path))
-			buf.RegisterComponent("filebrowser", filebrowser.New())
-			buf.RegisterComponent("statusbar", statusbar.New())
+			fb := filebrowser.New()
+			ed := editor.New(path)
+			sb := statusbar.New()
+
+			buf.RegisterComponent("filebrowser", fb)
+			buf.RegisterComponent("editor", ed)
+			buf.RegisterComponent("statusbar", sb)
+
+			if path == "" {
+				// Start with file browser if no path is provided
+				buf.SetActiveComponent("filebrowser")
+			} else {
+				// Start with editor if a path is provided
+				buf.SetActiveComponent("editor")
+			}
+
 			prog := tea.NewProgram(
 				buf,
 				tea.WithAltScreen(),
@@ -56,8 +71,30 @@ var (
 )
 
 func Execute() {
-	err := rootCmd.Execute()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
+		fmt.Println("Error getting user home directory:", err)
+		os.Exit(1)
+	}
+
+	logDir := filepath.Join(homeDir, ".amsh", "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Println("Error creating log directory:", err)
+		os.Exit(1)
+	}
+
+	logFile := filepath.Join(logDir, "amsh.log")
+	if err := logger.Init(logFile); err != nil {
+		fmt.Println("Error initializing logger:", err)
+		os.Exit(1)
+	}
+	defer logger.Close()
+
+	logger.Log("amsh started") // Add this line
+
+	err = rootCmd.Execute()
+	if err != nil {
+		logger.Log("Error executing root command: %v", err)
 		os.Exit(1)
 	}
 }
@@ -76,6 +113,7 @@ func initConfig() {
 	var err error
 
 	if err = writeConfig(); err != nil {
+		logger.Log("Error writing config: %v", err)
 		log.Fatal(err)
 	}
 
@@ -84,9 +122,12 @@ func initConfig() {
 	viper.AddConfigPath("$HOME/.data")
 
 	if err = viper.ReadInConfig(); err != nil {
+		logger.Log("Failed to read config file: %v", err)
 		log.Println("failed to read config file", err)
 		return
 	}
+
+	logger.Log("Config initialized successfully")
 }
 
 func writeConfig() (err error) {
