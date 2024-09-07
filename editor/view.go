@@ -1,9 +1,8 @@
 package editor
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
+	"github.com/theapemachine/amsh/components"
 )
 
 /*
@@ -14,16 +13,20 @@ It uses lipgloss to create a horizontally joined layout of all input areas,
 allowing for a flexible and visually appealing editor interface.
 */
 func (m *Model) View() string {
-	builder := strings.Builder{}
+	if m.state == components.Inactive {
+		return ""
+	}
+
+	v := []string{}
 
 	// Render each input area
 	for _, input := range m.inputs {
-		builder.WriteString(lipgloss.NewStyle().Width(m.width / 2).Render(input.View()))
+		v = append(v, input.View())
 	}
 
 	// Join all input areas horizontally
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		builder.String(),
+		v...,
 	)
 }

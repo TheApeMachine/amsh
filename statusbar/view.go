@@ -1,6 +1,10 @@
 package statusbar
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 /*
 View renders the current state of the statusbar.
@@ -10,6 +14,35 @@ It formats the current mode and filename into a string and applies the statusbar
 ensuring a consistent and informative display at the bottom of the application.
 */
 func (m Model) View() string {
-	statusText := fmt.Sprintf("Mode: %s | File: %s", m.mode, m.filename)
-	return m.style.Width(m.width).Render(statusText)
+	if !m.active {
+		return ""
+	}
+
+	statusStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFDF5")).
+		Background(lipgloss.Color("#FF5F87")).
+		Padding(0, 1)
+
+	modeStyle := statusStyle.Copy().
+		Background(lipgloss.Color("#6124DF"))
+
+	fileStyle := statusStyle.Copy().
+		Background(lipgloss.Color("#A550DF"))
+
+	content := lipgloss.JoinHorizontal(
+		lipgloss.Center,
+		modeStyle.Render(fmt.Sprintf("MODE: %s", m.mode)),
+		fileStyle.Render(fmt.Sprintf("FILE: %s", m.filename)),
+	)
+
+	if m.err != nil {
+		errorStyle := statusStyle.Copy().
+			Foreground(lipgloss.Color("#FF0000")).
+			Background(lipgloss.Color("#FFFF00"))
+		content = errorStyle.Render(fmt.Sprintf("ERROR: %s", m.err))
+	}
+
+	return lipgloss.NewStyle().
+		Width(m.width).
+		Render(content)
 }

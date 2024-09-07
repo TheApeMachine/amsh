@@ -3,6 +3,7 @@ package statusbar
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/theapemachine/amsh/ui"
 )
 
 /*
@@ -15,6 +16,9 @@ type Model struct {
 	mode     string
 	width    int
 	style    lipgloss.Style
+	active   bool
+	layout   ui.LayoutPreference
+	err      error
 }
 
 /*
@@ -30,6 +34,8 @@ func New() Model {
 			Foreground(lipgloss.Color("15")).
 			Background(lipgloss.Color("57")).
 			Padding(0, 1),
+		active: true,
+		layout: ui.Bottom,
 	}
 }
 

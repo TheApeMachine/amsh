@@ -12,7 +12,7 @@ RUN if [ "${TARGETARCH}" = "arm64" ]; then \
 	fi && \
 	curl -LO https://golang.org/dl/go1.23.0.linux-${ARCH}.tar.gz && \
 	tar -C /usr/local -xzf go1.23.0.linux-${ARCH}.tar.gz && \
-	rm go1.22.0.linux-${ARCH}.tar.gz
+	rm go1.23.0.linux-${ARCH}.tar.gz
 
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOFLAGS=-buildvcs=false

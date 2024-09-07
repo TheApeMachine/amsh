@@ -6,24 +6,6 @@ import (
 	"github.com/theapemachine/amsh/messages"
 )
 
-// Mode represents the buffer mode
-type Mode int
-
-const (
-	NormalMode Mode = iota
-	InsertMode
-)
-
-/*
-ComponentMsg is a message that is sent to a component in the buffer.
-This custom message type allows for targeted message delivery to specific components,
-enabling fine-grained control over component updates and interactions.
-*/
-type ComponentMsg struct {
-	ComponentName string
-	InnerMsg      tea.Msg
-}
-
 /*
 Update is a message broker for the components in the buffer.
 This method is part of the tea.Model interface and is responsible for handling
@@ -34,78 +16,44 @@ It acts as a central hub for message routing and state management, ensuring that
 all components are updated correctly based on the received messages.
 */
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	logger.Log("Buffer received message: %T", msg)
+	logger.StartTick()
+	defer logger.EndTick()
 
-	var cmds []tea.Cmd
+	EndSection := logger.StartSection("buffer.Update", "update")
+	defer EndSection()
+
+	logger.Debug("<- <%v>", msg)
+
+	var (
+		cmds []tea.Cmd
+		cmd  tea.Cmd
+	)
 
 	switch msg := msg.(type) {
-	case messages.StatusUpdateMsg:
-		logger.Log("Buffer received StatusUpdateMsg")
-		if sb, ok := m.components["statusbar"]; ok {
-			updatedComponent, cmd := sb.Update(msg)
-			m.components["statusbar"] = updatedComponent
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-	case messages.SetActiveComponentMsg:
-		logger.Log("Buffer received SetActiveComponentMsg: %s", msg)
-		m.SetActiveComponent(string(msg))
-	case messages.FileSelectedMsg:
-		logger.Log("Buffer received FileSelectedMsg: %s", msg)
-		m.SetActiveComponent("editor")
-		cmds = append(cmds, func() tea.Msg {
-			return messages.ComponentMsg{
-				ComponentName: "editor",
-				InnerMsg:      messages.SetFilenameMsg(msg),
-			}
-		})
-	case messages.ComponentMsg:
-		logger.Log("Buffer received ComponentMsg for %s", msg.ComponentName)
-		if component, ok := m.components[msg.ComponentName]; ok {
-			updatedComponent, cmd := component.Update(msg.InnerMsg)
-			m.components[msg.ComponentName] = updatedComponent
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
+	case tea.KeyMsg:
+		logger.Debug("<- <tea.KeyMsg> %s", msg.String())
+		if msg.String() == "q" {
+			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
-		logger.Log("Buffer received WindowSizeMsg: %v", msg)
+		logger.Debug("<- <tea.WindowSizeMsg> %d, %d", msg.Width, msg.Height)
 		m.width = msg.Width
 		m.height = msg.Height
-		// Update the size for all components that support it
-		for name, component := range m.components {
-			if sizer, ok := component.(interface{ SetSize(width, height int) }); ok {
-				sizer.SetSize(msg.Width, msg.Height)
-			}
-			updatedComponent, cmd := component.Update(msg)
-			m.components[name] = updatedComponent
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-	default:
-		// Pass the message to all components
-		// This ensures that components can react to messages even if they're not explicitly handled above
-		for name, component := range m.components {
-			logger.Log("Buffer passing message to component: %s", name)
-			updatedComponent, cmd := component.Update(msg)
-			m.components[name] = updatedComponent
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
+	case messages.Message[[]int]:
+		logger.Debug("<- <messages.Message[[]int]> %v, %v, %d", msg.Context, msg.Data, msg.Type)
+
+		switch msg.Type {
+		case messages.MessageWindowSize:
+			logger.Debug("<- <messages.MessageWindowSize> %d, %d", msg.Data[0], msg.Data[1])
+			m.width = msg.Data[0]
+			m.height = msg.Data[1]
 		}
 	}
 
-	return m, tea.Batch(cmds...)
-}
+	for idx, component := range m.components {
+		m.components[idx], cmd = component.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
-/*
-StatusUpdateMsg is a message that is sent to the buffer to update the status.
-This custom message type allows for updating the status information displayed in the UI,
-providing feedback to the user about the current state of the application.
-*/
-type StatusUpdateMsg struct {
-	Filename string
-	Mode     Mode
+	return m, tea.Batch(cmds...)
 }

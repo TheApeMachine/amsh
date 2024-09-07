@@ -1,30 +1,32 @@
 package buffer
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	builder = strings.Builder{}
 )
 
 /*
 View renders the current state of the buffer.
-This method is part of the tea.Model interface and is responsible for generating
-the visual representation of the buffer and its components.
-It uses lipgloss to create a vertically joined layout of the active component and the statusbar.
+The buffer's view is composed of any components that are currently registered, and rendering a view
+with content. The buffer attempts to find the most optimal way to multiplex the views of these components.
 */
 func (m *Model) View() string {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	builder.Reset()
 
-	// Render the active component
-	activeView := m.components[m.activeComponent].View()
+	views := make([]string, 0, len(m.components))
 
-	// Render the statusbar
-	statusbarView := m.components["statusbar"].View()
+	for _, component := range m.components {
+		views = append(views, component.View())
+	}
 
-	// Combine the views
-	// We use lipgloss to create a consistent and visually appealing layout
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		lipgloss.NewStyle().Height(m.height-1).Render(activeView),
-		statusbarView,
+	builder.WriteString(
+		lipgloss.JoinVertical(lipgloss.Top, views...),
 	)
+
+	return builder.String()
 }

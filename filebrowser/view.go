@@ -1,17 +1,23 @@
 package filebrowser
 
-import "fmt"
+import (
+	"strings"
+)
 
-/*
-View renders the current state of the file browser.
-This method is part of the tea.Model interface and is responsible for generating
-the visual representation of the file browser component.
-It displays either the list of files/directories or an error message if there's an error.
-The status line showing the current directory is always displayed at the bottom.
-*/
-func (m *Model) View() string {
-	if m.err != nil {
-		return fmt.Sprintf("Error: %v", m.err)
+func (m Model) View() string {
+	if !m.active {
+		return ""
 	}
-	return fmt.Sprintf("%s\n%s", m.list.View(), m.statusLine())
+
+	var s strings.Builder
+	s.WriteString("\n  ")
+	if m.err != nil {
+		s.WriteString(m.filepicker.Styles.DisabledFile.Render(m.err.Error()))
+	} else if m.selectedFile == "" {
+		s.WriteString("Pick a file:")
+	} else {
+		s.WriteString("Selected file: " + m.filepicker.Styles.Selected.Render(m.selectedFile))
+	}
+	s.WriteString("\n\n" + m.filepicker.View() + "\n")
+	return s.String()
 }

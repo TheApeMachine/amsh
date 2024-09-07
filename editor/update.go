@@ -1,7 +1,12 @@
 package editor
 
 import (
+	"bufio"
+	"os"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/theapemachine/amsh/components"
 	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/messages"
 	"github.com/theapemachine/amsh/textarea"
@@ -14,82 +19,85 @@ based on various events such as key presses, file selection, and window size cha
 It delegates to specific handlers based on the current editing mode and message type.
 */
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
+	EndSection := logger.StartSection("editor.Update", "update")
+	defer EndSection()
 
+	logger.Debug("<- <%v>", msg)
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		logger.Log("Editor received KeyMsg: %v", msg)
-		switch m.mode {
-		case NormalMode:
-			return m.handleNormalModeKeyMsg(msg)
-		case InsertMode:
-			return m.handleInsertModeKeyMsg(msg)
+		m.inputs[m.focus].Update(msg)
+	case messages.Message[[]int]:
+		if !messages.ShouldProcessMessage(m.state, msg.Context) {
+			return m, nil
 		}
-	case messages.SetFilenameMsg:
-		logger.Log("Editor received SetFilenameMsg: %s", msg)
-		return m, m.SetFile(string(msg))
-	case tea.WindowSizeMsg:
-		logger.Log("Editor received WindowSizeMsg: %v", msg)
-		m.SetSize(msg.Width, msg.Height)
-		return m, nil
+
+		m.handleWindowSizeMsg(msg)
+	case messages.Message[string]:
+		if !messages.ShouldProcessMessage(m.state, msg.Context) {
+			return m, nil
+		}
+
+		if msg.Type == messages.MessageOpenFile {
+			if m.err = m.loadFile(msg.Data); m.err != nil {
+				logger.Log("Error opening file: %v", m.err)
+				cmds = append(cmds, func() tea.Msg {
+					return messages.NewMessage(
+						messages.MessageError, m.err, messages.All,
+					)
+				})
+			}
+		}
 	}
 
-	return m, cmd
+	return m, tea.Batch(cmds...)
 }
 
 /*
-handleNormalModeKeyMsg processes key messages when the editor is in Normal mode.
-It handles navigation and mode switching based on the pressed key.
-This method is crucial for implementing vim-like keybindings and navigation.
+handleWindowSizeMsg handles window resizing messages.
 */
-func (m *Model) handleNormalModeKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "i":
-		m.mode = InsertMode
-		return m, m.sendStatusUpdate()
-	case "j", "down":
-		m.inputs[m.focus].CursorDown()
-	case "k", "up":
-		m.inputs[m.focus].CursorUp()
-	}
-	return m, nil
+func (m *Model) handleWindowSizeMsg(msg messages.Message[[]int]) {
+	m.width, m.height = msg.Data[0], msg.Data[1]
+	m.resizeTextareas()
 }
 
 /*
-handleInsertModeKeyMsg processes key messages when the editor is in Insert mode.
-It handles text input and mode switching, updating the textarea content as necessary.
-This method is essential for implementing text editing functionality.
+loadFile loads a file into the editor, creating a new textarea for it.
 */
-func (m *Model) handleInsertModeKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	switch msg.Type {
-	case tea.KeyEsc:
-		m.mode = NormalMode
-		return m, m.sendStatusUpdate()
-	default:
-		newModel, newCmd := m.inputs[m.focus].Update(msg)
-		if newTextarea, ok := newModel.(*textarea.Model); ok {
-			m.inputs[m.focus] = newTextarea
-			m.SetContent(m.inputs[m.focus].Value())
-			cmd = newCmd
-		}
+func (m *Model) loadFile(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
 	}
-	return m, cmd
+	defer file.Close()
+
+	var content []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		content = append(content, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	if len(m.inputs) == 0 {
+		m.focus = 0
+		m.inputs = append(m.inputs, textarea.New(m.width, m.height))
+	}
+
+	m.inputs[m.focus].Focus()
+	m.inputs[m.focus].SetContent(strings.Join(content, "\n"))
+
+	m.state = components.Active
+	return nil
 }
 
 /*
-sendStatusUpdate creates a command to send a status update message.
-This method is used to notify other components about changes in the editor's state,
-such as the current file and editing mode.
+resizeTextareas resizes all textareas based on the current width and height.
 */
-func (m *Model) sendStatusUpdate() tea.Cmd {
-	return func() tea.Msg {
-		return messages.StatusUpdateMsg{
-			Filename: m.filename,
-			Mode:     messages.Mode(m.mode),
-		}
+func (m *Model) resizeTextareas() {
+	for _, input := range m.inputs {
+		input.SetSize(m.width, m.height)
 	}
 }
-
-// OpenFileBrowserMsg is a message type used to trigger the file browser
-type OpenFileBrowserMsg struct{}
