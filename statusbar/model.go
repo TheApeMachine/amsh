@@ -18,12 +18,12 @@ It manages the current filename, mode, width, and styling of the statusbar.
 This structure is crucial for displaying relevant information at the bottom of the application.
 */
 type Model struct {
-	filename string
-	mode     string
-	width    int
-	styles   *ui.Styles
-	state    components.State
-	err      error
+	filename   string
+	mode       string
+	width      int
+	styles     *ui.Styles
+	modeStyles map[string]string
+	state      components.State
 }
 
 /*
@@ -32,11 +32,18 @@ It initializes the statusbar with a default mode, width, and style.
 This factory function ensures that every new statusbar instance starts with a consistent initial state.
 */
 func New(width int) *Model {
+	styles := ui.NewStyles()
+
 	return &Model{
 		mode:   modeMap[ui.ModeNormal],
 		width:  width,
 		styles: ui.NewStyles(),
-		state:  components.Inactive,
+		modeStyles: map[string]string{
+			"normal": styles.ModeNormalStyle.Render("NORMAL"),
+			"insert": styles.ModeInsertStyle.Render("INSERT"),
+			"visual": styles.ModeVisualStyle.Render("VISUAL"),
+		},
+		state: components.Inactive,
 	}
 }
 
