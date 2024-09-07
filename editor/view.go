@@ -12,15 +12,15 @@ the visual representation of the editor component.
 It uses lipgloss to create a horizontally joined layout of all input areas,
 allowing for a flexible and visually appealing editor interface.
 */
-func (m *Model) View() string {
-	if m.state == components.Inactive {
+func (model *Model) View() string {
+	if model.state == components.Inactive {
 		return ""
 	}
 
 	v := []string{}
 
 	// Render each input area
-	for _, input := range m.inputs {
+	for _, input := range model.inputs {
 		v = append(v, input.View())
 	}
 

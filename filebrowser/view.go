@@ -4,20 +4,20 @@ import (
 	"strings"
 )
 
-func (m Model) View() string {
-	if !m.active {
+func (model *Model) View() string {
+	if !model.active {
 		return ""
 	}
 
 	var s strings.Builder
 	s.WriteString("\n  ")
-	if m.err != nil {
-		s.WriteString(m.filepicker.Styles.DisabledFile.Render(m.err.Error()))
-	} else if m.selectedFile == "" {
+	if model.err != nil {
+		s.WriteString(model.filepicker.Styles.DisabledFile.Render(model.err.Error()))
+	} else if model.selectedFile == "" {
 		s.WriteString("Pick a file:")
 	} else {
-		s.WriteString("Selected file: " + m.filepicker.Styles.Selected.Render(m.selectedFile))
+		s.WriteString("Selected file: " + model.filepicker.Styles.Selected.Render(model.selectedFile))
 	}
-	s.WriteString("\n\n" + m.filepicker.View() + "\n")
+	s.WriteString("\n\n" + model.filepicker.View() + "\n")
 	return s.String()
 }

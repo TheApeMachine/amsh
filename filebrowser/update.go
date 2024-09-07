@@ -16,7 +16,7 @@ func clearErrorAfter(t time.Duration) tea.Cmd {
 	})
 }
 
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	EndSection := logger.StartSection("filebrowser.Update", "update")
 	defer EndSection()
 
@@ -24,28 +24,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case clearErrorMsg:
-		m.err = nil
+		model.err = nil
 	default:
 		_ = msg
 	}
 
 	var cmd tea.Cmd
-	m.filepicker, cmd = m.filepicker.Update(msg)
+	model.filepicker, cmd = model.filepicker.Update(msg)
 
 	// Did the user select a file?
-	if didSelect, path := m.filepicker.DidSelectFile(msg); didSelect {
+	if didSelect, path := model.filepicker.DidSelectFile(msg); didSelect {
 		// Get the path of the selected file.
-		m.selectedFile = path
+		model.selectedFile = path
 	}
 
 	// Did the user select a disabled file?
 	// This is only necessary to display an error to the user.
-	if didSelect, path := m.filepicker.DidSelectDisabledFile(msg); didSelect {
+	if didSelect, path := model.filepicker.DidSelectDisabledFile(msg); didSelect {
 		// Let's clear the selectedFile and display an error.
-		m.err = errors.New(path + " is not valid.")
-		m.selectedFile = ""
-		return m, tea.Batch(cmd, clearErrorAfter(2*time.Second))
+		model.err = errors.New(path + " is not valid.")
+		model.selectedFile = ""
+		return model, tea.Batch(cmd, clearErrorAfter(2*time.Second))
 	}
 
-	return m, cmd
+	return model, cmd
 }

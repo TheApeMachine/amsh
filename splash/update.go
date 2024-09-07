@@ -7,15 +7,15 @@ import (
 )
 
 func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch m := msg.(type) {
+	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		model.SetSize(m.Width, m.Height)
+		model.SetSize(model.width, model.height)
 	case messages.Message[[]int]:
-		if m.Type == messages.MessageWindowSize {
-			model.SetSize(m.Data[0], m.Data[1])
+		if msg.Type == messages.MessageWindowSize {
+			model.SetSize(msg.Data[0], msg.Data[1])
 		}
 	case messages.Message[string]:
-		if m.Type == messages.MessageOpenFile || m.Type == messages.ComponentLoaded {
+		if msg.Type == messages.MessageOpenFile || msg.Type == messages.ComponentLoaded {
 			model.state = components.Inactive
 		}
 	}

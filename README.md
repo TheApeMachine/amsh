@@ -38,7 +38,7 @@ for the A.I. to understand the overall design and architecture of the amsh proje
 - **Unified Workspace**: amsh should provide a unified workspace for development, and related tasks and act as both a terminal and editor.
   - Switching between editor and terminal can be done using an Alt-Screen toggle.
     Example: https://github.com/charmbracelet/bubbletea/tree/master/examples/altscreen-toggle
-- **Familiarity**: amsh should take the bulk of its inpiration from Neovim, especially in terms of its interface and general mode-based operation.
+- **Familiarity**: amsh should take the bulk of its inpiration from Neovimodel, especially in terms of its interface and general mode-based operation.
   - It should implement Neovim's modes, Normal, Insert, and Visual.
   - It should have built-in features for auto-complete.
     Example: https://github.com/charmbracelet/bubbletea/blob/master/examples/autocomplete/main.go
@@ -49,10 +49,10 @@ for the A.I. to understand the overall design and architecture of the amsh proje
       https://github.com/charmbracelet/bubbles/tree/master/examples
 - **Modularity**: amsh should be highly modular, and each component should be designed to be able to be replaced or improved independently of the others.
   - Every component needs to do one thing, and do that one thing well, and decoupled from any other components. No component should be directly referencing,
-    or importing another component. Communication should only happen using the BubbleTea framework's messaging and command system, and each component should
+    or importing another component. Communication should only happen using the BubbleTea framework's messaging and command systemodel, and each component should
     implement the Update method according to the BubbleTea Model interface, and handle any messages it should somehow respond to.
   - Each component is responsible for its own local state, behavior, and sending messages or commands.
-  - The buffer is where everything comes together to render the final, composed TUI corresponding to the current state of the system. The buffer acts as a
+  - The buffer is where everything comes together to render the final, composed TUI corresponding to the current state of the systemodel. The buffer acts as a
     hub for messages and commands, although it can only pass through messages, and render a view. The buffer does not have any specific implementation regarding
     any component, and even the view it renders is merely a concatenation of messages it receives containing view updates from other components. Components
     are able to register themselves with the buffer, opening a two-way message channel.
@@ -68,6 +68,6 @@ for the A.I. to understand the overall design and architecture of the amsh proje
   - It should be able to call the OpenAI API and start sending it code that needs modification.
   - It should be able to run itself inside the container, and monitor its output to detect any bugs or other issues.
   - It should be able to self-review its current strategies and long-term horizon, using this document as a source of truth.
-  - It should be able to connect with the user that is currently using a running version of the program, via a chat window, so progress and plans of attack
+  - It should be able to connect with the user that is currently using a running version of the programodel, via a chat window, so progress and plans of attack
     can be verified with the product owner.
   - It should be able to commit its changes to a branch, so they can be verified before merging into the main branch.

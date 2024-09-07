@@ -49,6 +49,7 @@ and generate an Abstract Syntax Tree (AST), which is crucial for precise syntax 
 This generic parser allows for easy extension to support multiple languages.
 */
 type Highlighter struct {
+	styles   *ui.Styles
 	handle   *sitter.Parser
 	language *sitter.Language
 	code     string
@@ -64,6 +65,7 @@ allowing for more flexibility in when the parsing occurs.
 */
 func NewHighlighter(code, ext string) *Highlighter {
 	return &Highlighter{
+		styles: ui.NewStyles(),
 		handle: sitter.NewParser(),
 		code:   code,
 		ext:    ext,
@@ -150,9 +152,16 @@ Parse processes the code and generates the syntax tree.
 We use a background context here as parsing is typically a quick operation,
 but in more complex scenarios, this allows for potential timeout or cancellation.
 */
-func (highlighter *Highlighter) Parse() {
+func (highlighter *Highlighter) Parse() *Highlighter {
+	logger.Log("highlighter.Parse()")
+
+	if highlighter.language, highlighter.err = highlighter.ExtToLang(highlighter.ext); highlighter.err != nil {
+		logger.Error("highlighter.Parse() error: %s", highlighter.err.Error())
+	}
+
 	highlighter.handle.SetLanguage(highlighter.language)
 	highlighter.tree, highlighter.err = highlighter.handle.ParseCtx(context.Background(), nil, []byte(highlighter.code))
+	return highlighter
 }
 
 /*
@@ -164,57 +173,36 @@ The switch statement is used to map node types to specific styles. This approach
 allows for easy extension if we need to add more specific highlighting rules in the future.
 */
 func (highlighter *Highlighter) Highlight() string {
-	logger.Log("highlighter.Highlight()")
-
-	if highlighter.err != nil {
-		logger.Log("highlighter.Highlight() error: %s", highlighter.err.Error())
-		return highlighter.code
-	}
-
-	language, err := highlighter.ExtToLang(highlighter.ext)
-	if err != nil {
-		logger.Log("highlighter.Highlight() error: %s", highlighter.err.Error())
-		return highlighter.code
-	}
-
-	logger.Log("highlighter.Highlight() language: %s", highlighter.ext)
-
-	highlighter.handle.SetLanguage(language)
-	highlighter.tree, highlighter.err = highlighter.handle.ParseCtx(context.Background(), nil, []byte(highlighter.code))
-
-	if highlighter.err != nil {
-		logger.Log("highlighter.Highlight() error: %s", highlighter.err.Error())
-		return highlighter.code
-	}
-
 	rootNode := highlighter.tree.RootNode()
 	var highlightedCode string
 
-	// We iterate through named children to focus on significant nodes,
-	// skipping less important syntax elements like whitespace.
-	for i := 0; i < int(rootNode.NamedChildCount()); i++ {
-		child := rootNode.NamedChild(i)
-		text := child.Content([]byte(highlighter.code))
+	var traverse func(node *sitter.Node)
+	traverse = func(node *sitter.Node) {
+		text := node.Content([]byte(highlighter.code))
 
-		// Apply different styles based on the node type.
-		// This switch could be expanded to handle more specific syntax elements.
-		switch child.Type() {
-		case "identifier":
-			highlightedCode += ui.VariableStyle.Render(text)
+		switch node.Type() {
+		case "identifier", "type_declaration":
+			highlightedCode += highlighter.styles.VariableStyle.Render(text)
 		case "number", "string", "char", "boolean":
-			highlightedCode += ui.LiteralStyle.Render(text)
+			highlightedCode += highlighter.styles.LiteralStyle.Render(text)
 		case "keyword", "type":
-			highlightedCode += ui.KeywordStyle.Render(text)
+			highlightedCode += highlighter.styles.KeywordStyle.Render(text)
 		case "comment":
-			highlightedCode += ui.CommentStyle.Render(text)
-		case "function", "method":
-			highlightedCode += ui.FunctionStyle.Render(text)
+			highlightedCode += highlighter.styles.CommentStyle.Render(text)
+		case "function", "method", "method_declaration", "function_declaration":
+			highlightedCode += highlighter.styles.FunctionStyle.Render(text)
 		default:
-			// For unhandled types, we don't apply any styling.
+			logger.Warn("unhandled node.Type(): %s", node.Type())
 			highlightedCode += text
+		}
+
+		// Recursively traverse child nodes
+		for i := 0; i < int(node.NamedChildCount()); i++ {
+			traverse(node.NamedChild(i))
 		}
 	}
 
-	logger.Log("highlighter.Highlight() highlightedCode: %s", highlightedCode)
+	traverse(rootNode)
+
 	return highlightedCode
 }

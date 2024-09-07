@@ -10,6 +10,7 @@ import (
 	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/messages"
 	"github.com/theapemachine/amsh/textarea"
+	"github.com/theapemachine/amsh/ui"
 )
 
 /*
@@ -18,7 +19,7 @@ This method is part of the tea.Model interface and is responsible for updating t
 based on various events such as key presses, file selection, and window size changes.
 It delegates to specific handlers based on the current editing mode and message type.
 */
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	EndSection := logger.StartSection("editor.Update", "update")
 	defer EndSection()
 
@@ -26,45 +27,51 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		m.inputs[m.focus].Update(msg)
-	case messages.Message[[]int]:
-		if !messages.ShouldProcessMessage(m.state, msg.Context) {
-			return m, nil
+		model.inputs[model.focus].Update(msg)
+	case messages.Message[ui.Mode]:
+		if !messages.ShouldProcessMessage(model.state, msg.Context) {
+			return model, nil
 		}
 
-		m.handleWindowSizeMsg(msg)
+		model.mode = msg.Data
+	case messages.Message[[]int]:
+		if !messages.ShouldProcessMessage(model.state, msg.Context) {
+			return model, nil
+		}
+
+		model.handleWindowSizeMsg(msg)
 	case messages.Message[string]:
-		if !messages.ShouldProcessMessage(m.state, msg.Context) {
-			return m, nil
+		if !messages.ShouldProcessMessage(model.state, msg.Context) {
+			return model, nil
 		}
 
 		if msg.Type == messages.MessageOpenFile {
-			if m.err = m.loadFile(msg.Data); m.err != nil {
-				logger.Log("Error opening file: %v", m.err)
+			if model.err = model.loadFile(msg.Data); model.err != nil {
+				logger.Log("Error opening file: %v", model.err)
 				cmds = append(cmds, func() tea.Msg {
 					return messages.NewMessage(
-						messages.MessageError, m.err, messages.All,
+						messages.MessageError, model.err, messages.All,
 					)
 				})
 			}
 		}
 	}
 
-	return m, tea.Batch(cmds...)
+	return model, tea.Batch(cmds...)
 }
 
 /*
 handleWindowSizeMsg handles window resizing messages.
 */
-func (m *Model) handleWindowSizeMsg(msg messages.Message[[]int]) {
-	m.width, m.height = msg.Data[0], msg.Data[1]
-	m.resizeTextareas()
+func (model *Model) handleWindowSizeMsg(msg messages.Message[[]int]) {
+	model.width, model.height = msg.Data[0], msg.Data[1]
+	model.resizeTextareas()
 }
 
 /*
 loadFile loads a file into the editor, creating a new textarea for it.
 */
-func (m *Model) loadFile(path string) error {
+func (model *Model) loadFile(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -81,23 +88,24 @@ func (m *Model) loadFile(path string) error {
 		return err
 	}
 
-	if len(m.inputs) == 0 {
-		m.focus = 0
-		m.inputs = append(m.inputs, textarea.New(m.width, m.height))
+	if len(model.inputs) == 0 {
+		model.focus = 0
+		model.inputs = append(model.inputs, textarea.New(model.width, model.height))
 	}
 
-	m.inputs[m.focus].Focus()
-	m.inputs[m.focus].SetContent(strings.Join(content, "\n"))
+	model.inputs[model.focus].Focus()
+	model.inputs[model.focus].SetValue(strings.Join(content, "\n"))
 
-	m.state = components.Active
+	model.state = components.Active
 	return nil
 }
 
 /*
 resizeTextareas resizes all textareas based on the current width and height.
 */
-func (m *Model) resizeTextareas() {
-	for _, input := range m.inputs {
-		input.SetSize(m.width, m.height)
+func (model *Model) resizeTextareas() {
+	for _, input := range model.inputs {
+		input.SetWidth(model.width)
+		input.SetHeight(model.height)
 	}
 }

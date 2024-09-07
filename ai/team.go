@@ -2,9 +2,10 @@ package ai
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"strings"
+
 	"github.com/spf13/viper"
 )
 

@@ -6,9 +6,9 @@ RoleType is an enum representing the different roles an AI agent can play.
 type RoleType uint
 
 const (
-	// TEAMLEAD is an AI agent that is responsible for orchestrating agents that are joined together in a Team.
+	// TEAMLEAD is an AI agent that is responsible for orchestrating agents that are joined together in a Teamodel.
 	TEAMLEAD RoleType = iota
-	// ARCHITECT is an AI agent that specializes in technical breakdown and vision, and is able to diagram out the details of a system.
+	// ARCHITECT is an AI agent that specializes in technical breakdown and vision, and is able to diagram out the details of a systemodel.
 	ARCHITECT
 	// CODER is an AI agent that specializes in writing code. It is language-agnostic and can write code in any language.
 	CODER

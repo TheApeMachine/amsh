@@ -37,7 +37,7 @@ func TestAIIntegration(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				defer cancel()
 
-				result, err := team.ExecuteTeamTask(ctx, "Write a simple 'Hello, World!' program in Python")
+				result, err := teamodel.ExecuteTeamTask(ctx, "Write a simple 'Hello, World!' program in Python")
 
 				Convey("Then the task should be executed successfully", func() {
 					So(err, ShouldBeNil)

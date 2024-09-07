@@ -6,10 +6,10 @@ import (
 	"github.com/theapemachine/amsh/messages"
 )
 
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.Message[string]:
 		logger.Log("chat message received: %v", msg)
 	}
-	return m, nil
+	return model, nil
 }

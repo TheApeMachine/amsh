@@ -1,9 +1,8 @@
 package statusbar
 
 import (
-	"fmt"
-
 	"github.com/charmbracelet/lipgloss"
+	"github.com/theapemachine/amsh/components"
 )
 
 /*
@@ -13,36 +12,42 @@ the visual representation of the statusbar component.
 It formats the current mode and filename into a string and applies the statusbar's style,
 ensuring a consistent and informative display at the bottom of the application.
 */
-func (m Model) View() string {
-	if !m.active {
+func (model *Model) View() string {
+	if model.state == components.Inactive {
 		return ""
 	}
 
-	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFDF5")).
-		Background(lipgloss.Color("#FF5F87")).
-		Padding(0, 1)
+	w := lipgloss.Width
 
-	modeStyle := statusStyle.Copy().
-		Background(lipgloss.Color("#6124DF"))
+	statusKey := model.styles.StatusStyle.Render(model.mode)
+	encoding := model.styles.EncodingStyle.Render("UTF-8")
+	fishCake := model.styles.StatusNuggetStyle.Render("fishcake")
+	statusVal := model.styles.StatusText.Width(model.width - w(statusKey) - w(encoding) - w(fishCake)).Render(model.filename)
 
-	fileStyle := statusStyle.Copy().
-		Background(lipgloss.Color("#A550DF"))
-
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Center,
-		modeStyle.Render(fmt.Sprintf("MODE: %s", m.mode)),
-		fileStyle.Render(fmt.Sprintf("FILE: %s", m.filename)),
+	bar := lipgloss.JoinHorizontal(lipgloss.Top,
+		statusKey,
+		statusVal,
+		encoding,
+		fishCake,
 	)
 
-	if m.err != nil {
-		errorStyle := statusStyle.Copy().
-			Foreground(lipgloss.Color("#FF0000")).
-			Background(lipgloss.Color("#FFFF00"))
-		content = errorStyle.Render(fmt.Sprintf("ERROR: %s", m.err))
+	return model.styles.StatusBarStyle.Width(model.width).Render(bar)
+}
+
+func (model *Model) Select(err error) string {
+	if err != nil {
+		return model.Error(err)
 	}
 
-	return lipgloss.NewStyle().
-		Width(m.width).
-		Render(content)
+	return model.Healthy()
+}
+
+func (model *Model) Healthy() string {
+	return lipgloss.NewStyle().Foreground(
+		model.styles.HeaderText.GetForeground(),
+	).Bold(true).Padding(0, 1, 0, 2).Render(model.mode)
+}
+
+func (model *Model) Error(err error) string {
+	return model.styles.ErrorHeaderText.Render(err.Error())
 }

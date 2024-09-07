@@ -11,7 +11,7 @@ import (
 
 /*
 Agent is a configurable wrapper around an AI model, which uses composable
-prompt templates to induce a specific type of behavior to perform.
+prompt templates to induce a specific type of behavior to performodel.
 Multiple Agents can be constructed and they should be able to communicate
 and coordinate to form a cohesive AI Team of experts.
 */
@@ -35,14 +35,16 @@ func NewAgent(conn *Conn, role RoleType, tools []Tool, name string) *Agent {
 	}
 }
 
-/* 
+/*
 CreateChatCompletion sends a request to the OpenAI API for a chat completion.
 This method is crucial for enabling the Agent to interact with the AI model,
 allowing it to generate responses based on its role and available tools.
 By including the agent's tools in the request, we enable the AI to utilize
 these tools when formulating its response, enhancing its capabilities.
 */
-func (a *Agent) CreateChatCompletion(ctx context.Context, messages []openai.ChatCompletionMessage) (openai.ChatCompletionResponse, error) {
+func (a *Agent) CreateChatCompletion(
+	ctx context.Context, messages []openai.ChatCompletionMessage,
+) (openai.ChatCompletionResponse, error) {
 	return a.conn.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model:    openai.GPT4TurboPreview,
 		Messages: messages,
@@ -65,11 +67,11 @@ func (a *Agent) getToolDefinitions() []openai.Tool {
 	return tools
 }
 
-/* 
+/*
 ExecuteTask performs a task and returns a structured output.
 This method is designed to leverage the capabilities of the AI model to execute a given task.
-It constructs a prompt using various templates and instructions, ensuring that the AI has all the 
-necessary context and guidelines to perform the task effectively. By including role-specific templates, 
+It constructs a prompt using various templates and instructions, ensuring that the AI has all the
+necessary context and guidelines to perform the task effectively. By including role-specific templates,
 task content, and instructions, the method ensures that the AI's response is structured and relevant to the task at hand.
 The method then sends this prompt to the OpenAI API and processes the response, attempting to parse it into a structured format.
 If parsing fails, it returns the raw response, ensuring that the caller always receives some form of result.

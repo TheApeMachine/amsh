@@ -19,6 +19,8 @@ const (
 	MessageWindowSize
 	// MessageRender is send when a component wants to be rendered by the buffer.
 	MessageRender
+	// MessageMode is sent when the mode changes.
+	MessageMode
 	// MessageAnimate is a ticker message to animate objects.
 	MessageAnimate
 	// MessageError represents an error that happened.
@@ -66,7 +68,7 @@ func ShouldProcessMessage(componentState components.State, msgContext MessageCon
 	case All:
 		return true
 	case Active:
-		return componentState == components.Active
+		return componentState == components.Active || componentState == components.Focused
 	case Inactive:
 		return componentState == components.Inactive
 	case Focused:

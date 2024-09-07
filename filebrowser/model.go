@@ -35,7 +35,7 @@ func New() *Model {
 	}
 }
 
-func (m *Model) Init() tea.Cmd {
-	m.filepicker.CurrentDirectory = m.currentPath
-	return m.filepicker.Init()
+func (model *Model) Init() tea.Cmd {
+	model.filepicker.CurrentDirectory = model.currentPath
+	return model.filepicker.Init()
 }

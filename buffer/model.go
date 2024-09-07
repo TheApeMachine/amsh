@@ -3,6 +3,7 @@ package buffer
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/theapemachine/amsh/messages"
+	"github.com/theapemachine/amsh/ui"
 )
 
 var (
@@ -20,6 +21,7 @@ type Model struct {
 	width      int
 	height     int
 	path       string
+	mode       ui.Mode
 	err        error
 }
 
@@ -29,30 +31,29 @@ It initializes the components map and sets the default active component to "file
 This factory function ensures that every new buffer instance starts with a consistent initial state.
 */
 func New(path string, width, height int) *Model {
-	m := &Model{
+	return &Model{
 		components: make([]tea.Model, 0),
 		path:       path,
 		width:      width,
 		height:     height,
+		mode:       ui.ModeNormal,
 	}
-
-	return m
 }
 
 /*
 Init initializes the buffer model. It initializes all components and returns a command to be executed.
 */
-func (m *Model) Init() tea.Cmd {
+func (model *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 
-	for _, component := range m.components {
+	for _, component := range model.components {
 		cmds = append(cmds, component.Init())
 	}
 
-	if m.path != "" {
+	if model.path != "" {
 		cmds = append(cmds, func() tea.Msg {
 			return messages.NewMessage(
-				messages.MessageOpenFile, m.path, messages.All,
+				messages.MessageOpenFile, model.path, messages.All,
 			)
 		})
 	}
@@ -64,6 +65,6 @@ func (m *Model) Init() tea.Cmd {
 RegisterComponents registers one or more component with the buffer, which exposes the Update
 method of the tea.Model interface that each component must implement.
 */
-func (m *Model) RegisterComponents(name string, components ...tea.Model) {
-	m.components = append(m.components, components...)
+func (model *Model) RegisterComponents(name string, components ...tea.Model) {
+	model.components = append(model.components, components...)
 }

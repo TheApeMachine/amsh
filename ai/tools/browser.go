@@ -14,7 +14,7 @@ import (
 
 /*
 Browser provides a headless web browsing capability for AI Agents.
-It implements the Tool interface, allowing it to be used within the AI system.
+It implements the Tool interface, allowing it to be used within the AI systemodel.
 */
 type Browser struct {
 	browser *rod.Browser

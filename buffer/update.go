@@ -4,6 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/messages"
+	"github.com/theapemachine/amsh/ui"
 )
 
 /*
@@ -15,7 +16,7 @@ necessary commands.
 It acts as a central hub for message routing and state management, ensuring that
 all components are updated correctly based on the received messages.
 */
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	logger.StartTick()
 	defer logger.EndTick()
 
@@ -32,28 +33,51 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		logger.Debug("<- <tea.KeyMsg> %s", msg.String())
-		if msg.String() == "q" {
-			return m, tea.Quit
+
+		switch msg.String() {
+		case "q":
+			return model, tea.Quit
+		case "esc":
+			model.mode = ui.ModeNormal
+			cmds = append(cmds, model.dispatchModeMsg(cmds)...)
+		case "i":
+			model.mode = ui.ModeInsert
+			cmds = append(cmds, model.dispatchModeMsg(cmds)...)
+		case "v":
+			model.mode = ui.ModeVisual
+			cmds = append(cmds, model.dispatchModeMsg(cmds)...)
 		}
 	case tea.WindowSizeMsg:
 		logger.Debug("<- <tea.WindowSizeMsg> %d, %d", msg.Width, msg.Height)
-		m.width = msg.Width
-		m.height = msg.Height
+		model.SetSize(msg.Width, msg.Height)
 	case messages.Message[[]int]:
-		logger.Debug("<- <messages.Message[[]int]> %v, %v, %d", msg.Context, msg.Data, msg.Type)
-
 		switch msg.Type {
 		case messages.MessageWindowSize:
-			logger.Debug("<- <messages.MessageWindowSize> %d, %d", msg.Data[0], msg.Data[1])
-			m.width = msg.Data[0]
-			m.height = msg.Data[1]
+			model.SetSize(msg.Data[0], msg.Data[1])
 		}
 	}
 
-	for idx, component := range m.components {
-		m.components[idx], cmd = component.Update(msg)
+	for idx, component := range model.components {
+		model.components[idx], cmd = component.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
-	return m, tea.Batch(cmds...)
+	return model, tea.Batch(cmds...)
+}
+
+func (model *Model) SetSize(width, height int) {
+	model.width, model.height = width, height
+}
+
+func (model *Model) dispatchModeMsg(cmds []tea.Cmd) []tea.Cmd {
+	for _, component := range model.components {
+		_, cmd := component.Update(messages.Message[ui.Mode]{
+			Type: messages.MessageMode,
+			Data: model.mode,
+		})
+
+		cmds = append(cmds, cmd)
+	}
+
+	return cmds
 }
