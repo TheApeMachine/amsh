@@ -50,6 +50,9 @@ type Styles struct {
 	StatusStyle,
 	EncodingStyle,
 	StatusText,
+	ModeInsertStyle,
+	ModeNormalStyle,
+	ModeVisualStyle,
 	FunctionStyle lipgloss.Style
 }
 
@@ -103,6 +106,9 @@ func NewStyles() *Styles {
 		).Background(
 			lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#353533"},
 		)),
+		ModeInsertStyle: lipgloss.NewStyle().Bold(true).Background(green),
+		ModeNormalStyle: lipgloss.NewStyle().Bold(true).Background(red),
+		ModeVisualStyle: lipgloss.NewStyle().Bold(true).Background(indigo),
 	}
 }
 
