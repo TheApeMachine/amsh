@@ -3,33 +3,32 @@ package textarea
 import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/theapemachine/amsh/messages"
 )
 
 // KeyMap is the key bindings for different actions within the textarea.
 type KeyMap struct {
-	CharacterBackward       key.Binding
-	CharacterForward        key.Binding
-	DeleteAfterCursor       key.Binding
-	DeleteBeforeCursor      key.Binding
-	DeleteCharacterBackward key.Binding
-	DeleteCharacterForward  key.Binding
-	DeleteWordBackward      key.Binding
-	DeleteWordForward       key.Binding
-	InsertNewline           key.Binding
-	LineEnd                 key.Binding
-	LineNext                key.Binding
-	LinePrevious            key.Binding
-	LineStart               key.Binding
-	Paste                   key.Binding
-	WordBackward            key.Binding
-	WordForward             key.Binding
-	InputBegin              key.Binding
-	InputEnd                key.Binding
-
-	UppercaseWordForward  key.Binding
-	LowercaseWordForward  key.Binding
-	CapitalizeWordForward key.Binding
-
+	CharacterBackward          key.Binding
+	CharacterForward           key.Binding
+	DeleteAfterCursor          key.Binding
+	DeleteBeforeCursor         key.Binding
+	DeleteCharacterBackward    key.Binding
+	DeleteCharacterForward     key.Binding
+	DeleteWordBackward         key.Binding
+	DeleteWordForward          key.Binding
+	InsertNewline              key.Binding
+	LineEnd                    key.Binding
+	LineNext                   key.Binding
+	LinePrevious               key.Binding
+	LineStart                  key.Binding
+	Paste                      key.Binding
+	WordBackward               key.Binding
+	WordForward                key.Binding
+	InputBegin                 key.Binding
+	InputEnd                   key.Binding
+	UppercaseWordForward       key.Binding
+	LowercaseWordForward       key.Binding
+	CapitalizeWordForward      key.Binding
 	TransposeCharacterBackward key.Binding
 }
 
@@ -64,6 +63,11 @@ func (model *Model) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "f":
 		model.easyMotion()
+		return model, func() tea.Msg {
+			return messages.NewMessage(
+				messages.MessagePlugin, "easy-motion", messages.All,
+			)
+		}
 	}
 
 	return model, nil

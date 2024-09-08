@@ -106,9 +106,9 @@ func NewStyles() *Styles {
 		).Background(
 			lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#353533"},
 		)),
-		ModeInsertStyle: lipgloss.NewStyle().Bold(true).Background(green),
-		ModeNormalStyle: lipgloss.NewStyle().Bold(true).Background(red),
-		ModeVisualStyle: lipgloss.NewStyle().Bold(true).Background(indigo),
+		ModeInsertStyle: lipgloss.NewStyle().Bold(true).Background(green).Foreground(lipgloss.Color("#FFFFFF")),
+		ModeNormalStyle: lipgloss.NewStyle().Bold(true).Background(red).Foreground(lipgloss.Color("#FFFFFF")),
+		ModeVisualStyle: lipgloss.NewStyle().Bold(true).Background(indigo).Foreground(lipgloss.Color("#FFFFFF")),
 	}
 }
 
@@ -139,8 +139,8 @@ func (s *Styles) ComputedPrompt() lipgloss.Style {
 	return s.Prompt.Inherit(s.Base).Inline(true)
 }
 
-func (s *Styles) ComputedText() lipgloss.Style {
-	return s.Text.Inherit(s.Base).Inline(true)
+func (s *Styles) ComputedText(plugin func(string) string) lipgloss.Style {
+	return s.Text.Inherit(s.Base).Inline(true).Transform(plugin)
 }
 
 func (s *Styles) DefaultStyles() (*Styles, *Styles) {

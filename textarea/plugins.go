@@ -2,96 +2,85 @@ package textarea
 
 import (
 	"strings"
-	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/theapemachine/amsh/logger"
 )
 
+var modifier = func(s string) string {
+	// no-op
+	return s
+}
+
 /*
-easyMotion dims the text currently visible in the textarea, and highlights the first n characters
-of each words, such that each word is highlighted with the minimal amount of characters needed for
-each highlight to be unique. It then waits for a secondary input and moves the cursor to the
-highlight that matches the secondary input.
+easyMotion works in the following way:
+1. It dims the text currently visible in the textarea
+2. It highlights the first n characters of each words, such that each word is highlighted with the minimal amount of characters needed for each highlight to be unique.
+3. It waits for a secondary input and moves the cursor to the highlight that matches the secondary input.
+4. If the secondary input is esc, the plugin is cancelled.
+5. If the secondary input matches a highlighted character, the cursor moves to the next occurence of that character.
 */
 func (model *Model) easyMotion() tea.Cmd {
-	return func() tea.Msg {
-		// Get visible content
-		visibleContent := model.viewport.View()
-		lines := strings.Split(visibleContent, "\n")
+	logger.Debug("textarea.easyMotion()")
 
-		// Generate highlights
-		highlights, highlightMap := generateHighlights(lines)
-
-		// Apply highlights to the content
-		highlightedContent := applyHighlights(lines, highlights)
-
-		// Update the viewport content with highlighted text
-		model.viewport.SetContent(highlightedContent)
-
-		// Wait for user input
-		return easyMotionPromptMsg(highlightMap)
-	}
-}
-
-func generateHighlights(lines []string) (map[string]string, map[string][2]int) {
-	highlights := make(map[string]string)
-	highlightMap := make(map[string][2]int)
-	chars := "abcdefghijklmnopqrstuvwxyz"
-	charIndex := 0
-
-	for row, line := range lines {
-		words := strings.Fields(line)
-		for _, word := range words {
-			if len(word) > 0 && !unicode.IsPunct(rune(word[0])) {
-				highlight := string(chars[charIndex])
-				charIndex = (charIndex + 1) % len(chars)
-
-				if _, exists := highlights[highlight]; !exists {
-					highlights[highlight] = word
-					highlightMap[highlight] = [2]int{row, strings.Index(line, word)}
-				}
-			}
-		}
+	model.plugin = func(s string) string {
+		return model.highlight(s)
 	}
 
-	return highlights, highlightMap
+	return nil
 }
 
-func applyHighlights(lines []string, highlights map[string]string) string {
-	highlightStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("205")).
-		Background(lipgloss.Color("0"))
-
-	dimStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240"))
+/*
+highlight
+*/
+func (model *Model) highlight(s string) string {
+	// Define a lookup table with only the letters we care about (a-z and A-Z)
+	letters := map[rune]bool{}
+	for ch := 'a'; ch <= 'z'; ch++ {
+		letters[ch] = true
+	}
+	for ch := 'A'; ch <= 'Z'; ch++ {
+		letters[ch] = true
+	}
 
 	var result strings.Builder
+	inEscape := false     // Track if we're inside an ANSI escape sequence
+	highlightedCount := 0 // Track how many letters we've highlighted
 
-	for _, line := range lines {
-		for _, word := range strings.Fields(line) {
-			if highlight, exists := highlights[word]; exists {
-				result.WriteString(highlightStyle.Render(highlight) + dimStyle.Render(word[1:]) + " ")
-			} else {
-				result.WriteString(dimStyle.Render(word) + " ")
-			}
+	for i := 0; i < len(s); i++ {
+		char := rune(s[i])
+
+		// Detect ANSI escape sequence start
+		if char == '\033' && i+1 < len(s) && s[i+1] == '[' {
+			inEscape = true
 		}
-		result.WriteString("\n")
+
+		// If inside an escape sequence, skip till we find the end 'm'
+		if inEscape {
+			result.WriteByte(s[i])
+			if char == 'm' { // End of ANSI escape sequence
+				inEscape = false
+			}
+			continue
+		}
+
+		// Skip spaces and other characters that are not letters
+		if !letters[char] {
+			result.WriteByte(byte(char))
+			continue
+		}
+
+		// If the character is a letter and we haven't highlighted enough, highlight it
+		if highlightedCount < 1 {
+			styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Render(string(char))
+			result.WriteString(styled)
+			highlightedCount++
+		} else {
+			// Just append the character as is
+			result.WriteByte(byte(char))
+		}
 	}
 
 	return result.String()
-}
-
-type easyMotionPromptMsg map[string][2]int
-
-func (model *Model) handleEasyMotionInput(msg tea.KeyMsg, highlightMap map[string][2]int) {
-	if pos, exists := highlightMap[msg.String()]; exists {
-		model.row = pos[0]
-		model.col = pos[1]
-		model.viewport.GotoTop() // Reset viewport position
-		model.SetCursor(model.col)
-	}
-
-	// Restore original content
-	model.viewport.SetContent(model.Value())
 }

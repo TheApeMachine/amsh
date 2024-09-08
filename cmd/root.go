@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/buffer"
+	"github.com/theapemachine/amsh/chat"
 	"github.com/theapemachine/amsh/editor"
 	"github.com/theapemachine/amsh/header"
 	"github.com/theapemachine/amsh/logger"
@@ -33,8 +34,9 @@ which allows a developer to easily override the config file.
 var embedded embed.FS
 
 var (
-	cfgFile string
-	path    string
+	projectName = "amsh"
+	cfgFile     string
+	path        string
 
 	rootCmd = &cobra.Command{
 		Use:   "amsh",
@@ -48,6 +50,7 @@ var (
 			buf.RegisterComponents("header", header.New(width, height))
 			buf.RegisterComponents("editor", editor.New(width, height))
 			buf.RegisterComponents("statusbar", statusbar.New(width))
+			buf.RegisterComponents("chat", chat.New(width, height))
 
 			prog := tea.NewProgram(
 				buf,
@@ -71,7 +74,7 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	if err := logger.Init(filepath.Join(currentDir, "amsh.log")); err != nil {
+	if err := logger.Init(filepath.Join(currentDir, projectName+".log")); err != nil {
 		fmt.Println("Error initializing logger:", err)
 		os.Exit(1)
 	}
@@ -91,7 +94,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(
-		&cfgFile, "config", "config.yml", "config file (default is $HOME/.data/config.yml)",
+		&cfgFile, "config", "config.yml", "config file (default is $HOME/."+projectName+"/config.yml)",
 	)
 
 	rootCmd.Flags().StringVarP(&path, "path", "p", "", "Path to open")
@@ -107,7 +110,7 @@ func initConfig() {
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yml")
-	viper.AddConfigPath("$HOME/.data")
+	viper.AddConfigPath("$HOME/." + projectName)
 
 	if err = viper.ReadInConfig(); err != nil {
 		logger.Error("Failed to read config file: %v", err)
@@ -125,7 +128,7 @@ func writeConfig() (err error) {
 		buf     bytes.Buffer
 	)
 
-	fullPath := home + "/.data/" + cfgFile
+	fullPath := home + "/." + projectName + "/" + cfgFile
 
 	if utils.CheckFileExists(fullPath) {
 		return
@@ -141,7 +144,7 @@ func writeConfig() (err error) {
 		return fmt.Errorf("failed to read embedded config file: %w", err)
 	}
 
-	if err = os.Mkdir(home+"/.data", os.ModePerm); err != nil {
+	if err = os.Mkdir(home+"/."+projectName, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 

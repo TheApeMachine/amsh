@@ -2,6 +2,7 @@ package statusbar
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/theapemachine/amsh/components"
 	"github.com/theapemachine/amsh/ui"
 )
@@ -22,7 +23,8 @@ type Model struct {
 	mode       string
 	width      int
 	styles     *ui.Styles
-	modeStyles map[string]string
+	modeStyles map[string]lipgloss.Style
+	plugin     string
 	state      components.State
 }
 
@@ -38,10 +40,10 @@ func New(width int) *Model {
 		mode:   modeMap[ui.ModeNormal],
 		width:  width,
 		styles: ui.NewStyles(),
-		modeStyles: map[string]string{
-			"normal": styles.ModeNormalStyle.Render("NORMAL"),
-			"insert": styles.ModeInsertStyle.Render("INSERT"),
-			"visual": styles.ModeVisualStyle.Render("VISUAL"),
+		modeStyles: map[string]lipgloss.Style{
+			"normal": styles.ModeNormalStyle,
+			"insert": styles.ModeInsertStyle,
+			"visual": styles.ModeVisualStyle,
 		},
 		state: components.Inactive,
 	}

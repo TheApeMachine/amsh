@@ -2,13 +2,10 @@ package buffer
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/messages"
 	"github.com/theapemachine/amsh/ui"
-)
-
-var (
-	width  int
-	height int
 )
 
 /*
@@ -22,7 +19,8 @@ type Model struct {
 	height     int
 	path       string
 	mode       ui.Mode
-	err        error
+	keyHandler *KeyHandler
+	cmdChan    chan tea.KeyMsg
 }
 
 /*
@@ -46,6 +44,11 @@ Init initializes the buffer model. It initializes all components and returns a c
 func (model *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 
+	model.keyHandler = NewKeyHandler(model.Update)
+	model.cmdChan = model.keyHandler.Start()
+
+	model.LoadKeyMappings()
+
 	for _, component := range model.components {
 		cmds = append(cmds, component.Init())
 	}
@@ -67,4 +70,26 @@ method of the tea.Model interface that each component must implement.
 */
 func (model *Model) RegisterComponents(name string, components ...tea.Model) {
 	model.components = append(model.components, components...)
+}
+
+func (model *Model) RegisterKeyBinding(key string, modes []ui.Mode, command string, params string) {
+	model.keyHandler.RegisterKeyBinding(key, modes, command, params)
+}
+
+func (model *Model) LoadKeyMappings() {
+	mappings := viper.Get("keymap.mapping").([]interface{})
+	for _, m := range mappings {
+		mapping := m.(map[string]interface{})
+		key := mapping["key"].(string)
+		modes := []ui.Mode{ui.ModeFromString(mapping["modes"].(string))}
+		command := mapping["command"].(string)
+		params := ""
+		if p, ok := mapping["params"]; ok {
+			params = p.(string)
+		}
+
+		logger.Info("Loaded key mapping: Key: %s, Command: %s, Params: %s", key, command, params)
+		model.RegisterKeyBinding(key, modes, command, params)
+	}
+	logger.Info("Loaded %d key mappings", len(mappings))
 }

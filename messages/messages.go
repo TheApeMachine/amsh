@@ -1,7 +1,9 @@
 package messages
 
 import (
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/theapemachine/amsh/components"
+	"github.com/theapemachine/amsh/ui"
 )
 
 /*
@@ -12,6 +14,10 @@ type MessageType uint
 const (
 	// ComponentLoaded is sent when a component has been loaded.
 	ComponentLoaded MessageType = iota
+	// MessageKey is sent when a key is pressed.
+	MessageKey
+	// MessageShow is sent when a component wants to be shown.
+	MessageShow
 	// MessageOpenFile is sent when a file has been selected for editing.
 	// It only sends the file path, the contents of the file still need to be loaded and read.
 	MessageOpenFile
@@ -21,10 +27,14 @@ const (
 	MessageRender
 	// MessageMode is sent when the mode changes.
 	MessageMode
+	// MessagePlugin is sent when a plugin has been selected.
+	MessagePlugin
 	// MessageAnimate is a ticker message to animate objects.
 	MessageAnimate
 	// MessageError represents an error that happened.
 	MessageError
+	// MessageFocus is sent when a component wants to be focused.
+	MessageFocus
 )
 
 /*
@@ -60,6 +70,22 @@ func NewMessage[T any](msgType MessageType, data T, ctx MessageContext) Message[
 		Type:    msgType,
 		Context: ctx,
 		Data:    data,
+	}
+}
+
+/*
+NewFromString maps a string to a MessageType, and returns a new message.
+This is used for keymaps, where a string is mapped to a MessageType.
+*/
+func NewFromString(command string, params string, update func(tea.Msg) (tea.Model, tea.Cmd)) {
+	switch command {
+	case "mode":
+		mode := ui.ModeFromString(params)
+		update(NewMessage[ui.Mode](MessageMode, mode, All))
+	case "plugin":
+		update(NewMessage[string](MessagePlugin, params, All))
+	case "show":
+		update(NewMessage[string](MessageShow, params, All))
 	}
 }
 

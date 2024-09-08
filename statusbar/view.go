@@ -19,9 +19,9 @@ func (model *Model) View() string {
 
 	w := lipgloss.Width
 
-	statusKey := model.modeStyles[model.mode]
+	statusKey := model.modeStyles[model.mode].Render(model.mode)
 	encoding := model.styles.EncodingStyle.Render("UTF-8")
-	fishCake := model.styles.StatusNuggetStyle.Render("fishcake")
+	fishCake := model.styles.StatusNuggetStyle.Render(model.plugin)
 	statusVal := model.styles.StatusText.Width(model.width - w(statusKey) - w(encoding) - w(fishCake)).Render(model.filename)
 
 	bar := lipgloss.JoinHorizontal(lipgloss.Top,

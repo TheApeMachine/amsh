@@ -9,15 +9,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rivo/uniseg"
 	"github.com/theapemachine/amsh/components"
+	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/messages"
 	"github.com/theapemachine/amsh/ui"
 )
 
 func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if !model.focus {
-		model.Cursor.Blur()
-		return model, nil
-	}
+	EndSection := logger.StartSection("textarea.Update", "update")
+	defer EndSection()
+
+	logger.Debug("<- <%T> %v", msg, msg)
 
 	oldRow, oldCol := model.cursorLineNumber(), model.col
 	var cmds []tea.Cmd
@@ -40,9 +41,13 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch model.mode {
 		case ui.ModeNormal:
+			logger.Debug("<- NORMAL <tea.KeyMsg> %s", msg.String())
 			model.handleNormalMode(msg)
 		case ui.ModeInsert:
+			logger.Debug("<- INSERT <tea.KeyMsg> %s", msg.String())
 			model.handleInsertMode(msg)
+		default:
+			logger.Debug("<- UNKNOWN <tea.KeyMsg> %s", msg.String())
 		}
 	case pasteMsg:
 		model.insertRunesFromUserInput([]rune(msg))

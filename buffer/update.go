@@ -23,29 +23,21 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	EndSection := logger.StartSection("buffer.Update", "update")
 	defer EndSection()
 
-	logger.Debug("<- <%v>", msg)
+	if msg, ok := msg.(messages.Message[string]); ok {
+		logger.Debug("Received message type: %v, Data: %v", msg.Type, msg.Data)
+	}
 
 	var (
 		cmds []tea.Cmd
-		cmd  tea.Cmd
 	)
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		logger.Debug("<- <tea.KeyMsg> %s", msg.String())
+		if msg.String() == "q" {
+			cmds = append(cmds, tea.Quit)
+		}
 
-		switch msg.String() {
-		case "q":
-			return model, tea.Quit
-		case "esc":
-			model.mode = ui.ModeNormal
-			cmds = append(cmds, model.dispatchModeMsg(cmds)...)
-		case "i":
-			model.mode = ui.ModeInsert
-			cmds = append(cmds, model.dispatchModeMsg(cmds)...)
-		case "v":
-			model.mode = ui.ModeVisual
-			cmds = append(cmds, model.dispatchModeMsg(cmds)...)
+		if model.mode == ui.ModeNormal {
+			model.cmdChan <- msg
 		}
 	case tea.WindowSizeMsg:
 		logger.Debug("<- <tea.WindowSizeMsg> %d, %d", msg.Width, msg.Height)
@@ -55,18 +47,50 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case messages.MessageWindowSize:
 			model.SetSize(msg.Data[0], msg.Data[1])
 		}
-	}
-
-	for idx, component := range model.components {
-		model.components[idx], cmd = component.Update(msg)
-		cmds = append(cmds, cmd)
+	case messages.Message[ui.Mode]:
+		model.mode = msg.Data
+		cmds = append(cmds, model.dispatchModeMsg(cmds)...)
+	case messages.Message[string]:
+		switch msg.Type {
+		case messages.MessageOpenFile:
+			model.dispatchMsg(msg)
+		case messages.MessageShow:
+			model.dispatchMsg(msg)
+		}
 	}
 
 	return model, tea.Batch(cmds...)
 }
 
+// func (model *Model) handleKeyMsg(msg tea.KeyMsg, cmds []tea.Cmd) []tea.Cmd {
+// 	logger.Debug("<- <tea.KeyMsg> %s", msg.String())
+
+// 	switch msg.String() {
+// 	case "q":
+// 		cmds = append(cmds, tea.Quit)
+// 	case "esc":
+// 		model.mode = ui.ModeNormal
+// 		cmds = append(cmds, model.dispatchModeMsg(cmds)...)
+// 	case "i":
+// 		model.mode = ui.ModeInsert
+// 		cmds = append(cmds, model.dispatchModeMsg(cmds)...)
+// 	case "v":
+// 		model.mode = ui.ModeVisual
+// 		cmds = append(cmds, model.dispatchModeMsg(cmds)...)
+// 	}
+
+// 	return cmds
+// }
+
 func (model *Model) SetSize(width, height int) {
 	model.width, model.height = width, height
+}
+
+func (model *Model) dispatchMsg(msg tea.Msg) {
+	for _, component := range model.components {
+		logger.Debug("Dispatching message to component: %T", component)
+		component.Update(msg)
+	}
 }
 
 func (model *Model) dispatchModeMsg(cmds []tea.Cmd) []tea.Cmd {

@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/theapemachine/amsh/components"
 	"github.com/theapemachine/amsh/logger"
+	"github.com/theapemachine/amsh/lsp"
 	"github.com/theapemachine/amsh/textarea"
 	"github.com/theapemachine/amsh/ui"
 )
@@ -16,15 +17,17 @@ It manages the file content, cursor position, editing mode, and UI elements like
 The model also supports multiple input areas, allowing for a flexible editing experience.
 */
 type Model struct {
-	files   []*os.File
-	content []string
-	width   int
-	height  int
-	inputs  []*textarea.Model
-	focus   int
-	mode    ui.Mode
-	state   components.State
-	err     error
+	files       []*os.File
+	currentFile string
+	content     []string
+	width       int
+	height      int
+	inputs      []*textarea.Model
+	focus       int
+	mode        ui.Mode
+	state       components.State
+	err         error
+	lspClient   *lsp.Client
 }
 
 /*
@@ -33,7 +36,7 @@ It initializes the viewport and textarea, setting up the initial state for editi
 This factory function ensures that every new editor instance starts with a consistent initial state.
 */
 func New(width, height int) *Model {
-	return &Model{
+	model := &Model{
 		files:   make([]*os.File, 0),
 		content: make([]string, 0),
 		width:   width,
@@ -43,6 +46,15 @@ func New(width, height int) *Model {
 		mode:    ui.ModeNormal,
 		state:   components.Inactive,
 	}
+
+	srv := lsp.NewServer()
+	stdin, responseCh, errorCh := srv.Start()
+	model.lspClient = lsp.NewClient(stdin)
+
+	// Handle LSP responses in a separate goroutine
+	go model.handleLSPResponses(responseCh, errorCh)
+
+	return model
 }
 
 /*

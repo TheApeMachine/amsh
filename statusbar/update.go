@@ -43,6 +43,10 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == messages.MessageOpenFile {
 			model.state = components.Active
 		}
+
+		if msg.Type == messages.MessagePlugin {
+			model.plugin = msg.Data
+		}
 	}
 	return model, nil
 }

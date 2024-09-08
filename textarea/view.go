@@ -39,7 +39,7 @@ func (model *Model) View() string {
 		if model.row == l {
 			style = model.styles.ComputedCursorLine()
 		} else {
-			style = model.styles.ComputedText()
+			style = model.styles.ComputedText(model.plugin)
 		}
 
 		for wl, wrappedLine := range wrappedLines {
@@ -116,7 +116,7 @@ func (model *Model) View() string {
 		s.WriteRune('\n')
 	}
 
-	model.viewport.SetContent(s.String())
+	model.viewport.SetContent(modifier(s.String()))
 	return model.styles.Base.Render(model.viewport.View())
 }
 
