@@ -44,7 +44,7 @@ Init initializes the buffer model. It initializes all components and returns a c
 func (model *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 
-	model.keyHandler = NewKeyHandler(model.Update)
+	model.keyHandler = NewKeyHandler(model.mode, model.Update)
 	model.cmdChan = model.keyHandler.Start()
 
 	model.LoadKeyMappings()

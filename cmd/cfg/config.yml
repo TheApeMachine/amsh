@@ -5,6 +5,14 @@ keymap:
       modes: "normal"
       command: "show"
       params: "chat"
+    - key: "tab"
+      modes: "normal"
+      command: "editor"
+      params: "next"
+    - key: ","
+      modes: "normal"
+      command: "show"
+      params: "filebrowser"
     - key: "qq"
       modes: "normal"
       command: "quit"
@@ -30,10 +38,12 @@ keymap:
       command: "redo"
     - key: "o"
       modes: "normal"
-      command: "line,insert"
+      command: "line"
+      params: "insert"
     - key: "O"
       modes: "normal"
-      command: "line,insert"
+      command: "line"
+      params: "insert-above"
     - key: "esc"
       modes: "insert,visual,visual-line"
       command: "mode"
@@ -50,7 +60,6 @@ keymap:
       modes: "normal"
       command: "mode"
       params: "visual-line"
-      
       
 docker:
   base_images:

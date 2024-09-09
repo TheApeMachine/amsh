@@ -2,7 +2,6 @@ package buffer
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/messages"
 	"github.com/theapemachine/amsh/ui"
 )
@@ -17,44 +16,37 @@ It acts as a central hub for message routing and state management, ensuring that
 all components are updated correctly based on the received messages.
 */
 func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	logger.StartTick()
-	defer logger.EndTick()
+	var cmds []tea.Cmd
 
-	EndSection := logger.StartSection("buffer.Update", "update")
-	defer EndSection()
-
-	if msg, ok := msg.(messages.Message[string]); ok {
-		logger.Debug("Received message type: %v, Data: %v", msg.Type, msg.Data)
-	}
-
-	var (
-		cmds []tea.Cmd
-	)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == "q" {
 			cmds = append(cmds, tea.Quit)
 		}
 
-		if model.mode == ui.ModeNormal {
-			model.cmdChan <- msg
+		if model.mode == ui.ModeInsert {
+			model.dispatchMsg(msg)
 		}
+
+		model.cmdChan <- msg
 	case tea.WindowSizeMsg:
-		logger.Debug("<- <tea.WindowSizeMsg> %d, %d", msg.Width, msg.Height)
 		model.SetSize(msg.Width, msg.Height)
+		model.dispatchMsg(msg)
 	case messages.Message[[]int]:
 		switch msg.Type {
 		case messages.MessageWindowSize:
 			model.SetSize(msg.Data[0], msg.Data[1])
 		}
 	case messages.Message[ui.Mode]:
-		model.mode = msg.Data
-		cmds = append(cmds, model.dispatchModeMsg(cmds)...)
+		model.SetMode(msg.Data)
+		model.dispatchMsg(msg)
 	case messages.Message[string]:
 		switch msg.Type {
 		case messages.MessageOpenFile:
 			model.dispatchMsg(msg)
 		case messages.MessageShow:
+			model.dispatchMsg(msg)
+		case messages.MessageEditor:
 			model.dispatchMsg(msg)
 		}
 	}
@@ -62,46 +54,27 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return model, tea.Batch(cmds...)
 }
 
-// func (model *Model) handleKeyMsg(msg tea.KeyMsg, cmds []tea.Cmd) []tea.Cmd {
-// 	logger.Debug("<- <tea.KeyMsg> %s", msg.String())
+/*
+SetMode sets the current mode of the buffer and updates the key handler.
+*/
+func (model *Model) SetMode(mode ui.Mode) {
+	model.mode = mode
+	model.keyHandler.SetMode(mode)
+}
 
-// 	switch msg.String() {
-// 	case "q":
-// 		cmds = append(cmds, tea.Quit)
-// 	case "esc":
-// 		model.mode = ui.ModeNormal
-// 		cmds = append(cmds, model.dispatchModeMsg(cmds)...)
-// 	case "i":
-// 		model.mode = ui.ModeInsert
-// 		cmds = append(cmds, model.dispatchModeMsg(cmds)...)
-// 	case "v":
-// 		model.mode = ui.ModeVisual
-// 		cmds = append(cmds, model.dispatchModeMsg(cmds)...)
-// 	}
-
-// 	return cmds
-// }
-
+/*
+SetSize sets the size of the buffer.
+*/
 func (model *Model) SetSize(width, height int) {
 	model.width, model.height = width, height
 }
 
+/*
+dispatchMsg dispatches a message to all components.
+Each component is responsible for handling, or not handling, its own messages.
+*/
 func (model *Model) dispatchMsg(msg tea.Msg) {
 	for _, component := range model.components {
-		logger.Debug("Dispatching message to component: %T", component)
 		component.Update(msg)
 	}
-}
-
-func (model *Model) dispatchModeMsg(cmds []tea.Cmd) []tea.Cmd {
-	for _, component := range model.components {
-		_, cmd := component.Update(messages.Message[ui.Mode]{
-			Type: messages.MessageMode,
-			Data: model.mode,
-		})
-
-		cmds = append(cmds, cmd)
-	}
-
-	return cmds
 }

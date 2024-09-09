@@ -2,8 +2,6 @@ package buffer
 
 import (
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 var (
@@ -18,15 +16,9 @@ with content. The buffer attempts to find the most optimal way to multiplex the 
 func (model *Model) View() string {
 	builder.Reset()
 
-	views := make([]string, 0, len(model.components))
-
 	for _, component := range model.components {
-		views = append(views, component.View())
+		builder.WriteString(component.View())
 	}
-
-	builder.WriteString(
-		lipgloss.JoinVertical(lipgloss.Top, views...),
-	)
 
 	return builder.String()
 }

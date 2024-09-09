@@ -3,6 +3,7 @@ package editor
 import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/theapemachine/amsh/components"
+	"github.com/theapemachine/amsh/logger"
 )
 
 /*
@@ -21,6 +22,7 @@ func (model *Model) View() string {
 
 	// Render each input area
 	for _, input := range model.inputs {
+		logger.Debug("Rendering textarea")
 		v = append(v, input.View())
 	}
 

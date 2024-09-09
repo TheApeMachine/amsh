@@ -106,9 +106,9 @@ func NewStyles() *Styles {
 		).Background(
 			lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#353533"},
 		)),
-		ModeInsertStyle: lipgloss.NewStyle().Bold(true).Background(green).Foreground(lipgloss.Color("#FFFFFF")),
-		ModeNormalStyle: lipgloss.NewStyle().Bold(true).Background(red).Foreground(lipgloss.Color("#FFFFFF")),
-		ModeVisualStyle: lipgloss.NewStyle().Bold(true).Background(indigo).Foreground(lipgloss.Color("#FFFFFF")),
+		ModeInsertStyle: lipgloss.NewStyle().Background(lipgloss.Color("#02BA84")).Foreground(lipgloss.Color("#FFFFFF")),
+		ModeNormalStyle: lipgloss.NewStyle().Background(lipgloss.Color("#FE5F86")).Foreground(lipgloss.Color("#FFFFFF")),
+		ModeVisualStyle: lipgloss.NewStyle().Background(lipgloss.Color("#5A56E0")).Foreground(lipgloss.Color("#FFFFFF")),
 	}
 }
 

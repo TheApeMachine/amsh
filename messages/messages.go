@@ -18,6 +18,8 @@ const (
 	MessageKey
 	// MessageShow is sent when a component wants to be shown.
 	MessageShow
+	// MessageEditor is sent when the editor needs to be updated.
+	MessageEditor
 	// MessageOpenFile is sent when a file has been selected for editing.
 	// It only sends the file path, the contents of the file still need to be loaded and read.
 	MessageOpenFile
@@ -86,6 +88,8 @@ func NewFromString(command string, params string, update func(tea.Msg) (tea.Mode
 		update(NewMessage[string](MessagePlugin, params, All))
 	case "show":
 		update(NewMessage[string](MessageShow, params, All))
+	case "editor":
+		update(NewMessage[string](MessageEditor, params, All))
 	}
 }
 

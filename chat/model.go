@@ -20,11 +20,11 @@ type Model struct {
 func New(width, height int) *Model {
 	ta := textarea.New()
 	ta.SetHeight(height / 4)
-	ta.SetWidth(width / 4)
+	ta.SetWidth(width / 2)
 	ta.Focus()
 
 	return &Model{
-		viewport: viewport.New(width/4, height/4),
+		viewport: viewport.New(width/2, height/4),
 		textarea: textarea.New(),
 		styles:   ui.NewStyles(),
 		state:    components.Inactive,

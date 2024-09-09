@@ -33,10 +33,6 @@ based on various events such as key presses, file selection, and window size cha
 It delegates to specific handlers based on the current editing mode and message type.
 */
 func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	EndSection := logger.StartSection("editor.Update", "update")
-	defer EndSection()
-
-	logger.Debug("<- <%v>", msg)
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -47,6 +43,7 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		model.mode = msg.Data
+		model.inputs[model.focus].Update(msg)
 	case messages.Message[[]int]:
 		if !messages.ShouldProcessMessage(model.state, msg.Context) {
 			return model, nil
@@ -58,7 +55,17 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 
-		if msg.Type == messages.MessageOpenFile {
+		switch msg.Type {
+		case messages.MessageEditor:
+			switch msg.Data {
+			case "next":
+				if model.focus < len(model.inputs)-1 {
+					model.focus++
+				} else {
+					model.addTextarea()
+				}
+			}
+		case messages.MessageOpenFile:
 			if model.err = model.loadFile(msg.Data); model.err != nil {
 				logger.Log("Error opening file: %v", model.err)
 				cmds = append(cmds, func() tea.Msg {
@@ -66,28 +73,6 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						messages.MessageError, model.err, messages.All,
 					)
 				})
-			}
-		}
-	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if model.focus >= 0 && model.focus < len(model.inputs) {
-			oldContent := model.inputs[model.focus].Value()
-			model.inputs[model.focus].Update(msg)
-			newContent := model.inputs[model.focus].Value()
-
-			if oldContent != newContent {
-				// Content has changed, send didChange request
-				changes := []map[string]interface{}{
-					{
-						"text": newContent,
-					},
-				}
-				err := model.lspClient.SendDidChangeRequest("file://"+model.currentFile, 1, changes)
-				if err != nil {
-					logger.Error("Failed to send didChange request: %v", err)
-				}
 			}
 		}
 	}
@@ -101,6 +86,18 @@ handleWindowSizeMsg handles window resizing messages.
 func (model *Model) handleWindowSizeMsg(msg messages.Message[[]int]) {
 	model.width, model.height = msg.Data[0], msg.Data[1]
 	model.resizeTextareas()
+}
+
+/*
+addTextarea adds a new textarea to the editor.
+*/
+func (model *Model) addTextarea() *textarea.Model {
+	logger.Debug("Adding textarea to editor")
+	model.inputs = append(model.inputs, textarea.New(model.width, model.height))
+	model.focus = len(model.inputs) - 1
+	model.inputs[model.focus].Focus()
+	model.resizeTextareas()
+	return model.inputs[model.focus]
 }
 
 /*
@@ -127,23 +124,13 @@ func (model *Model) loadFile(path string) error {
 	// Set the file content in the editor
 	if len(model.inputs) == 0 {
 		model.focus = 0
-		model.inputs = append(model.inputs, textarea.New(model.width, model.height))
+		added := model.addTextarea()
+		added.SetValue(strings.Join(content, "\n"))
 	}
 
-	model.inputs[model.focus].Focus()
-	model.inputs[model.focus].SetValue(strings.Join(content, "\n"))
 	model.state = components.Active
-
 	model.currentFile = path
-
-	// Send the textDocument/didOpen request
-	err = model.lspClient.SendDidOpenRequest("file://"+path, "go", 1, strings.Join(content, "\n"))
-	if err != nil {
-		logger.Error("Failed to send didOpen request: %v", err)
-	}
-
 	return nil
-
 }
 
 /*
@@ -151,7 +138,7 @@ resizeTextareas resizes all textareas based on the current width and height.
 */
 func (model *Model) resizeTextareas() {
 	for _, input := range model.inputs {
-		input.SetWidth(model.width)
+		input.SetWidth(model.width / len(model.inputs))
 		input.SetHeight(model.height)
 	}
 }

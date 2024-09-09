@@ -33,11 +33,12 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.Message[ui.Mode]:
+		logger.Debug("Setting texarea mode to: %T", msg.Data)
+		model.mode = msg.Data
+
 		if !messages.ShouldProcessMessage(model.state, msg.Context) {
 			return model, nil
 		}
-
-		model.mode = msg.Data
 	case tea.KeyMsg:
 		switch model.mode {
 		case ui.ModeNormal:
@@ -51,7 +52,6 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case pasteMsg:
 		model.insertRunesFromUserInput([]rune(msg))
-
 	case pasteErrMsg:
 		model.Err = msg
 	}

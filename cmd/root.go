@@ -16,6 +16,7 @@ import (
 	"github.com/theapemachine/amsh/buffer"
 	"github.com/theapemachine/amsh/chat"
 	"github.com/theapemachine/amsh/editor"
+	"github.com/theapemachine/amsh/filebrowser"
 	"github.com/theapemachine/amsh/header"
 	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/splash"
@@ -48,6 +49,7 @@ var (
 			buf := buffer.New(path, width, height)
 			buf.RegisterComponents("splash", splash.New(width, height))
 			buf.RegisterComponents("header", header.New(width, height))
+			buf.RegisterComponents("filebrowser", filebrowser.New(width, height))
 			buf.RegisterComponents("editor", editor.New(width, height))
 			buf.RegisterComponents("statusbar", statusbar.New(width))
 			buf.RegisterComponents("chat", chat.New(width, height))
