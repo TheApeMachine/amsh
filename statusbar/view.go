@@ -28,7 +28,13 @@ func (model *Model) View() string {
 		statusKey, statusVal, encoding, fishCake,
 	)
 
-	return model.styles.StatusBarStyle.Width(model.width).Render(bar)
+	return lipgloss.Place(
+		model.width,
+		1,
+		lipgloss.Left,
+		lipgloss.Bottom,
+		model.styles.StatusBarStyle.Width(model.width).Render(bar),
+	)
 }
 
 func (model *Model) Select(err error) string {

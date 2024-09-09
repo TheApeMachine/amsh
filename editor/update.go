@@ -94,9 +94,9 @@ addTextarea adds a new textarea to the editor.
 func (model *Model) addTextarea() *textarea.Model {
 	logger.Debug("Adding textarea to editor")
 	model.inputs = append(model.inputs, textarea.New(model.width, model.height))
+	model.resizeTextareas()
 	model.focus = len(model.inputs) - 1
 	model.inputs[model.focus].Focus()
-	model.resizeTextareas()
 	return model.inputs[model.focus]
 }
 

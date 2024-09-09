@@ -100,15 +100,15 @@ func NewStyles() *Styles {
 		).Background(
 			lipgloss.Color("#FF5F87"),
 		).Padding(0, 1).MarginRight(1),
-		EncodingStyle: lipgloss.NewStyle().Background(lipgloss.Color("#A550DF")).Align(lipgloss.Right),
+		EncodingStyle: lipgloss.NewStyle().Background(lipgloss.Color("#A550DF")).Foreground(lipgloss.Color("#FFFDF5")).Align(lipgloss.Right),
 		StatusText: lipgloss.NewStyle().Inherit(lipgloss.NewStyle().Foreground(
 			lipgloss.AdaptiveColor{Light: "#343433", Dark: "#C1C6B2"},
 		).Background(
 			lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#353533"},
 		)),
-		ModeInsertStyle: lipgloss.NewStyle().Background(lipgloss.Color("#02BA84")).Foreground(lipgloss.Color("#FFFFFF")),
-		ModeNormalStyle: lipgloss.NewStyle().Background(lipgloss.Color("#FE5F86")).Foreground(lipgloss.Color("#FFFFFF")),
-		ModeVisualStyle: lipgloss.NewStyle().Background(lipgloss.Color("#5A56E0")).Foreground(lipgloss.Color("#FFFFFF")),
+		ModeInsertStyle: lipgloss.NewStyle().Background(lipgloss.Color("#A550DF")).Align(lipgloss.Left),
+		ModeNormalStyle: lipgloss.NewStyle().Background(lipgloss.Color("#A550DF")).Align(lipgloss.Left),
+		ModeVisualStyle: lipgloss.NewStyle().Background(lipgloss.Color("#A550DF")).Align(lipgloss.Left),
 	}
 }
 

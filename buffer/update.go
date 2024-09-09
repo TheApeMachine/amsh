@@ -11,7 +11,6 @@ Update is a message broker for the components in the buffer.
 This method is part of the tea.Model interface and is responsible for handling
 all incoming messages, updating the appropriate components, and generating any
 necessary commands.
-
 It acts as a central hub for message routing and state management, ensuring that
 all components are updated correctly based on the received messages.
 */
@@ -25,13 +24,13 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if model.mode == ui.ModeInsert {
-			model.dispatchMsg(msg)
+			cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
 		}
 
 		model.cmdChan <- msg
 	case tea.WindowSizeMsg:
 		model.SetSize(msg.Width, msg.Height)
-		model.dispatchMsg(msg)
+		cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
 	case messages.Message[[]int]:
 		switch msg.Type {
 		case messages.MessageWindowSize:
@@ -39,15 +38,15 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case messages.Message[ui.Mode]:
 		model.SetMode(msg.Data)
-		model.dispatchMsg(msg)
+		cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
 	case messages.Message[string]:
 		switch msg.Type {
 		case messages.MessageOpenFile:
-			model.dispatchMsg(msg)
+			cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
 		case messages.MessageShow:
-			model.dispatchMsg(msg)
+			cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
 		case messages.MessageEditor:
-			model.dispatchMsg(msg)
+			cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
 		}
 	}
 
@@ -73,8 +72,12 @@ func (model *Model) SetSize(width, height int) {
 dispatchMsg dispatches a message to all components.
 Each component is responsible for handling, or not handling, its own messages.
 */
-func (model *Model) dispatchMsg(msg tea.Msg) {
-	for _, component := range model.components {
-		component.Update(msg)
+func (model *Model) dispatchMsg(msg tea.Msg, cmds []tea.Cmd) []tea.Cmd {
+	for idx, component := range model.components {
+		var cmd tea.Cmd
+		model.components[idx], cmd = component.Update(msg)
+		cmds = append(cmds, cmd)
 	}
+
+	return cmds
 }

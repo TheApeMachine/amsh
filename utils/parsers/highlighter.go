@@ -168,7 +168,8 @@ func (highlighter *Highlighter) Parse() *Highlighter {
 Highlight traverses the syntax tree and applies appropriate styling to each node.
 This method is the core of our syntax highlighting logic. It walks through the AST,
 identifying different types of syntax elements and applying the corresponding styles.
-
+A worker pool is used to process the nodes in parallel, which helps to improve performance,
+but makes sure not to exhaust the available system resources.
 The switch statement is used to map node types to specific styles. This approach
 allows for easy extension if we need to add more specific highlighting rules in the future.
 */
@@ -176,33 +177,82 @@ func (highlighter *Highlighter) Highlight() string {
 	rootNode := highlighter.tree.RootNode()
 	var highlightedCode string
 
-	var traverse func(node *sitter.Node)
-	traverse = func(node *sitter.Node) {
-		text := node.Content([]byte(highlighter.code))
+	type task struct {
+		order int
+		node  *sitter.Node
+	}
 
-		switch node.Type() {
-		case "identifier", "type_declaration":
-			highlightedCode += highlighter.styles.VariableStyle.Render(text)
-		case "number", "string", "char", "boolean":
-			highlightedCode += highlighter.styles.LiteralStyle.Render(text)
-		case "keyword", "type":
-			highlightedCode += highlighter.styles.KeywordStyle.Render(text)
-		case "comment":
-			highlightedCode += highlighter.styles.CommentStyle.Render(text)
-		case "function", "method", "method_declaration", "function_declaration":
-			highlightedCode += highlighter.styles.FunctionStyle.Render(text)
-		default:
-			logger.Warn("unhandled node.Type(): %s", node.Type())
-			highlightedCode += text
-		}
+	type result struct {
+		order int
+		text  string
+	}
 
-		// Recursively traverse child nodes
-		for i := 0; i < int(node.NamedChildCount()); i++ {
-			traverse(node.NamedChild(i))
+	numWorkers := 4 // Number of worker goroutines
+	tasks := make(chan task, rootNode.NamedChildCount())
+	results := make(chan result, rootNode.NamedChildCount())
+
+	// Worker function
+	worker := func() {
+		for task := range tasks {
+			text := highlighter.processNode(task.node)
+			results <- result{order: task.order, text: text}
 		}
 	}
 
-	traverse(rootNode)
+	// Start worker goroutines
+	for i := 0; i < numWorkers; i++ {
+		go worker()
+	}
+
+	// Queue up tasks
+	for i := 0; i < int(rootNode.NamedChildCount()); i++ {
+		tasks <- task{order: i, node: rootNode.NamedChild(i)}
+	}
+	close(tasks)
+
+	// Collect results
+	orderedResults := make([]string, rootNode.NamedChildCount())
+	for i := 0; i < int(rootNode.NamedChildCount()); i++ {
+		res := <-results
+		orderedResults[res.order] = res.text
+	}
+	close(results)
+
+	// Concatenate ordered results
+	for _, text := range orderedResults {
+		highlightedCode += text
+	}
 
 	return highlightedCode
+}
+
+/*
+processNode is the actual work that is done for each node in the tree.
+It takes a node and returns a string with the appropriate style applied.
+*/
+func (highlighter *Highlighter) processNode(node *sitter.Node) string {
+	text := node.Content([]byte(highlighter.code))
+	var highlightedText string
+
+	switch node.Type() {
+	case "identifier", "type_declaration":
+		highlightedText = highlighter.styles.VariableStyle.Render(text)
+	case "number", "string", "char", "boolean":
+		highlightedText = highlighter.styles.LiteralStyle.Render(text)
+	case "keyword", "type":
+		highlightedText = highlighter.styles.KeywordStyle.Render(text)
+	case "comment":
+		highlightedText = highlighter.styles.CommentStyle.Render(text)
+	case "function", "method", "method_declaration", "function_declaration":
+		highlightedText = highlighter.styles.FunctionStyle.Render(text)
+	default:
+		logger.Warn("unhandled node.Type(): %s", node.Type())
+		highlightedText = text
+	}
+
+	for j := 0; j < int(node.NamedChildCount()); j++ {
+		highlightedText += highlighter.processNode(node.NamedChild(j))
+	}
+
+	return highlightedText
 }

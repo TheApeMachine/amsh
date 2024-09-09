@@ -33,7 +33,7 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.Message[ui.Mode]:
-		logger.Debug("Setting texarea mode to: %T", msg.Data)
+		logger.Debug("Setting texarea mode to: %v", msg.Data)
 		model.mode = msg.Data
 
 		if !messages.ShouldProcessMessage(model.state, msg.Context) {

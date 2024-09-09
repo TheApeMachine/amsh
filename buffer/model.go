@@ -72,10 +72,16 @@ func (model *Model) RegisterComponents(name string, components ...tea.Model) {
 	model.components = append(model.components, components...)
 }
 
+/*
+RegisterKeyBinding registers a key binding for the given modes.
+*/
 func (model *Model) RegisterKeyBinding(key string, modes []ui.Mode, command string, params string) {
 	model.keyHandler.RegisterKeyBinding(key, modes, command, params)
 }
 
+/*
+LoadKeyMappings loads the key mappings from the configuration file.
+*/
 func (model *Model) LoadKeyMappings() {
 	mappings := viper.Get("keymap.mapping").([]interface{})
 	for _, m := range mappings {

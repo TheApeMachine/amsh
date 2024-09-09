@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
+	"github.com/soluchok/freeproxy"
 )
 
 /*
@@ -17,18 +19,23 @@ Browser provides a headless web browsing capability for AI Agents.
 It implements the Tool interface, allowing it to be used within the AI systemodel.
 */
 type Browser struct {
-	browser *rod.Browser
-	page    *rod.Page
-	content string
+	url      string
+	browser  *rod.Browser
+	proxyGen *freeproxy.ProxyGenerator
+	page     *rod.Page
+	content  string
 }
 
 /*
 NewBrowser initializes a new Browser instance with a connected Rod browser.
 */
 func NewBrowser() *Browser {
-	browser := rod.New().MustConnect()
+	fp := freeproxy.New()
+
 	return &Browser{
-		browser: browser,
+		url:      launcher.New().Headless(false).Set("proxy-server", fp.Get()).MustLaunch(),
+		browser:  rod.New().Trace(true).MustConnect(),
+		proxyGen: fp,
 	}
 }
 
@@ -49,7 +56,7 @@ Write satisfies the io.Writer interface, enabling URL navigation in the browser.
 */
 func (b *Browser) Write(p []byte) (n int, err error) {
 	url := string(p)
-	b.content = "" // Clear previous content
+	b.content = ""
 
 	page, err := b.browser.Page(proto.TargetCreateTarget{URL: url})
 	if err != nil {

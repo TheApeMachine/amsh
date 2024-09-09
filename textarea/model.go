@@ -16,7 +16,7 @@ const (
 	defaultHeight    = 6
 	defaultWidth     = 40
 	defaultCharLimit = 1000000
-	offset           = 1
+	offset           = 4
 )
 
 // Internal messages for clipboard operations.

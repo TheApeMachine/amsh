@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/theapemachine/amsh/logger" // Add this import
+	"github.com/theapemachine/amsh/logger"
 	"github.com/theapemachine/amsh/messages"
 	"github.com/theapemachine/amsh/ui"
 )
@@ -65,9 +65,7 @@ func (handler *KeyHandler) Start() chan tea.KeyMsg {
 				}
 
 				keyIndex++
-
 				buf = append(buf, key.String())
-				logger.Debug("Key pressed: %s, Current buffer: %s", key.String(), strings.Join(buf, ""))
 
 				// Check for a partial match, which will determine if we should reset the timer.
 				// Resetting the timer will allow us to check for a full match later.
@@ -76,16 +74,14 @@ func (handler *KeyHandler) Start() chan tea.KeyMsg {
 					continue
 				}
 			case <-timer.C:
-				// Make sure we reset the partial check flag and the key index.
-				partialMatch = false
-				keyIndex = 0
-
 				if partialMatch && len(buf) > 0 {
-					logger.Debug("Timer expired, checking command: %s", strings.Join(buf, ""))
 					handler.checkAndExecuteCommand(buf)
 				}
 
+				// Make sure we reset the partial check flag and the key index.
 				buf = make([]string, 0)
+				keyIndex = 0
+				partialMatch = false
 			}
 		}
 	}()
@@ -100,7 +96,9 @@ That means we can stop the process early.
 */
 func (handler *KeyHandler) hasPartialMatch(buf []string) bool {
 	for command := range handler.keyMap {
+		logger.Debug("Checking command: %s", command)
 		if strings.HasPrefix(command, strings.Join(buf, "")) {
+			logger.Debug("Partial match found for command: %s", command)
 			return true
 		}
 	}

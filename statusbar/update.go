@@ -40,11 +40,10 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 
-		if msg.Type == messages.MessageOpenFile {
+		switch msg.Type {
+		case messages.MessageOpenFile:
 			model.state = components.Active
-		}
-
-		if msg.Type == messages.MessagePlugin {
+		case messages.MessagePlugin:
 			model.plugin = msg.Data
 		}
 	}
