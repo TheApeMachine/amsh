@@ -191,6 +191,10 @@ func Warn(format string, v ...interface{}) {
 
 // Error logs an error message with the appropriate symbol
 func Error(format string, v ...interface{}) {
+	if len(v) == 0 || v[0] == nil {
+		return
+	}
+
 	LogWithSymbol("❗", format, v...)
 }
 

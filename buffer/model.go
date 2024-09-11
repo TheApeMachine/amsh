@@ -9,9 +9,9 @@ import (
 )
 
 /*
-Model is the model for the buffer. It is responsible for managing the component state and views.
-It acts as a central hub for all components, coordinating their interactions and rendering.
-The use of a mutex ensures thread-safe access to the shared state, which is crucial for concurrent operations.
+Model represent a buffer that acts as a multiplexer for multiple components.
+It is responsible for io, message routing, and rendering a composite view of
+all active components.
 */
 type Model struct {
 	components []tea.Model
@@ -20,13 +20,14 @@ type Model struct {
 	path       string
 	mode       ui.Mode
 	keyHandler *KeyHandler
-	cmdChan    chan tea.KeyMsg
 }
 
 /*
-New creates a new buffer model.
-It initializes the components map and sets the default active component to "filebrowser".
-This factory function ensures that every new buffer instance starts with a consistent initial state.
+New returns an instance of a buffer, and provides an entry point for the
+BubbleTea application to start.
+We take in the path from the command line, if it was provided, which opens
+either the editor for a file, or the file browser for a directory.
+Additionally we take in the width and height as reported by the terminal.
 */
 func New(path string, width, height int) *Model {
 	return &Model{
@@ -35,18 +36,16 @@ func New(path string, width, height int) *Model {
 		width:      width,
 		height:     height,
 		mode:       ui.ModeNormal,
+		keyHandler: NewKeyHandler(ui.ModeNormal),
 	}
 }
 
 /*
-Init initializes the buffer model. It initializes all components and returns a command to be executed.
+Init provides an initialization stage to prepare the buffer for use.
+It returns one or more commands that will be pushed on the Update queue.
 */
 func (model *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
-
-	model.keyHandler = NewKeyHandler(model.mode, model.Update)
-	model.cmdChan = model.keyHandler.Start()
-
 	model.LoadKeyMappings()
 
 	for _, component := range model.components {
