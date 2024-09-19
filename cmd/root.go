@@ -10,20 +10,12 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/buffer"
-	"github.com/theapemachine/amsh/chat"
-	"github.com/theapemachine/amsh/editor"
-	"github.com/theapemachine/amsh/filebrowser"
-	"github.com/theapemachine/amsh/header"
 	"github.com/theapemachine/amsh/logger"
-	"github.com/theapemachine/amsh/splash"
-	"github.com/theapemachine/amsh/statusbar"
+	"github.com/theapemachine/amsh/tui"
 	"github.com/theapemachine/amsh/ui"
 	"github.com/theapemachine/amsh/utils"
-	"golang.org/x/term"
 )
 
 /*
@@ -44,27 +36,7 @@ var (
 		Short: "A minimal shell and vim-like text editor with A.I. capabilities",
 		Long:  roottxt,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			width, height, _ := term.GetSize(int(os.Stdout.Fd()))
-
-			buf := buffer.New(path, width, height)
-			buf.RegisterComponents("splash", splash.New(width, height))
-			buf.RegisterComponents("header", header.New(width, height))
-			buf.RegisterComponents("filebrowser", filebrowser.New(width, height))
-			buf.RegisterComponents("editor", editor.New(width, height))
-			buf.RegisterComponents("statusbar", statusbar.New(width))
-			buf.RegisterComponents("chat", chat.New(width, height))
-
-			prog := tea.NewProgram(
-				buf,
-				tea.WithAltScreen(),
-			)
-
-			if _, err := prog.Run(); err != nil {
-				fmt.Println("Error while running program:", err)
-				os.Exit(1)
-			}
-
-			return nil
+			return tui.New().Initialize().Run()
 		},
 	}
 )

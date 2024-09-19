@@ -53,34 +53,12 @@ func (model *Model) Write(p []byte) (n int, err error) {
 			return model.err
 		}
 
-		req, err := r.NewRequest()
-		if err != nil {
-			return err
-		}
-
-		req.SetArtifact(model.artifact)
+		return nil
 	})
 
 	defer release()
 
-	// Process the response
-	result, err := future.Struct()
-	if err != nil {
-		return 0, err
-	}
-
-	answer, err := result.Response()
-	if err != nil {
-		return 0, err
-	}
-
-	answerStr, err := answer.Response()
-	if err != nil {
-		return 0, err
-	}
-
-	// Return the size of the response or relevant information
-	return len(answerStr), nil
+	return
 }
 
 func (model *Model) Close() error {

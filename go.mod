@@ -100,6 +100,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2
+	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
 	github.com/rivo/uniseg v0.4.7
 	github.com/sashabaranov/go-openai v1.29.1
 	github.com/smartystreets/goconvey v1.8.1
