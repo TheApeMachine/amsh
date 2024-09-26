@@ -12,7 +12,7 @@ const version = "0.0.1"
 /*
 Empty is an empty artifact.
 */
-var Empty = Artifact{}
+var Empty = &Artifact{}
 
 /*
 New creates a new artifact with the given origin, role, scope, and data.

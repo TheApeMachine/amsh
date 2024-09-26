@@ -109,7 +109,7 @@ func (scaler *Scaler) Grow() {
 		for i := 0; i < scaler.rate*scaler.level; i++ {
 			scaler.pool.workers = append(scaler.pool.workers, NewWorker(
 				len(scaler.pool.workers), scaler.pool.workerPool, scaler.pool.ctx,
-			).Start())
+			))
 		}
 	}
 }
@@ -135,6 +135,6 @@ func (scaler *Scaler) Shrink() {
 }
 
 func (scaler *Scaler) drain(worker *Worker, i int) {
-	worker.Drain()
+	worker.Close()
 	scaler.pool.workers = append(scaler.pool.workers[:i], scaler.pool.workers[i+1:]...)
 }

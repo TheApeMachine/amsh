@@ -176,7 +176,7 @@ func Log(format string, v ...interface{}) {
 
 // Debug logs a debug message with the appropriate symbol
 func Debug(format string, v ...interface{}) {
-	LogWithSymbol("🐛", format, v...)
+	fmt.Println("🐛", fmt.Sprintf(format, v...))
 }
 
 // Info logs an info message with the appropriate symbol
@@ -195,7 +195,7 @@ func Error(format string, v ...interface{}) {
 		return
 	}
 
-	LogWithSymbol("❗", format, v...)
+	fmt.Println("❗", fmt.Sprintf(format, v...))
 }
 
 // GetLogger returns the logger instance (for external usage if needed)

@@ -2,7 +2,7 @@ package twoface
 
 import (
 	"context"
-	"fmt"
+	"sync"
 	"time"
 )
 
@@ -12,6 +12,7 @@ type Worker struct {
 	WorkerPool   chan chan Job
 	JobChannel   chan Job
 	ctx          context.Context
+	wg           *sync.WaitGroup
 	lastUse      time.Time
 	lastDuration int64
 	drain        bool
@@ -31,6 +32,21 @@ func NewWorker(ID int, workerPool chan chan Job, ctx context.Context) *Worker {
 
 // Start the worker to be ready to accept jobs from the job queue.
 func (worker *Worker) Read(p []byte) (n int, err error) {
+	worker.wg.Add(1)
+
+	go func() {
+		for {
+			worker.WorkerPool <- worker.JobChannel
+		}
+	}()
+
+	worker.wg.Wait()
+	return
+}
+
+func (worker *Worker) Write(p []byte) (n int, err error) {
+	worker.wg.Add(1)
+
 	go func() {
 		for {
 			worker.WorkerPool <- worker.JobChannel
@@ -44,10 +60,9 @@ func (worker *Worker) Read(p []byte) (n int, err error) {
 			}
 		}
 	}()
-}
 
-func (worker *Worker) Write(p []byte) (n int, err error) {
-	return 0, nil
+	worker.wg.Wait()
+	return
 }
 
 func (worker *Worker) Close() error {

@@ -2,7 +2,10 @@ package twoface
 
 import (
 	"context"
+	"io"
 	"sync"
+
+	"github.com/theapemachine/amsh/data"
 )
 
 /*
@@ -18,6 +21,8 @@ type Pool struct {
 	jobQueue   chan Job
 	workers    []*Worker
 	wg         *sync.WaitGroup
+	pr         *io.PipeReader
+	pw         *io.PipeWriter
 }
 
 /*
@@ -28,6 +33,8 @@ func NewPool(ctx context.Context, numWorkers int) *Pool {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 
+	pr, pw := io.Pipe()
+
 	pool := &Pool{
 		ctx:        ctx,
 		cancel:     cancel,
@@ -35,11 +42,12 @@ func NewPool(ctx context.Context, numWorkers int) *Pool {
 		jobQueue:   make(chan Job),
 		workers:    make([]*Worker, 0, numWorkers),
 		wg:         wg,
+		pr:         pr,
+		pw:         pw,
 	}
 
 	for i := 0; i < numWorkers; i++ {
 		worker := NewWorker(i, pool.workerPool, ctx)
-		worker.Start()
 		pool.workers = append(pool.workers, worker)
 	}
 
@@ -66,8 +74,16 @@ func (pool *Pool) Read(p []byte) (n int, err error) {
 Write is the entry point for new jobs that want to be scheduled onto the worker pool.
 */
 func (pool *Pool) Write(p []byte) (n int, err error) {
+	artifact := data.Empty
+
+	if n, err = artifact.Write(p); err != nil {
+		return 0, err
+	}
+
 	pool.wg.Add(1)
-	pool.jobQueue <- job
+	pool.jobQueue <- artifact
+
+	return
 }
 
 /*

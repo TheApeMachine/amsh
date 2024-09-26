@@ -1,57 +1,45 @@
 package core
 
-import "time"
+import (
+    "io"
+    "os"
+    "time"
+)
 
-/*
-Keyboard is a wrapper around the keyboard file descriptor.
-It is designed to perform keyboard-specific operations and
-prioritize raw performance.
-*/
+// Keyboard wraps an io.ReadWriteCloser (os.Stdin) and handles key mappings.
 type Keyboard struct {
-	sequence  []byte
-	index     int
-	lastPress time.Time
-	timeout   time.Duration
-	key       byte
+    input   io.ReadWriteCloser
+    Keymap  map[byte]func()
+    timeout time.Duration
 }
 
-/*
-NewKeyboard creates a new Keyboard.
-*/
+// NewKeyboard creates a new Keyboard instance with os.Stdin as the input source.
 func NewKeyboard() *Keyboard {
-	return &Keyboard{
-		sequence:  []byte{},
-		index:     0,
-		lastPress: time.Now(),
-		timeout:   0,
-		key:       0,
-	}
+    return &Keyboard{
+        input:   os.Stdin,
+        Keymap:  make(map[byte]func()),
+        timeout: 500 * time.Millisecond, // Example timeout
+    }
 }
 
-func (keyboard *Keyboard) Read(p []byte) (n int, err error) {
-	if time.Since(keyboard.lastPress) > keyboard.timeout {
-		keyboard.index = 0
-	}
-
-	keyboard.lastPress = time.Now()
-
-	if keyboard.key == keyboard.sequence[keyboard.index] {
-		keyboard.index++
-		if keyboard.index == len(keyboard.sequence) {
-			keyboard.index = 0
-			return 1, nil
-		}
-	} else {
-		keyboard.index = 0
-	}
-	return 0, nil
+// Read reads from the input, handles key mappings, and triggers actions.
+func (k *Keyboard) Read(p []byte) (n int, err error) {
+    n, err = k.input.Read(p)
+    if n > 0 {
+        key := p[0]
+        if action, exists := k.Keymap[key]; exists {
+            action()
+        }
+    }
+    return n, err
 }
 
-func (keyboard *Keyboard) Write(p []byte) (n int, err error) {
-	keyboard.sequence = append(keyboard.sequence, p...)
-	return len(p), nil
+// Write is implemented to satisfy the io.Writer interface but can be customized.
+func (k *Keyboard) Write(p []byte) (n int, err error) {
+    return os.Stdout.Write(p)
 }
 
-func (keyboard *Keyboard) Close() error {
-	return nil
+// Close closes the input source.
+func (k *Keyboard) Close() error {
+    return k.input.Close()
 }

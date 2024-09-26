@@ -57,6 +57,7 @@ func (model *Model) Write(p []byte) (n int, err error) {
 	})
 
 	defer release()
+	future.Done()
 
 	return
 }
