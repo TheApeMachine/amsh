@@ -1,0 +1,31 @@
+function init() {
+    // ... existing code ...
+
+    // Add null checks before accessing properties
+    function onMouseMove(e) {
+        if (mouse) {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        }
+    }
+
+    // ... existing code ...
+
+    function animate() {
+        // ... existing code ...
+
+        particles.forEach(function(p) {
+            // Add null checks before accessing properties
+            if (p && typeof p.x !== 'undefined' && typeof p.y !== 'undefined') {
+                // Existing particle animation logic
+                // ...
+            }
+        });
+
+        // ... existing code ...
+    }
+
+    // ... existing code ...
+}
+
+// ... existing code ...

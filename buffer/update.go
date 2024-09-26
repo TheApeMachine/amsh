@@ -2,7 +2,6 @@ package buffer
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/theapemachine/amsh/messages"
 	"github.com/theapemachine/amsh/ui"
 )
 
@@ -23,33 +22,10 @@ func (model *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, tea.Quit)
 		}
 
-		if model.mode == ui.ModeInsert {
-			cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
-		}
-
-		model.cmdChan <- msg
-	case tea.WindowSizeMsg:
-		model.SetSize(msg.Width, msg.Height)
-		cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
-	case messages.Message[[]int]:
-		switch msg.Type {
-		case messages.MessageWindowSize:
-			model.SetSize(msg.Data[0], msg.Data[1])
-		}
-	case messages.Message[ui.Mode]:
-		model.SetMode(msg.Data)
-		cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
-	case messages.Message[string]:
-		switch msg.Type {
-		case messages.MessageOpenFile:
-			cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
-		case messages.MessageShow:
-			cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
-		case messages.MessageEditor:
-			cmds = append(cmds, model.dispatchMsg(msg, cmds)...)
-		}
+		cmds = append(cmds, model.keyHandler.Handle(msg))
 	}
 
+	model.dispatchMsg(msg, cmds)
 	return model, tea.Batch(cmds...)
 }
 

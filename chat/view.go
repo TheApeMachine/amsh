@@ -19,7 +19,6 @@ func (model *Model) View() string {
 	content := lipgloss.JoinVertical(
 		lipgloss.Top,
 		model.viewport.View(),
-		"\n", // Add a newline for spacing
 		model.textarea.View(),
 	)
 

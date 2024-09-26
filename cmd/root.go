@@ -10,20 +10,10 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/buffer"
-	"github.com/theapemachine/amsh/chat"
-	"github.com/theapemachine/amsh/editor"
-	"github.com/theapemachine/amsh/filebrowser"
-	"github.com/theapemachine/amsh/header"
 	"github.com/theapemachine/amsh/logger"
-	"github.com/theapemachine/amsh/splash"
-	"github.com/theapemachine/amsh/statusbar"
-	"github.com/theapemachine/amsh/ui"
 	"github.com/theapemachine/amsh/utils"
-	"golang.org/x/term"
 )
 
 /*
@@ -37,59 +27,33 @@ var embedded embed.FS
 var (
 	projectName = "amsh"
 	cfgFile     string
-	path        string
 
 	rootCmd = &cobra.Command{
 		Use:   "amsh",
 		Short: "A minimal shell and vim-like text editor with A.I. capabilities",
 		Long:  roottxt,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			width, height, _ := term.GetSize(int(os.Stdout.Fd()))
-
-			buf := buffer.New(path, width, height)
-			buf.RegisterComponents("splash", splash.New(width, height))
-			buf.RegisterComponents("header", header.New(width, height))
-			buf.RegisterComponents("filebrowser", filebrowser.New(width, height))
-			buf.RegisterComponents("editor", editor.New(width, height))
-			buf.RegisterComponents("statusbar", statusbar.New(width))
-			buf.RegisterComponents("chat", chat.New(width, height))
-
-			prog := tea.NewProgram(
-				buf,
-				tea.WithAltScreen(),
-			)
-
-			if _, err := prog.Run(); err != nil {
-				fmt.Println("Error while running program:", err)
-				os.Exit(1)
-			}
-
-			return nil
-		},
 	}
 )
 
-func Execute() {
-	currentDir, err := os.Getwd()
-	if err != nil {
+func Execute() error {
+	var (
+		currentDir string
+		err        error
+	)
+
+	if currentDir, err = os.Getwd(); err != nil {
 		fmt.Println("Error getting current working directory:", err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := logger.Init(filepath.Join(currentDir, projectName+".log")); err != nil {
 		fmt.Println("Error initializing logger:", err)
-		os.Exit(1)
+		return err
 	}
 	defer logger.Close()
 
 	logger.Info("Logger initialized successfully")
-	logger.Print(ui.Logo)
-
-	err = rootCmd.Execute()
-	if err != nil {
-		logger.Error("Error executing root command: %v", err)
-		os.Exit(1)
-	}
+	return rootCmd.Execute()
 }
 
 func init() {
@@ -98,8 +62,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(
 		&cfgFile, "config", "config.yml", "config file (default is $HOME/."+projectName+"/config.yml)",
 	)
-
-	rootCmd.Flags().StringVarP(&path, "path", "p", "", "Path to open")
 }
 
 func initConfig() {
