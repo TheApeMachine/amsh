@@ -1,9 +1,13 @@
 package ai
 
 import (
+	"context"
+	"log"
 	"os"
 
+	"github.com/google/generative-ai-go/genai"
 	"github.com/sashabaranov/go-openai"
+	"google.golang.org/api/option"
 )
 
 /*
@@ -12,7 +16,9 @@ It facilitates the interface between the local behavior and state, and the AI mo
 provided by OpenAI.
 */
 type Conn struct {
+	ctx    context.Context
 	client *openai.Client
+	gemini *genai.Client
 }
 
 /*
@@ -21,6 +27,34 @@ NewConn sets up a connection to the OpenAI API.
 func NewConn() *Conn {
 	return &Conn{
 		client: openai.NewClient(os.Getenv("OPENAI_API_KEY")),
+	}
+}
+
+func NewGeminiConn() *Conn {
+	ctx := context.Background()
+	var (
+		err    error
+		gemini *genai.Client
+	)
+
+	if gemini, err = genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_API_KEY"))); err != nil {
+		log.Fatalf("Failed to create Gemini client: %v", err)
+	}
+
+	return &Conn{
+		gemini: gemini,
+	}
+}
+
+/*
+NewLocalConn sets up a connection to a local LLM.
+*/
+func NewLocalConn() *Conn {
+	config := openai.DefaultConfig("lm-studio")
+	config.BaseURL = "http://localhost:1234/v1"
+
+	return &Conn{
+		client: openai.NewClientWithConfig(config),
 	}
 }
 

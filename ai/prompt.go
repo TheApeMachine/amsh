@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
 )
 
 /*
@@ -28,7 +27,6 @@ NewPrompt creates an empty prompt that can be used to dynamically build sophisti
 instructions that represent a request for an AI to produce a specific response.
 */
 func NewPrompt(role string) *Prompt {
-	errnie.Debug("Creating prompt for %s with modules: %s", role, viper.GetViper().GetString(fmt.Sprintf("ai.modules.%s", role)))
 	return &Prompt{
 		queue:   strings.Builder{},
 		system:  viper.GetViper().GetString("ai.prompt.system"),

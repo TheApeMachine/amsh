@@ -12,16 +12,24 @@ import (
 )
 
 type Pipeline struct {
-	ctx    context.Context
-	conn   *Conn
-	roles  []string
-	agents []*Agent
-	prompt *Prompt
+	ctx      context.Context
+	conn     *Conn
+	roles    []string
+	agents   []*Agent
+	prompt   *Prompt
+	step     int
+	loglevel string
 }
 
 func NewPipeline(ctx context.Context, conn *Conn, roles ...string) *Pipeline {
 	errnie.Debug("NewPipeline %v", roles)
-	return &Pipeline{ctx: ctx, conn: conn, roles: roles}
+	return &Pipeline{
+		ctx:      ctx,
+		conn:     conn,
+		roles:    roles,
+		step:     0,
+		loglevel: viper.GetViper().GetString("loglevel"),
+	}
 }
 
 func (pipeline *Pipeline) AddTask(goal string) {
@@ -57,9 +65,12 @@ func (pipeline *Pipeline) Generate() <-chan string {
 		for _, agent := range pipeline.agents {
 			steps := viper.GetStringSlice(fmt.Sprintf("ai.prompt.steps.%s", agent.role))
 
-			out <- pipeline.replacements(pipeline.makeSystem(agent), agent)
+			if pipeline.loglevel == "debug" {
+				out <- pipeline.replacements(pipeline.makeSystem(agent), agent)
+			}
 
 			for _, step := range steps {
+				step = strings.ReplaceAll(step, "<{name}>", agent.name)
 				agent.prompt.context = fmt.Sprintf("%s\n\n### Task\n\n> %s\n\n---\n\n### Response\n\n", pipeline.prompt.context, step)
 				out <- agent.prompt.context
 

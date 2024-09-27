@@ -25,8 +25,9 @@ var testCmd = &cobra.Command{
 		fmt.Print(ui.Logo)
 
 		pipeline := ai.NewPipeline(
-			context.Background(), ai.NewConn(),
-			"reasoner", "reviewer", "worker", "reviewer", "extractor",
+			context.Background(), ai.NewLocalConn(),
+			"reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer",
+			"reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer",
 		)
 
 		pipeline.AddTask("Write a full tetris game")
