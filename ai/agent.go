@@ -2,107 +2,151 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/sashabaranov/go-openai"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/errnie"
 )
 
-/*
-Agent is a configurable wrapper around an AI model, which uses composable
-prompt templates to induce a specific type of behavior to performodel.
-Multiple Agents can be constructed and they should be able to communicate
-and coordinate to form a cohesive AI Team of experts.
-*/
-type Agent struct {
-	ctx    context.Context
-	conn   *Conn
-	name   string
-	role   string
-	prompt *Prompt
-	stream *openai.ChatCompletionStream
-	err    error
+type Memory struct {
+	Timestamp time.Time `json:"timestamp"`
+	Scene     string    `json:"scene"`
+	Action    string    `json:"action"`
+	Content   string    `json:"content"`
 }
 
-/*
-NewAgent dynamically constructs an expert Agent designed to perform one or
-more tasks to achieve an overall goal.
-*/
-func NewAgent(ctx context.Context, conn *Conn, name string, role string, prompt *Prompt) *Agent {
-	errnie.Debug("Creating agent for %s with name %s", role, name)
+type Profile struct {
+	Name      string   `json:"name"`
+	Backstory string   `json:"backstory"`
+	Resume    string   `json:"resume"`
+	Memories  []Memory `json:"memories"`
+}
+
+func (profile *Profile) String() string {
+	json, err := json.Marshal(profile)
+	if err != nil {
+		errnie.Error(err.Error())
+		return ""
+	}
+
+	return string(json)
+}
+
+func (profile *Profile) Unmarshal(data string) error {
+	return json.Unmarshal([]byte(data), profile)
+}
+
+// Agent is a configurable wrapper around an AI model.
+type Agent struct {
+	ctx     context.Context
+	conn    *Conn
+	ID      string
+	history string
+	profile *Profile
+	stream  *openai.ChatCompletionStream
+	err     error
+}
+
+// NewAgent initializes the agent with an ID.
+func NewAgent(ctx context.Context, conn *Conn, ID string) *Agent {
 	return &Agent{
-		ctx:    ctx,
-		conn:   conn,
-		name:   name,
-		role:   role,
-		prompt: prompt,
+		ctx:  ctx,
+		conn: conn,
+		ID:   ID,
+		profile: &Profile{
+			Memories: make([]Memory, 0),
+		},
 	}
 }
 
-/*
-CreateChatCompletion sends a request to the OpenAI API for a chat completion.
-This method is crucial for enabling the Agent to interact with the AI model,
-allowing it to generate responses based on its role and available tools.
-By including the agent's tools in the request, we enable the AI to utilize
-these tools when formulating its response, enhancing its capabilities.
-*/
-func (agent *Agent) Generate(
-	ctx context.Context, context string,
-) <-chan string {
+// Generate initiates the generation of the agent's response.
+func (agent *Agent) Generate(ctx context.Context, system, user string) <-chan string {
 	out := make(chan string)
 
 	go func() {
 		defer close(out)
-
-		system := agent.replacements(agent.makeSystem())
-		user := agent.prompt.context
-
-		if agent.stream, agent.err = agent.conn.client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
-			Model: openai.GPT4oMini,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleSystem,
-					Content: system,
-				},
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: user,
-				},
-			},
-		}); agent.err != nil {
-			errnie.Error(agent.err.Error())
-			return
-		}
-
-		var response openai.ChatCompletionStreamResponse
-
-		for {
-			if response, agent.err = agent.stream.Recv(); agent.err != nil {
-				errnie.Error(agent.err.Error())
-				return
-			}
-
-			if response.Choices[0].Delta.Content == "" {
-				continue
-			}
-
-			out <- response.Choices[0].Delta.Content
-		}
+		agent.NextOpenAI(system, user, out)
 	}()
 
 	return out
 }
 
-func (agent *Agent) makeSystem() string {
-	return strings.Join([]string{
-		agent.prompt.system,
-	}, "\n\n")
+/*
+UpdateProfile uses an LLM to analyze the agent's history and update the profile.
+*/
+func (agent *Agent) UpdateProfile() {
+	system := viper.GetViper().GetString("ai.crew.extractor.system")
+	user := viper.GetViper().GetString("ai.crew.extractor.user")
+
+	user = strings.ReplaceAll(user, "<{profile}>", agent.profile.String())
+	user = strings.ReplaceAll(user, "<{history}>", agent.history)
+
+	req := openai.ChatCompletionRequest{
+		Model: openai.GPT4oMini,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: system,
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: user,
+			},
+		},
+	}
+
+	resp, err := agent.conn.client.CreateChatCompletion(agent.ctx, req)
+	if err != nil {
+		errnie.Error(err.Error())
+		return
+	}
+
+	agent.profile.Unmarshal(resp.Choices[0].Message.Content)
 }
 
-func (agent *Agent) replacements(prompt string) string {
-	prompt = strings.ReplaceAll(prompt, "<{profile}>", agent.prompt.role)
-	prompt = strings.ReplaceAll(prompt, "<{name}>", "`"+agent.name+"`")
-	prompt = strings.ReplaceAll(prompt, "<{modules}>", agent.prompt.modules)
+// NextOpenAI handles the OpenAI API interaction.
+func (agent *Agent) NextOpenAI(system, user string, out chan string) {
+	request := openai.ChatCompletionRequest{
+		Model: openai.GPT4oMini, // Replace with the actual model you're using
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: system,
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: user,
+			},
+		},
+		Stream: true,
+	}
 
-	return prompt
+	if agent.stream, agent.err = agent.conn.client.CreateChatCompletionStream(agent.ctx, request); agent.err != nil {
+		errnie.Error(agent.err.Error())
+		return
+	}
+
+	var response openai.ChatCompletionStreamResponse
+
+	for {
+		if response, agent.err = agent.stream.Recv(); agent.err != nil {
+			if agent.err.Error() != "EOF" {
+				errnie.Error(agent.err.Error())
+			}
+
+			break
+		}
+
+		chunk := response.Choices[0].Delta.Content
+
+		if chunk == "" {
+			continue
+		}
+
+		agent.history += chunk
+		out <- chunk
+	}
 }

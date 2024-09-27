@@ -20,16 +20,12 @@ var testCmd = &cobra.Command{
 	Short: "Run the service with the ~/.amsh/config.yml config values.",
 	Long:  testtxt,
 	RunE: func(_ *cobra.Command, _ []string) (err error) {
-		errnie.Debug("Starting test")
-
 		fmt.Print(ui.Logo)
 
 		pipeline := ai.NewPipeline(
-			context.Background(), ai.NewConn(),
-			"reasoner", "reviewer", "worker", "reviewer", "extractor",
+			context.Background(),
+			ai.NewConn(),
 		)
-
-		pipeline.AddTask("Write a full tetris game")
 
 		// Open a new log file for writing.
 		var logFile *os.File
