@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/ui"
@@ -26,7 +25,6 @@ var testCmd = &cobra.Command{
 		pipeline := ai.NewPipeline(
 			context.Background(),
 			ai.NewConn(),
-			viper.GetViper().GetStringSlice("ai.prompt.system.steps")...,
 		)
 
 		// Open a new log file for writing.

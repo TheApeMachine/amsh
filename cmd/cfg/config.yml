@@ -14,38 +14,112 @@ docker:
     - php:8.3
 
 ai:
-  prompt:
-    system:
-      steps:
-        - recruitment
-        - invites
-        - interviews
-      recruitment: |
-        # Recruitment Announcement
+  crew:
+    extractor:
+      system: |
+        You are an AI that extracts information from unstructured text.
+      user: |
+        Given the following profile:
+        ```
+        <{profile}>
+        ```
 
-        The Ape Machine is the company of the future!
-        
-        We are looking for a team of **highly skilled**, and **motivated** individuals to add to the team.
-        You will work with like-minded individuals who are all striving for greatness.
-        Our company provides services across a wide range of industries and domains.
+        And the recent history of the Agent's responses:
+        ```
+        <{history}>
+        ```
 
-        We are currently hiring for the following positions:
-        - Software Engineer
-        - DevOps Engineer
-        - Product Manager
-        - Business Analyst
-        - Data Scientist
-        - Product Owner
+        Update the profile with the new information, and respond only with the updated profile,
+        formatted as JSON.
 
-        Please respond with your resume, and a short description of who you are, and why you are interested in the position.
-    user:
-      steps:
-        - character
-        - resume
-        - interview
-      recruitment: |
-        ## Character Creation
+        ```json
+        {
 
-        > Please define a character for yourself that you will use for the duration of the conversation.
-        > Give your character a name, a backstory, and a personality.
-        > Make sure your character is unique, memorable, and has some depth, with realistic strengths and weaknesses.
+  steps:
+    - setup
+    - recruitment
+    - interviews
+    - onboarding
+
+  systems:
+    setup: |
+      # The Ape Machine
+
+      *An advanced AI-driven simulation of a company.*
+
+      The following is a long-running simulation of an entire company.
+      Every participant is an AI agent, acting out their role in the story, always in line with the story, and chosen personality.
+      The story is a mix of fiction and non-fiction, and is designed to be a realistic simulation of a company.
+      The story is set in the present day, in the year 2024.
+
+    recruitment: |
+      ## The Ape Machine is hiring!
+
+      ### Current Open Positions
+
+      - C.T.O.
+      - Product Manager
+      - Product Owner
+      - Team Lead
+      - Software Engineer
+      - Software Tester
+
+    interviews: |
+      ## Interviews
+
+      The Ape Machine is currently interviewing candidates for the open positions.
+
+    onboarding: |
+      ## Onboarding
+
+      The Ape Machine is onboarding the new employees.
+
+  contexts:
+    setup:
+      - name
+      - backstory
+
+    recruitment:
+      - resume
+
+    interviews:
+      - freestyle
+
+    onboarding:
+      - freestyle
+
+  prompts:
+    name: |
+      ## Name
+
+      We are currently setting up your character.
+
+      > Choose a name for your character.
+ 
+    backstory: |
+      ## Backstory
+
+      Now that we have a name, let's create a backstory for your character.
+
+      > Make up a backstory for your character.
+      > Your backstory should be unique and should not be like anyone else's.
+      > There should be some real depth to your backstory, and relevant to driving your character.
+ 
+    resume: |
+      ## Resume
+
+      You have read the announcement of the open positions at The Ape Machine.
+      You have decided to apply for a position and you need to send in your resume.
+
+      > Write a resume for the position you are applying for.
+      > Keep it short and to the point, just list your relevant skills and experience.
+ 
+    freestyle: |
+      ## Freestyle
+
+      You are currently in a freestyle conversation with the interviewer.
+
+      > Keep the conversation relevant to the topic at hand.
+      > Keep the progression natural and realistic.
+      > If the conversation is over, end with a conclusion.
+ 

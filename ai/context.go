@@ -6,14 +6,12 @@ import (
 )
 
 type Context struct {
-	Agent     *Agent
 	History   []string
 	Responses []string
 }
 
-func NewContext(agent *Agent) *Context {
+func NewContext() *Context {
 	return &Context{
-		Agent:     agent,
 		History:   make([]string, 0),
 		Responses: make([]string, 0),
 	}
