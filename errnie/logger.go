@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -18,7 +19,12 @@ var (
 	file        *os.File
 	tickID      int
 	indentLevel int
+	debug       bool
 )
+
+func init() {
+	debug = viper.GetViper().GetString("loglevel") == "debug"
+}
 
 // Init initializes two loggers: one for the file and one for in-memory (TUI)
 func Init(filename string) error {

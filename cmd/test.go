@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/ui"
@@ -20,17 +21,13 @@ var testCmd = &cobra.Command{
 	Short: "Run the service with the ~/.amsh/config.yml config values.",
 	Long:  testtxt,
 	RunE: func(_ *cobra.Command, _ []string) (err error) {
-		errnie.Debug("Starting test")
-
 		fmt.Print(ui.Logo)
 
 		pipeline := ai.NewPipeline(
-			context.Background(), ai.NewLocalConn(),
-			"reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer",
-			"reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer", "reasoner", "reviewer",
+			context.Background(),
+			ai.NewConn(),
+			viper.GetViper().GetStringSlice("ai.prompt.system.steps")...,
 		)
-
-		pipeline.AddTask("Write a full tetris game")
 
 		// Open a new log file for writing.
 		var logFile *os.File

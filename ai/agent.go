@@ -2,8 +2,9 @@ package ai
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
+	"github.com/google/generative-ai-go/genai"
 	"github.com/sashabaranov/go-openai"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -18,9 +19,10 @@ type Agent struct {
 	ctx    context.Context
 	conn   *Conn
 	name   string
-	role   string
 	prompt *Prompt
 	stream *openai.ChatCompletionStream
+	step   int
+	out    chan string
 	err    error
 }
 
@@ -28,14 +30,13 @@ type Agent struct {
 NewAgent dynamically constructs an expert Agent designed to perform one or
 more tasks to achieve an overall goal.
 */
-func NewAgent(ctx context.Context, conn *Conn, name string, role string, prompt *Prompt) *Agent {
-	errnie.Debug("Creating agent for %s with name %s", role, name)
+func NewAgent(ctx context.Context, conn *Conn, prompt *Prompt) *Agent {
 	return &Agent{
 		ctx:    ctx,
 		conn:   conn,
-		name:   name,
-		role:   role,
 		prompt: prompt,
+		step:   0,
+		out:    make(chan string),
 	}
 }
 
@@ -47,62 +48,68 @@ By including the agent's tools in the request, we enable the AI to utilize
 these tools when formulating its response, enhancing its capabilities.
 */
 func (agent *Agent) Generate(
-	ctx context.Context, context string,
+	ctx context.Context, step int,
 ) <-chan string {
-	out := make(chan string)
-
 	go func() {
-		defer close(out)
+		defer close(agent.out)
+		agent.NextGemini()
+	}()
 
-		system := agent.replacements(agent.makeSystem())
-		user := agent.prompt.context
+	return agent.out
+}
 
-		if agent.stream, agent.err = agent.conn.client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
-			Model: openai.GPT4oMini,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleSystem,
-					Content: system,
-				},
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: user,
-				},
-			},
-		}); agent.err != nil {
+func (agent *Agent) NextGemini() {
+	model := agent.conn.gemini.GenerativeModel("gemini-1.5-flash")
+	iter := model.GenerateContentStream(agent.ctx, genai.Text(agent.prompt.systems[agent.step]+agent.prompt.contexts[agent.step].Responses[agent.step]))
+
+	for {
+		var resp *genai.GenerateContentResponse
+
+		if resp, agent.err = iter.Next(); agent.err != nil {
 			errnie.Error(agent.err.Error())
 			return
 		}
 
-		var response openai.ChatCompletionStreamResponse
-
-		for {
-			if response, agent.err = agent.stream.Recv(); agent.err != nil {
-				errnie.Error(agent.err.Error())
-				return
+		for _, cand := range resp.Candidates {
+			if cand.Content != nil {
+				for _, part := range cand.Content.Parts {
+					agent.out <- fmt.Sprintf("%s", part)
+				}
 			}
-
-			if response.Choices[0].Delta.Content == "" {
-				continue
-			}
-
-			out <- response.Choices[0].Delta.Content
 		}
-	}()
-
-	return out
+	}
 }
 
-func (agent *Agent) makeSystem() string {
-	return strings.Join([]string{
-		agent.prompt.system,
-	}, "\n\n")
-}
+func (agent *Agent) NextOpenAI() {
+	if agent.stream, agent.err = agent.conn.client.CreateChatCompletionStream(agent.ctx, openai.ChatCompletionRequest{
+		Model: openai.GPT4oMini,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: agent.prompt.systems[agent.step],
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: agent.prompt.contexts[agent.step].Responses[agent.step],
+			},
+		},
+	}); agent.err != nil {
+		errnie.Error(agent.err.Error())
+		return
+	}
 
-func (agent *Agent) replacements(prompt string) string {
-	prompt = strings.ReplaceAll(prompt, "<{profile}>", agent.prompt.role)
-	prompt = strings.ReplaceAll(prompt, "<{name}>", "`"+agent.name+"`")
-	prompt = strings.ReplaceAll(prompt, "<{modules}>", agent.prompt.modules)
+	var response openai.ChatCompletionStreamResponse
 
-	return prompt
+	for {
+		if response, agent.err = agent.stream.Recv(); agent.err != nil {
+			errnie.Error(agent.err.Error())
+			return
+		}
+
+		if response.Choices[0].Delta.Content == "" {
+			continue
+		}
+
+		agent.out <- response.Choices[0].Delta.Content
+	}
 }

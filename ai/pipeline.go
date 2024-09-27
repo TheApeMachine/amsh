@@ -2,11 +2,7 @@ package ai
 
 import (
 	"context"
-	"fmt"
-	"strings"
-	"time"
 
-	"github.com/goombaio/namegenerator"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -14,20 +10,22 @@ import (
 type Pipeline struct {
 	ctx      context.Context
 	conn     *Conn
-	roles    []string
-	agents   []*Agent
 	prompt   *Prompt
+	steps    []string
 	step     int
+	out      chan string
 	loglevel string
 }
 
-func NewPipeline(ctx context.Context, conn *Conn, roles ...string) *Pipeline {
-	errnie.Debug("NewPipeline %v", roles)
+func NewPipeline(ctx context.Context, conn *Conn, steps ...string) *Pipeline {
+	errnie.Debug("NewPipeline %v", steps)
 	return &Pipeline{
 		ctx:      ctx,
 		conn:     conn,
-		roles:    roles,
+		prompt:   NewPrompt("pipeline"),
+		steps:    steps,
 		step:     0,
+		out:      make(chan string),
 		loglevel: viper.GetViper().GetString("loglevel"),
 	}
 }
@@ -35,68 +33,50 @@ func NewPipeline(ctx context.Context, conn *Conn, roles ...string) *Pipeline {
 func (pipeline *Pipeline) AddTask(goal string) {
 	errnie.Debug("AddTask %s", goal)
 	pipeline.prompt = NewPrompt("pipeline")
-	pipeline.prompt.context = "## Goal\n\n" + goal + "\n\n## Context\n\n"
 }
 
 func (pipeline *Pipeline) Generate() <-chan string {
-	errnie.Debug("Generate")
-
-	out := make(chan string)
-
-	// Create agents for each role
-	for _, role := range pipeline.roles {
-		name := namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate()
-		prompt := NewPrompt(role)
-
-		pipeline.agents = append(
-			pipeline.agents,
-			NewAgent(
-				pipeline.ctx,
-				pipeline.conn,
-				name,
-				role,
-				prompt,
-			))
-	}
+	errnie.Debug("pipeline.Generate %v", pipeline.steps)
 
 	go func() {
-		defer close(out)
+		defer close(pipeline.out)
 
-		for _, agent := range pipeline.agents {
-			steps := viper.GetStringSlice(fmt.Sprintf("ai.prompt.steps.%s", agent.role))
+		pipeline.initialize()
 
-			if pipeline.loglevel == "debug" {
-				out <- pipeline.replacements(pipeline.makeSystem(agent), agent)
-			}
+		for _, context := range pipeline.prompt.contexts {
+			context.Agent.prompt.AddSystem(
+				pipeline.prompt.systems[pipeline.step],
+			).AddContext(context)
 
-			for _, step := range steps {
-				step = strings.ReplaceAll(step, "<{name}>", agent.name)
-				agent.prompt.context = fmt.Sprintf("%s\n\n### Task\n\n> %s\n\n---\n\n### Response\n\n", pipeline.prompt.context, step)
-				out <- agent.prompt.context
+			errnie.Debug("pipeline.Generate %v", context.Agent.prompt)
 
-				for chunk := range agent.Generate(pipeline.ctx, pipeline.prompt.context) {
-					pipeline.prompt.context += chunk
-					out <- chunk
-				}
-
-				out <- "\n\n**Signed** " + agent.name + "\n\n---\n\n"
+			for chunk := range context.Agent.Generate(
+				pipeline.ctx,
+				pipeline.step,
+			) {
+				errnie.Debug("pipeline.Generate %v", chunk)
+				pipeline.out <- chunk
 			}
 		}
 	}()
 
-	return out
+	return pipeline.out
 }
 
-func (pipeline *Pipeline) makeSystem(agent *Agent) string {
-	return strings.Join([]string{
-		agent.prompt.system,
-	}, "\n\n")
-}
+func (pipeline *Pipeline) initialize() {
+	errnie.Debug("pipeline.initialize %v", pipeline.steps)
+	ps := pipeline.steps[pipeline.step]
+	pipeline.prompt.AddSystem(viper.GetViper().GetString("ai.prompt.system." + ps))
 
-func (pipeline *Pipeline) replacements(prompt string, agent *Agent) string {
-	prompt = strings.ReplaceAll(prompt, "<{profile}>", agent.prompt.role)
-	prompt = strings.ReplaceAll(prompt, "<{name}>", "`"+agent.name+"`")
-	prompt = strings.ReplaceAll(prompt, "<{modules}>", agent.prompt.modules)
-
-	return prompt
+	for i := 0; i < 10; i++ {
+		pipeline.prompt.AddContext(
+			NewContext(
+				NewAgent(
+					pipeline.ctx,
+					pipeline.conn,
+					NewPrompt(ps),
+				),
+			),
+		)
+	}
 }
