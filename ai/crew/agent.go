@@ -1,4 +1,4 @@
-package ai
+package crew
 
 import (
 	"context"
@@ -8,10 +8,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/google/generative-ai-go/genai"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/theapemachine/amsh/errnie"
-	"google.golang.org/api/iterator"
 )
 
 /*
@@ -29,7 +27,6 @@ Agent is a configurable wrapper around an AI model.
 */
 type Agent struct {
 	ctx     context.Context
-	conn    *Conn
 	ID      string
 	history string
 	Profile *Profile
@@ -42,9 +39,8 @@ NewAgent initializes the agent with an ID.
 */
 func NewAgent(ctx context.Context, conn *Conn, ID string, color string) *Agent {
 	return &Agent{
-		ctx:  ctx,
-		conn: conn,
-		ID:   ID,
+		ctx: ctx,
+		ID:  ID,
 		Profile: &Profile{
 			Experiences:   make([]*Experience, 0),
 			Memories:      make([]*Memory, 0),
@@ -116,8 +112,10 @@ func (agent *Agent) Load() *AgentState {
 NextOpenAI handles the OpenAI API interaction.
 */
 func (agent *Agent) NextOpenAI(system, user string, out chan string) {
+	client := openai.NewClient("YOUR_OPENAI_API_KEY")
+
 	request := openai.ChatCompletionRequest{
-		Model: openai.GPT4oMini,
+		Model: openai.GPT3Dot5Turbo,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: system},
 			{Role: openai.ChatMessageRoleUser, Content: user},
@@ -125,7 +123,7 @@ func (agent *Agent) NextOpenAI(system, user string, out chan string) {
 		Stream: true,
 	}
 
-	stream, err := agent.conn.client.CreateChatCompletionStream(agent.ctx, request)
+	stream, err := client.CreateChatCompletionStream(agent.ctx, request)
 	if err != nil {
 		errnie.Error(err.Error())
 		return
@@ -153,15 +151,17 @@ func (agent *Agent) NextOpenAI(system, user string, out chan string) {
 ChatCompletion generates a single, complete response from the OpenAI API.
 */
 func (agent *Agent) ChatCompletion(system, user string) (string, error) {
+	client := openai.NewClient("YOUR_OPENAI_API_KEY")
+
 	request := openai.ChatCompletionRequest{
-		Model: openai.GPT4oMini,
+		Model: openai.GPT3Dot5Turbo,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: system},
 			{Role: openai.ChatMessageRoleUser, Content: user},
 		},
 	}
 
-	response, err := agent.conn.client.CreateChatCompletion(agent.ctx, request)
+	response, err := client.CreateChatCompletion(agent.ctx, request)
 	if err != nil {
 		errnie.Error(err.Error())
 		return "", err
@@ -171,26 +171,4 @@ func (agent *Agent) ChatCompletion(system, user string) (string, error) {
 	agent.history += content
 
 	return content, nil
-}
-
-func (agent *Agent) NextGemini(system, user string, out chan string) {
-	model := agent.conn.gemini.GenerativeModel("gemini-1.5-flash")
-	iter := model.GenerateContentStream(agent.ctx, genai.Text(system+"\n\n"+user))
-
-	for {
-		resp, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			errnie.Error(err.Error())
-			break
-		}
-
-		for _, candidate := range resp.Candidates {
-			for _, part := range candidate.Content.Parts {
-				out <- fmt.Sprintf("%s", part)
-			}
-		}
-	}
 }

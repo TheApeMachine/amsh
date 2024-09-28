@@ -1,4 +1,4 @@
-package ai
+package crew
 
 import (
 	"context"
@@ -24,7 +24,8 @@ type Conn struct {
 NewConn initializes a new Conn with OpenAI and Gemini clients.
 This function assumes that the necessary API keys are set in the environment variables.
 Example:
-    conn := NewConn()
+
+	conn := NewConn()
 */
 func NewConn() *Conn {
 	return &Conn{
@@ -57,7 +58,8 @@ NewLocalConn sets up a connection to a local LLM.
 This function allows for testing or development with a local language model,
 providing flexibility in the AI backend used.
 Example:
-    localConn := NewLocalConn()
+
+	localConn := NewLocalConn()
 */
 func NewLocalConn() *Conn {
 	config := openai.DefaultConfig("lm-studio")
@@ -73,8 +75,9 @@ WithClient allows for custom OpenAI client configuration.
 This method enables runtime modification of the OpenAI client,
 useful for testing or dynamically changing API endpoints.
 Example:
-    customClient := openai.NewClient("custom-api-key")
-    conn.WithClient(customClient)
+
+	customClient := openai.NewClient("custom-api-key")
+	conn.WithClient(customClient)
 */
 func (c *Conn) WithClient(client *openai.Client) *Conn {
 	c.client = client

@@ -31,11 +31,11 @@ var testCmd = &cobra.Command{
 		defer pipeline.Save()
 
 		// Open a new log file for writing.
-		var logFile *os.File
-		if logFile, err = os.Create("logs/run" + time.Now().Format("2006-01-02 15:04:05") + ".md"); err != nil {
+		logFileName := fmt.Sprintf("logs/run_%s.md", time.Now().Format("2006-01-02_15-04-05"))
+		logFile, err := os.Create(logFileName)
+		if err != nil {
 			return err
 		}
-
 		defer logFile.Close()
 
 		for chunk := range pipeline.Generate() {
@@ -43,7 +43,7 @@ var testCmd = &cobra.Command{
 			logFile.WriteString(stripansi.Strip(chunk))
 		}
 
-		return
+		return nil
 	},
 }
 

@@ -5,33 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/goombaio/namegenerator"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/ai/crew"
 	"github.com/theapemachine/amsh/errnie"
 )
 
 /*
-colors is a list of ANSI escape codes for colored output.
+PipelineState encapsulates the current state of the pipeline.
 */
-var colors = []string{
-	"\033[32m", // Green
-	"\033[33m", // Yellow
-	"\033[34m", // Blue
-	"\033[35m", // Magenta
-	"\033[36m", // Cyan
-	"\033[40m", // Bright Green
-	"\033[41m", // Bright Yellow
-	"\033[42m", // Bright Blue
-	"\033[43m", // Bright Magenta
-	"\033[44m", // Bright Cyan
-}
-
-var reset = "\033[0m"
-
 type PipelineState struct {
 	Agents  []*AgentState
 	History []string
@@ -41,44 +27,52 @@ type PipelineState struct {
 	Agent   int
 }
 
-// Pipeline orchestrates the execution of steps and agents.
+/*
+Pipeline orchestrates the execution of scenes and agents.
+*/
 type Pipeline struct {
 	ctx      context.Context
 	conn     *Conn
 	out      chan string
-	crew     *Crew
+	crew     *crew.Crew
 	agents   []*Agent
 	history  []string
-	steps    []string
 	scenes   []Scene
 	scene    int
 	action   int
 	agent    int
 	loglevel string
 	err      error
+	mutex    sync.Mutex
 }
 
+/*
+Scene represents a distinct part of the story with its own context.
+*/
 type Scene struct {
 	System   string
 	Contexts []string
 }
 
-// NewPipeline initializes the pipeline with agents and steps.
+/*
+NewPipeline initializes the pipeline with agents and scenes.
+*/
 func NewPipeline(ctx context.Context, conn *Conn) *Pipeline {
 	errnie.Debug("NewPipeline")
 	return &Pipeline{
 		ctx:      ctx,
-		conn:     conn,
+		conn:     NewConn(),
 		out:      make(chan string),
-		crew:     NewCrew(ctx, conn),
+		crew:     crew.NewCrew(ctx),
 		agents:   make([]*Agent, 0),
 		history:  make([]string, 0),
-		steps:    viper.GetViper().GetStringSlice("ai.steps"),
-		loglevel: viper.GetViper().GetString("loglevel"),
+		loglevel: viper.GetString("loglevel"),
 	}
 }
 
-// Generate runs the pipeline over all outer steps and inner agent steps.
+/*
+Generate runs the pipeline over all scenes and actions.
+*/
 func (pipeline *Pipeline) Generate() <-chan string {
 	pipeline.setScenes()
 
@@ -90,42 +84,11 @@ func (pipeline *Pipeline) Generate() <-chan string {
 		defer close(pipeline.out)
 
 		for {
-			scene := pipeline.scenes[pipeline.scene]
-			action := scene.Contexts[pipeline.action]
-			agent := pipeline.agents[pipeline.agent]
-			response := ""
-
-			// Construct the historic context
-			historicContext := pipeline.handleHistory()
-
-			if pipeline.action == 0 && pipeline.loglevel == "debug" {
-				pipeline.out <- "\n\n---\n\n" + scene.System + "\n---\n"
-			}
-
-			context := fmt.Sprintf("%s\n\nYOUR AGENT ID: %s\n\n%s\n", historicContext, agent.ID, action)
-
-			if pipeline.loglevel == "debug" {
-				pipeline.out <- context
-			}
-
-			pipeline.out <- agent.color + "\n"
-
-			script := pipeline.Write()
-
-			for chunk := range agent.Generate(pipeline.ctx, script.Scene, script.Actions[pipeline.action]) {
-				response += chunk
-				pipeline.out <- chunk
-			}
-
-			pipeline.out <- reset + "\n"
-
-			// Add the new entry to the history
-			historyEntry := fmt.Sprintf("**AGENT ID: %s**\n\n  %s", agent.ID, response)
-			pipeline.history = append(pipeline.history, historyEntry)
-
-			if shouldEnd := pipeline.Flow(response); shouldEnd {
+			if pipeline.shouldEnd() {
 				break
 			}
+
+			pipeline.executeCurrentAction()
 		}
 	}()
 
@@ -133,73 +96,118 @@ func (pipeline *Pipeline) Generate() <-chan string {
 }
 
 /*
-handleHistory handles the history of the story.
+executeCurrentAction handles the execution of the current action.
 */
-func (pipeline *Pipeline) handleHistory() (historicalContext string) {
-	historicalContext = "\n<details>\n  <summary>History</summary>\n\n"
+func (pipeline *Pipeline) executeCurrentAction() {
+	pipeline.mutex.Lock()
+	defer pipeline.mutex.Unlock()
+
+	scene := pipeline.scenes[pipeline.scene]
+	actionPrompt := scene.Contexts[pipeline.action]
+	agent := pipeline.agents[pipeline.agent]
+
+	// Build the context for the agent
+	context := fmt.Sprintf("%s\n\n%s", pipeline.handleHistory(), actionPrompt)
+
+	// Generate the agent's response
+	pipeline.out <- agent.Color + "\n"
+
+	responseChan := agent.Generate(pipeline.ctx, scene.System, context)
+	response := ""
+
+	for chunk := range responseChan {
+		response += chunk
+		pipeline.out <- chunk
+	}
+
+	pipeline.out <- reset + "\n"
+
+	// Update history
+	historyEntry := fmt.Sprintf("**AGENT ID: %s**\n\n%s", agent.ID, response)
+	pipeline.history = append(pipeline.history, historyEntry)
+
+	// Flow control
+	if pipeline.Flow(response) {
+		return
+	}
+}
+
+/*
+handleHistory manages the historical context of the story.
+*/
+func (pipeline *Pipeline) handleHistory() string {
+	historicalContext := "\n<details>\n  <summary>History</summary>\n\n"
 	historicalContext += fmt.Sprintf("\n\nSCENE: %d - ACTION: %d\n\n", pipeline.scene, pipeline.action)
 	for _, entry := range pipeline.history {
 		historicalContext += entry + "\n\n"
 	}
 	historicalContext += "</details>\n\n---\n\n"
 
-	return
+	return historicalContext
 }
 
 /*
-Direct is used to direct the story.
-*/
-func (pipeline *Pipeline) Direct() (response *Direction) {
-	if response, pipeline.err = pipeline.crew.Direct(
-		strings.Join(pipeline.history, "\n\n"),
-	); pipeline.err != nil {
-		errnie.Error(pipeline.err.Error())
-		return
-	}
-
-	return response
-}
-
-/*
-Write the prompts for the agents to follow.
-*/
-func (pipeline *Pipeline) Write() (response *Script) {
-	if response, pipeline.err = pipeline.crew.Write(
-		strings.Join(pipeline.history, "\n\n"),
-		pipeline.Direct(),
-	); pipeline.err != nil {
-		errnie.Error(pipeline.err.Error())
-		return
-	}
-
-	return response
-}
-
-/*
-Flow is used to control the flow of the story.
+Flow controls the progression of the story.
 */
 func (pipeline *Pipeline) Flow(action string) (shouldEnd bool) {
-	// Check if we need to continue or repeat the action.
-	if flow, err := pipeline.crew.Flow(action); err != nil {
+	flowDecision, err := pipeline.crew.Flow.Decide(action)
+	if err != nil {
 		errnie.Error(err.Error())
-		return
-	} else if flow.Flow == "repeat" {
-		if flow.Scope == "action" {
-			pipeline.agent = 0
-		} else if flow.Scope == "scene" {
-			pipeline.scene--
-		}
-	} else {
-		if shouldEnd := pipeline.next(); shouldEnd {
-			return true
-		}
+		return true
 	}
 
-	return
+	if flowDecision.Repeat {
+		if flowDecision.Scope == "action" {
+			pipeline.agent = 0
+		} else if flowDecision.Scope == "scene" {
+			if pipeline.scene > 0 {
+				pipeline.scene--
+			}
+		}
+	} else {
+		pipeline.next()
+	}
+
+	return false
 }
 
 /*
-Save the pipeline state to a file.
+next progresses the story to the next step.
+*/
+func (pipeline *Pipeline) next() {
+	if pipeline.agent < len(pipeline.agents)-1 {
+		pipeline.agent++
+		return
+	}
+
+	pipeline.agent = 0
+
+	if pipeline.action < len(pipeline.scenes[pipeline.scene].Contexts)-1 {
+		pipeline.action++
+		return
+	}
+
+	pipeline.action = 0
+
+	if pipeline.scene < len(pipeline.scenes)-1 {
+		pipeline.scene++
+		pipeline.history = make([]string, 0)
+		return
+	}
+
+	// Set a flag or handle end of simulation
+}
+
+/*
+shouldEnd determines if the simulation should end.
+*/
+func (pipeline *Pipeline) shouldEnd() bool {
+	// Implement logic to determine if the simulation should end
+	return false
+}
+
+/*
+Save persists the current state of the pipeline to a file.
 */
 func (pipeline *Pipeline) Save() {
 	state := PipelineState{
@@ -215,36 +223,36 @@ func (pipeline *Pipeline) Save() {
 		state.Agents = append(state.Agents, agent.Save())
 	}
 
-	json, err := json.Marshal(state)
+	jsonData, err := json.Marshal(state)
 	if err != nil {
 		errnie.Error(err.Error())
 		return
 	}
 
-	os.WriteFile("pipeline.json", json, 0644)
+	os.WriteFile("pipeline.json", jsonData, 0644)
 }
 
 /*
-Load the pipeline state from a file.
+Load restores the pipeline state from a file.
 */
 func (pipeline *Pipeline) Load() {
-	buf, err := os.ReadFile("pipeline.json")
+	data, err := os.ReadFile("pipeline.json")
 	if err != nil {
 		errnie.Error(err.Error())
 		return
 	}
 
 	state := PipelineState{}
-	if err := json.Unmarshal(buf, &state); err != nil {
+	if err := json.Unmarshal(data, &state); err != nil {
 		errnie.Error(err.Error())
 		return
 	}
 
 	pipeline.agents = make([]*Agent, 0)
-	for _, agent := range state.Agents {
-		as := NewAgent(pipeline.ctx, pipeline.conn, agent.ID, agent.Color)
-		as.Load()
-		pipeline.addAgent(as)
+	for _, agentState := range state.Agents {
+		agent := NewAgent(pipeline.ctx, pipeline.conn, agentState.ID, agentState.Color)
+		agent.Load()
+		pipeline.agents = append(pipeline.agents, agent)
 	}
 
 	pipeline.history = state.History
@@ -255,59 +263,14 @@ func (pipeline *Pipeline) Load() {
 }
 
 /*
-next is used to move the story forward.
-The logic is as follows:
-- If the current agent is the last agent, we need to move to the next action.
-- If the current action is the last action, we need to move to the next scene.
-- If the current scene is the last scene, we need to end the story.
-*/
-func (pipeline *Pipeline) next() (shouldEnd bool) {
-	if pipeline.loglevel == "debug" {
-		errnie.Debug("\n\nNext: %d - %d - %d\n\n", pipeline.scene, pipeline.action, pipeline.agent)
-	}
-
-	// Move to the next agent
-	if pipeline.agent < len(pipeline.agents)-1 {
-		pipeline.agent++
-		return false
-	}
-
-	// Reset agent and move to the next action
-	pipeline.agent = 0
-
-	if pipeline.action < len(pipeline.scenes[pipeline.scene].Contexts)-1 {
-		pipeline.action++
-		return false
-	}
-
-	// Reset action and move to the next scene
-	pipeline.action = 0
-
-	if pipeline.scene < len(pipeline.scenes)-1 {
-		pipeline.scene++
-
-		// Update the profile of all agents and reset the history.
-		for _, agent := range pipeline.agents {
-			pipeline.crew.UpdateProfile(agent)
-		}
-
-		pipeline.history = make([]string, 0)
-
-		return false
-	}
-
-	// If the final scene has been processed, end the story
-	return true
-}
-
-/*
-setScenes sets the scene for the pipeline.
+setScenes initializes the scenes and agents for the pipeline.
 */
 func (pipeline *Pipeline) setScenes() {
 	pipeline.scenes = make([]Scene, 0)
+	steps := viper.GetStringSlice("ai.steps")
 
-	for _, step := range pipeline.steps {
-		userSteps := viper.GetViper().GetStringSlice("ai.contexts." + step)
+	for _, step := range steps {
+		userSteps := viper.GetStringSlice("ai.contexts." + step)
 		contexts := make([]string, 0)
 
 		for _, userStep := range userSteps {
@@ -315,30 +278,21 @@ func (pipeline *Pipeline) setScenes() {
 		}
 
 		scene := Scene{
-			System:   viper.GetViper().GetString("ai.systems." + step),
+			System:   viper.GetString("ai.systems." + step),
 			Contexts: contexts,
 		}
 
 		pipeline.scenes = append(pipeline.scenes, scene)
 	}
 
-	for i := 0; i < 1; i++ {
-		nameGenerator := namegenerator.NewNameGenerator(time.Now().UTC().UnixNano())
-		pipeline.addAgent(
-			NewAgent(
-				pipeline.ctx,
-				pipeline.conn,
-				nameGenerator.Generate(),
-				colors[len(pipeline.crew.agents)+i%len(colors)],
-			),
-		)
+	// Initialize agents
+	numAgents := 1 // Adjust as needed
+	for i := 0; i < numAgents; i++ {
+		seed := time.Now().UTC().UnixNano()
+		nameGenerator := namegenerator.NewNameGenerator(seed)
+		agentID := nameGenerator.Generate()
+		agentColor := Colors[i%len(Colors)]
+		agent := NewAgent(pipeline.ctx, pipeline.conn, agentID, agentColor)
+		pipeline.agents = append(pipeline.agents, agent)
 	}
-}
-
-/*
-addAgent is used to be able to dynamically add agents to the pipeline.
-We need this so the story can have new characters enter the story.
-*/
-func (pipeline *Pipeline) addAgent(agent *Agent) {
-	pipeline.agents = append(pipeline.agents, agent)
 }
