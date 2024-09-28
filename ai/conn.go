@@ -16,7 +16,6 @@ It facilitates the interface between the local behavior and state, and the AI mo
 provided by OpenAI.
 */
 type Conn struct {
-	ctx    context.Context
 	client *openai.Client
 	gemini *genai.Client
 }
@@ -27,10 +26,14 @@ NewConn sets up a connection to the OpenAI API.
 func NewConn() *Conn {
 	return &Conn{
 		client: openai.NewClient(os.Getenv("OPENAI_API_KEY")),
+		gemini: NewGeminiConn(),
 	}
 }
 
-func NewGeminiConn() *Conn {
+/*
+NewGeminiConn sets up a connection to the Gemini API.
+*/
+func NewGeminiConn() *genai.Client {
 	ctx := context.Background()
 	var (
 		err    error
@@ -41,9 +44,7 @@ func NewGeminiConn() *Conn {
 		log.Fatalf("Failed to create Gemini client: %v", err)
 	}
 
-	return &Conn{
-		gemini: gemini,
-	}
+	return gemini
 }
 
 /*

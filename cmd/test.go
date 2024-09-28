@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/acarl005/stripansi"
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
@@ -27,6 +28,8 @@ var testCmd = &cobra.Command{
 			ai.NewConn(),
 		)
 
+		defer pipeline.Save()
+
 		// Open a new log file for writing.
 		var logFile *os.File
 		if logFile, err = os.Create("logs/run" + time.Now().Format("2006-01-02 15:04:05") + ".md"); err != nil {
@@ -37,7 +40,7 @@ var testCmd = &cobra.Command{
 
 		for chunk := range pipeline.Generate() {
 			fmt.Print(chunk)
-			logFile.WriteString(chunk)
+			logFile.WriteString(stripansi.Strip(chunk))
 		}
 
 		return
