@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/tweaker"
 	"github.com/theapemachine/amsh/ui"
 )
 
@@ -20,13 +20,17 @@ var testCmd = &cobra.Command{
 	Use:   "test",
 	Short: "Run the service with the ~/.amsh/config.yml config values.",
 	Long:  testtxt,
-	RunE: func(_ *cobra.Command, _ []string) (err error) {
-		fmt.Print(ui.Logo)
+	RunE: func(cmd *cobra.Command, _ []string) (err error) {
+		fmt.Println(ui.Logo)
+
+		errnie.Debug("setup: %s", setup)
 
 		pipeline := ai.NewPipeline(
-			context.Background(),
+			cmd.Context(),
 			ai.NewConn(),
-		)
+			tweaker.GetSetup("simulation"),
+			tweaker.GetTemplate(),
+		).Initialize()
 
 		defer pipeline.Save()
 

@@ -2,55 +2,49 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"sync"
 
 	"github.com/google/generative-ai-go/genai"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/theapemachine/amsh/errnie"
+	"golang.org/x/exp/rand"
 	"google.golang.org/api/iterator"
 )
-
-/*
-AgentState represents the complete state of an Agent at a given point in time.
-*/
-type AgentState struct {
-	ID      string  `json:"id"`
-	History string  `json:"history"`
-	Profile Profile `json:"profile"`
-	Color   string  `json:"color"`
-}
 
 /*
 Agent is a configurable wrapper around an AI model.
 */
 type Agent struct {
-	ctx     context.Context
-	conn    *Conn
-	ID      string
-	history string
-	Profile *Profile
-	Color   string
-	mutex   sync.Mutex
+	ctx              context.Context
+	conn             *Conn
+	ID               string
+	Type             string
+	Scope            string
+	Responsibilities string
+	Color            string
 }
 
 /*
 NewAgent initializes the agent with an ID.
 */
-func NewAgent(ctx context.Context, conn *Conn, ID string, color string) *Agent {
+func NewAgent(
+	ctx context.Context,
+	conn *Conn,
+	ID string,
+	Type string,
+	scope string,
+	responsibilities string,
+	color string,
+) *Agent {
 	return &Agent{
-		ctx:  ctx,
-		conn: conn,
-		ID:   ID,
-		Profile: &Profile{
-			Experiences:   make([]*Experience, 0),
-			Memories:      make([]*Memory, 0),
-			Relationships: make([]*Relationship, 0),
-		},
-		Color: color,
+		ctx:              ctx,
+		conn:             conn,
+		ID:               ID,
+		Type:             Type,
+		Scope:            scope,
+		Responsibilities: responsibilities,
+		Color:            color,
 	}
 }
 
@@ -60,56 +54,22 @@ Generate initiates the generation of the agent's response.
 func (agent *Agent) Generate(ctx context.Context, system, user string) <-chan string {
 	out := make(chan string)
 
+	// Generate a random int between 0 and 1.
+	selected := rand.Intn(2)
+
+	errnie.Debug("SYSTEM:\n\n%s\n\n---\n\nUSER:\n\n%s---\n\n", system, user)
+
 	go func() {
 		defer close(out)
-		agent.NextOpenAI(system, user, out)
+
+		if selected == 0 {
+			agent.NextOpenAI(system, user, out)
+		} else {
+			agent.NextGemini(system, user, out)
+		}
 	}()
 
 	return out
-}
-
-/*
-Save persists the agent state to a file.
-*/
-func (agent *Agent) Save() *AgentState {
-	state := &AgentState{
-		ID:      agent.ID,
-		History: agent.history,
-		Profile: *agent.Profile,
-		Color:   agent.Color,
-	}
-
-	jsonData, err := json.Marshal(state)
-	if err != nil {
-		errnie.Error(err.Error())
-		return nil
-	}
-
-	os.WriteFile(fmt.Sprintf("profiles/%s.json", agent.ID), jsonData, 0644)
-	return state
-}
-
-/*
-Load retrieves the agent state from a file.
-*/
-func (agent *Agent) Load() *AgentState {
-	data, err := os.ReadFile(fmt.Sprintf("profiles/%s.json", agent.ID))
-	if err != nil {
-		errnie.Error(err.Error())
-		return nil
-	}
-
-	state := &AgentState{}
-	if err := json.Unmarshal(data, state); err != nil {
-		errnie.Error(err.Error())
-		return nil
-	}
-
-	agent.history = state.History
-	agent.Profile = &state.Profile
-	agent.Color = state.Color
-
-	return state
 }
 
 /*
@@ -143,7 +103,6 @@ func (agent *Agent) NextOpenAI(system, user string, out chan string) {
 		}
 		chunk := response.Choices[0].Delta.Content
 		if chunk != "" {
-			agent.history += chunk
 			out <- chunk
 		}
 	}
@@ -168,8 +127,6 @@ func (agent *Agent) ChatCompletion(system, user string) (string, error) {
 	}
 
 	content := response.Choices[0].Message.Content
-	agent.history += content
-
 	return content, nil
 }
 

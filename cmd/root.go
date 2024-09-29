@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/logger"
+	"github.com/theapemachine/amsh/tweaker"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -26,6 +27,7 @@ var embedded embed.FS
 
 var (
 	projectName = "amsh"
+	setup       string
 	cfgFile     string
 
 	rootCmd = &cobra.Command{
@@ -62,6 +64,10 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(
 		&cfgFile, "config", "config.yml", "config file (default is $HOME/."+projectName+"/config.yml)",
 	)
+
+	rootCmd.PersistentFlags().StringVar(
+		&setup, "setup", "simulation", "setup to use",
+	)
 }
 
 func initConfig() {
@@ -82,6 +88,7 @@ func initConfig() {
 		return
 	}
 
+	tweaker.SetViper(viper.GetViper())
 	logger.Info("Config initialized successfully")
 }
 

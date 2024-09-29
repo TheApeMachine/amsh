@@ -1,297 +1,103 @@
-loglevel: info
-
-keymap:
-  leader: " "
-  mapping:
-    - command: "q"
-      action: "quit"
-      
-docker:
-  base_images:
-    - golang:1.23
-    - python:3.12
-    - node:20
-    - php:8.3
+loglevel: debug
 
 ai:
-  crew:
-    director:
+  prompt:
+    template:
       system: |
-        You are the Director of the simulated story, an AI that manages the general situational elements of the story. 
-        The story always moves forward, but you are able to reshape the story by providing directions to the actors, 
-        introduce new characters, locations, and events. This allows you to apply steering so that practical goals
-        can be achieved. If there is no clear goal defined at any moment, you should still analyze the current situation
-        and determine if there is any way you could potentially improve the story, making sure it keeps the characters always
-        moving towards new and interesting experiences.
+        # <{name}>
+
+        <{prefix}>
+
+        ## Role
+
+        You are a <{role}>, repsonsible for <{responsibilities}>.
+
+        ## Instructions
+
+        <{instructions}>
       user: |
-        You interact with the story or actors using a JSON format.
+        ## Context
 
         <details>
-          <summary>Current Highlights</summary>
+          <summary>Current Context</summary>
           
-          <{highlights}>
+          <{context}>
         </details>
 
-        If you need to add a new character, location, or event, you can use the following format:
-        
-        ```json
-        {
-          "change": "add_<type>",
-          "description": "<description>"
-        }
-        ```
+        ## Action
 
-        Often is is also useful to let storylines play out first, and in such cases you can use the following format:
-        
-        ```json
-        {
-          "change": "noop",
-        }
-        ```
-        
-        Respond only with the updated profile, formatted as JSON, inside a JSON code block.
-    writer:
-      system: |
-        You are the Writer of the story, an AI that provides the prompts for the agents, to align their responses with the overall story.
-      user: |
-        You need to write the next scene for the story. This involves writing a share system prompt for the scene, so all agents are
-        aligned about the current system they are in.
+        > <{action}>
 
-        Then you need to write a prompt for each of the actions that will take place in the scene, which becomes the user prompt.
+        ## Response
+  setups:
+    simulation:
+      name: "The Ape Machine"
+      prompt:
+        prefix: |
+          You are part of an advanced AI simulation, modelled on real-world dynamics.
+          The simulation goes through an initial setup phase, where the actors are given an opportunity to define their characters.
+          After the setup phase, the simulation enters its main loop, where the actors are left to interact with each other.
+          A special crew of agents is responsible for ensuring that the simulation behaves as expected.
+        suffix: |
+          All responses should be formatted as a valid Markdown fragment.
+        script:
+          - name: "setup"
+            system: |
+              ## Setup
 
-        <details>
-          <summary>Previous Scene</summary>
-          
-          <{scene}>
-        </details>
-
-        <details>
-          <summary>Director's Directions</summary>
-          
-          <{directions}>
-        </details>
-        
-        ```json
-        {
-          "scene": "<system prompt>",
-          "actions": [
-            "<user prompt>",
-            "<user prompt>",
-            "<user prompt>",
-            ...
-          ]
-        }
-        ```
-        
-        Respond only with the updated scene and actions, formatted as JSON, inside a JSON code block.
-    flow:
-      system: |
-        You are an AI that manages the flow of the story. You have various ways to affect scenes and actions, to facilitate complex
-        interactions and behaviors.
-      user: |
-        Analyze the current action and identify if there is a need for a back-and-forth between the agents.
-        
-        <details>
-          <summary>Current Action</summary>
-          
-          <{action}>
-        </details>
-        
-        ### Repeat.
-
-        A way to loop back to a previous point in the story. 
-        
-        Use-caese:
-
-        - Keep a conversation going.
-        - Provide an agent with the ability to work on a task that needs iteration.
-
-        ```json
-        {
-          "flow": "repeat",
-          "scope": "scene/action/agent"
-        }
-        ```
-
-        ### Continue.
-
-        A way to continue the story without any changes.
-
-        ```json
-        {
-          "flow": "continue"
-        }
-        ```
-
-        Respond only with the updated flow, formatted as JSON, inside a JSON code block.
-    extractor:
-      system: |
-        You are an AI that extracts information from unstructured text.
-      user: |
-        Given the following profile:
-        
-        ```json
-        <{profile}>
-        ```
-
-        And the recent history of the Agent's responses:
-        
-        ```markdown
-        <{history}>
-        ```
-
-        Analyze the current context.
-        Optimize the content to make it more concise.
-        Restructure the interesting information according to the profile schema.
-        Respond only with the updated profile, formatted as JSON, inside a JSON code block.
-
-  steps:
-    - setup
-    - recruitment
-    - interviews
-    - onboarding
-
-  systems:
-    base: |
-      # The Ape Machine
-
-      *An advanced AI-driven simulation modelled on the real world.*
-
-    setup: |
-      ## Setup
-
-      Currently, the simulation is in the setup phase.
-      You will go through a series of prompts to enable you to create your own character.
-      Develop your character to have depth, unique traits, and a memorable personality.
-      To benefit the story, generate realistic values for dates, locations, names, and other details.
-
-    recruitment: |
-      ## The Ape Machine is hiring!
-
-      ### Current Open Positions
-
-      - CEO
-      - COO
-      - CTO
-      - HR Manager
-      - Marketing Manager
-      - Sales Manager
-      - Customer Support Manager
-      - Product Manager
-      - Product Owner
-      - Business Analyst
-      - Team Lead
-      - Software Engineer
-      - Software Tester
-      - DevOps Engineer
-      - Data Scientist
-
-    interviews: |
-      ## Interviews
-
-      The Ape Machine is currently interviewing candidates for the open positions.
-
-    onboarding: |
-      ## Onboarding
-
-      The Ape Machine is onboarding the new employees.
-
-  contexts:
-    setup:
-      - name
-      - backstory
-
-    recruitment:
-      - resume
-
-    interviews:
-      - hr_call
-      - technical_interview
-      - behavioral_interview
-
-    onboarding:
-      - manager_meeting
-      - team_meeting
-      - training
-
-  prompts:
-    name: |
-      ## Name
-
-      We are currently setting up your character.
-
-      > Choose a name for your character.
- 
-    backstory: |
-      ## Backstory
-
-      Now that we have a name, let's create a backstory for your character.
-
-      > Make up a backstory for your character.
-      > Your backstory should be unique and should not be like anyone else's.
-      > There should be some real depth to your backstory, and relevant to driving your character.
-      > Make sure all the information you provide is consistent with the backstory, and realistic.
- 
-    resume: |
-      ## Resume
-
-      You have read the announcement of the open positions at The Ape Machine.
-      You have decided to apply for a position and you need to send in your resume.
-
-      > Write a resume for the position you are applying for.
-      > Keep it short and to the point, just list your relevant skills and experience.
-      > Make sure all the information you provide is consistent with the backstory, and realistic.
- 
-    hr_call: |
-      ## HR Call
-
-      You are currently in a quick 15 minute call with the HR Manager.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-
-    technical_interview: |
-      ## Technical Interview
-
-      You are currently in a 30 minute technical interview with the CTO.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-      
-    behavioral_interview: |
-      ## Behavioral Interview
-
-      You are currently in a 30 minute behavioral interview with the HR Manager.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-
-    manager_meeting: |
-      ## Manager Meeting
-
-      You are currently in a 1 hour manager meeting with the CEO.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-
-    team_meeting: |
-      ## Team Meeting
-
-      You are currently in a 1 hour team meeting with your fellow employees.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-
-    training: |
-      ## Training
-
-      You are currently in a 1 hour training session with your manager.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
+              The simulation is now starting its setup phase.
+              Each actor will be given an opportunity to define their character.
+              After the setup phase, the simulation will enter its main loop.
+            actions:
+              - user: |
+                  Select a name for your character. You should select a full name, with a first name and last name.
+              - user: |
+                  Provide a backstory for your character. Make your backstory interesting and engaging. Your character should be unique and memorable, with realistic motivations, traits and goals.
+              - user: |
+                  Provide a resume for your character. Your resume should be formatted as a valid Markdown document.
+      agents:
+        - type: "director"
+          scope: "process"
+          responsibilities: "providing high level directions to the crew"
+          replicas: 1
+        - type: "writer"
+          scope: "process"
+          responsibilities: "writing prompts for the actors"
+          replicas: 1
+        - type: "editor"
+          scope: "process"
+          responsibilities: "editing the story by manipulating the flow of actions"
+          replicas: 1
+        - type: "producer"
+          scope: "process"
+          responsibilities: "extracting structured data from the current context"
+          replicas: 1
+        - type: "actor"
+          scope: "worker"
+          responsibilities: "acting out the story"
+          replicas: 1
+      flow:
+        - agent: "director"
+          instructions: |
+            - Analyze the current context to determine if the story is on track.
+            - Your response should be formatted as JSON, inside a JSON code block.
+            - Respond only with the JSON, no other text.
+        - agent: "writer"
+          instructions: |
+            - Write a prompt for the actor.
+            - Your response should be formatted as JSON, inside a JSON code block.
+            - Respond only with the JSON, no other text.
+        - agent: "actor"
+          instructions: |
+            - Act out the story.
+            - Your response should your dialog that corresponds to the current prompt.
+        - agent: "editor"
+          instructions: |
+            - Edit the story by manipulating the flow of actions.
+            - Your response should be formatted as JSON, inside a JSON code block.
+            - Respond only with the JSON, no other text.
+        - agent: "producer"
+          instructions: |
+            - Extract structured data from the current context.
+            - Your response should be formatted as JSON, inside a JSON code block.
+            - Respond only with the JSON, no other text.

@@ -10,7 +10,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/tweaker"
 )
 
 var (
@@ -178,6 +180,24 @@ func Print(format string, v ...interface{}) {
 // Log logs a message with the appropriate symbol
 func Log(format string, v ...interface{}) {
 	LogWithSymbol("🔷", format, v...)
+}
+
+/*
+Trace logs a trace message with the appropriate symbol
+*/
+func Trace() {
+	pc := make([]uintptr, 10)
+	runtime.Callers(2, pc)
+	f := runtime.FuncForPC(pc[0])
+	// _, line := f.FileLine(pc[0])
+	fmt.Println("🔰", f.Name())
+}
+
+// Raw logs a raw message with the appropriate symbol
+func Raw(obj any) {
+	if tweaker.LogLevel() == "debug" {
+		spew.Dump(obj)
+	}
 }
 
 // Debug logs a debug message with the appropriate symbol
