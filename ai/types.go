@@ -6,99 +6,133 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
-
-
-/*
-FlowDecision represents the decision on how the story should progress.
-*/
-type FlowDecision struct {
-	Flow   string `json:"flow"`
-	Scope  string `json:"scope"`
-	Repeat bool   `json:"repeat"`
+type Parser interface {
+	Parse(response string) error
 }
 
 /*
-Skill represents a capability of an agent.
+Direction is a type that structures the directors instructions to the other agents.
 */
-type Skill struct {
+type Direction struct {
+	Direction string `json:"direction"`
+}
+
+func (direction *Direction) Parse(response string) error {
+	errnie.Trace()
+
+	if err := json.Unmarshal(
+		ExtractJSON(response),
+		&direction,
+	); err != nil {
+		return errnie.Error(err)
+	}
+
+	return nil
+}
+
+/*
+Side is a type that structures the writer's instructions to the actors.
+*/
+type Side struct {
+	Scene      string      `json:"scene"`
+	Characters []Character `json:"characters"`
+	Actions    []string    `json:"actions"`
+}
+
+func (side *Side) Parse(response string) error {
+	errnie.Trace()
+
+	if err := json.Unmarshal(
+		ExtractJSON(response),
+		&side,
+	); err != nil {
+		return errnie.Error(err)
+	}
+
+	return nil
+}
+
+/*
+Character is a type that structures the writer's instructions to the actors.
+*/
+type Character struct {
+	Name        string `json:"name"`
+	Role        string `json:"role"`
+	Description string `json:"description"`
+}
+
+func (character *Character) Parse(response string) error {
+	errnie.Trace()
+
+	if err := json.Unmarshal(
+		ExtractJSON(response),
+		&character,
+	); err != nil {
+		return errnie.Error(err)
+	}
+
+	return nil
+}
+
+/*
+Location is a type that structures the writer's instructions to the actors.
+*/
+type Location struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Level       string `json:"level"`
 }
 
-/*
-Memory encapsulates a single recollection or piece of information.
-*/
-type Memory struct {
-	Timestamp string `json:"timestamp"`
-	Scene     string `json:"scene"`
-	Action    string `json:"action"`
-	Content   string `json:"content"`
-}
+func (location *Location) Parse(response string) error {
+	errnie.Trace()
 
-/*
-Experience represents a significant event or period in an agent's history.
-*/
-type Experience struct {
-	Title       string `json:"title"`
-	Location    string `json:"location"`
-	Start       string `json:"start"`
-	End         string `json:"end"`
-	Description string `json:"description"`
-}
-
-/*
-Relationship defines connections between an agent and other entities.
-*/
-type Relationship struct {
-	Target      string        `json:"target"`
-	Type        string        `json:"type"`
-	Status      string        `json:"status"`
-	Description string        `json:"description"`
-	Experiences []*Experience `json:"experiences"`
-	Memories    []*Memory     `json:"memories"`
-}
-
-/*
-Profile encapsulates all aspects of an agent's persona.
-*/
-type Profile struct {
-	Name          string          `json:"name"`
-	Description   string          `json:"description"`
-	Skills        []*Skill        `json:"skills"`
-	Experiences   []*Experience   `json:"experiences"`
-	Memories      []*Memory       `json:"memories"`
-	Relationships []*Relationship `json:"relationships"`
-}
-
-/*
-String converts the Profile to a JSON string.
-*/
-func (profile *Profile) String() string {
-	jsonData, err := json.Marshal(profile)
-	if err != nil {
-		errnie.Error(err.Error())
-		return ""
+	if err := json.Unmarshal(
+		ExtractJSON(response),
+		&location,
+	); err != nil {
+		return errnie.Error(err)
 	}
-	return string(jsonData)
+
+	return nil
 }
 
 /*
-Unmarshal populates the Profile from a JSON string.
+Edit is a type that structures the editor's instructions to the flow.
 */
-func (profile *Profile) Unmarshal(data string) error {
-	return json.Unmarshal([]byte(data), profile)
+type Edit struct {
+	Flow  string `json:"flow"`
+	Scope string `json:"scope"`
+}
+
+func (edit *Edit) Parse(response string) error {
+	errnie.Trace()
+
+	if err := json.Unmarshal(
+		ExtractJSON(response),
+		&edit,
+	); err != nil {
+		return errnie.Error(err)
+	}
+
+	return nil
 }
 
 /*
-Colors is a list of ANSI escape codes for colored output.
+Extract is a type that structures the producer's instructions to the flow.
 */
-var Colors = []string{
-	"\033[32m", "\033[33m", "\033[34m", "\033[35m", "\033[36m",
-	"\033[37m", "\033[31m", "\033[90m", "\033[91m", "\033[92m",
+type Extract struct {
+	Target string `json:"target"`
+	Data   string `json:"data"`
 }
 
-/*
-Reset ANSI escape code.
-*/
-var reset = "\033[0m"
+func (extract *Extract) Parse(response string) error {
+	errnie.Trace()
+
+	if err := json.Unmarshal(
+		ExtractJSON(response),
+		&extract,
+	); err != nil {
+		return errnie.Error(err)
+	}
+
+	return nil
+}

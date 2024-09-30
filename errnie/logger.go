@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/tweaker"
 )
 
@@ -21,12 +20,7 @@ var (
 	file        *os.File
 	tickID      int
 	indentLevel int
-	debug       bool
 )
-
-func init() {
-	debug = viper.GetViper().GetString("loglevel") == "debug"
-}
 
 // Init initializes two loggers: one for the file and one for in-memory (TUI)
 func Init(filename string) error {
@@ -216,12 +210,12 @@ func Warn(format string, v ...interface{}) {
 }
 
 // Error logs an error message with the appropriate symbol
-func Error(format string, v ...interface{}) {
-	if len(v) == 0 || v[0] == nil {
-		return
+func Error(err error) error {
+	if err == nil {
+		return nil
 	}
 
-	fmt.Println("❗", fmt.Sprintf(format, v...))
+	return fmt.Errorf("❗ %w", err)
 }
 
 // GetLogger returns the logger instance (for external usage if needed)

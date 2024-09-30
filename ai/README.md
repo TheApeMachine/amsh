@@ -1,50 +1,5 @@
 # The Ape Machine
 
-- Scene
-  - Action
-    - Flow
-      - Director
-      - Writer
-      - Actor
-      - Editor
-      - Producer
-  - Action
-    - Flow
-      - Director
-      - Writer
-      - Actor
-      - Editor
-      - Producer
-  - Action
-    - Flow
-      - Director
-      - Writer
-      - Actor
-      - Editor
-      - Producer
-- Scene
-  - Action
-    - Flow
-      - Director
-      - Writer
-      - Actor
-      - Editor
-      - Producer
-  - Action
-    - Flow
-      - Director
-      - Writer
-      - Actor
-      - Editor
-      - Producer
-  - Action
-    - Flow
-      - Director
-      - Writer
-      - Actor
-      - Editor
-      - Producer
-
 ## Overview
 
 The Ape Machine is an advanced AI-driven simulation system modeled on real-world dynamics. It aims to overcome limitations in traditional Language Model (LM) usage for complex tasks such as large-scale code generation, business strategy, data analysis, and many more

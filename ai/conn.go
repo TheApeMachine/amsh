@@ -18,18 +18,21 @@ enabling easy switching between services or using multiple services concurrently
 type Conn struct {
 	client *openai.Client
 	gemini *genai.Client
+	local  *openai.Client
 }
 
 /*
 NewConn initializes a new Conn with OpenAI and Gemini clients.
 This function assumes that the necessary API keys are set in the environment variables.
 Example:
-    conn := NewConn()
+
+	conn := NewConn()
 */
 func NewConn() *Conn {
 	return &Conn{
 		client: openai.NewClient(os.Getenv("OPENAI_API_KEY")),
 		gemini: NewGeminiConn(),
+		local:  NewLocalConn(),
 	}
 }
 
@@ -57,15 +60,14 @@ NewLocalConn sets up a connection to a local LLM.
 This function allows for testing or development with a local language model,
 providing flexibility in the AI backend used.
 Example:
-    localConn := NewLocalConn()
+
+	localConn := NewLocalConn()
 */
-func NewLocalConn() *Conn {
+func NewLocalConn() *openai.Client {
 	config := openai.DefaultConfig("lm-studio")
 	config.BaseURL = "http://localhost:1234/v1"
 
-	return &Conn{
-		client: openai.NewClientWithConfig(config),
-	}
+	return openai.NewClientWithConfig(config)
 }
 
 /*
@@ -73,8 +75,9 @@ WithClient allows for custom OpenAI client configuration.
 This method enables runtime modification of the OpenAI client,
 useful for testing or dynamically changing API endpoints.
 Example:
-    customClient := openai.NewClient("custom-api-key")
-    conn.WithClient(customClient)
+
+	customClient := openai.NewClient("custom-api-key")
+	conn.WithClient(customClient)
 */
 func (c *Conn) WithClient(client *openai.Client) *Conn {
 	c.client = client

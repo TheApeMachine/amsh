@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/tweaker"
 	"github.com/theapemachine/amsh/ui"
 )
 
@@ -28,8 +27,6 @@ var testCmd = &cobra.Command{
 		pipeline := ai.NewPipeline(
 			cmd.Context(),
 			ai.NewConn(),
-			tweaker.GetSetup("simulation"),
-			tweaker.GetTemplate(),
 		).Initialize()
 
 		defer pipeline.Save()

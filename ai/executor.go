@@ -9,6 +9,23 @@ import (
 	"github.com/theapemachine/amsh/tweaker"
 )
 
+var parsers = map[string][]Parser{
+	"director": {
+		&Direction{},
+	},
+	"writer": {
+		&Side{},
+		&Character{},
+		&Location{},
+	},
+	"editor": {
+		&Edit{},
+	},
+	"producer": {
+		&Extract{},
+	},
+}
+
 type Pointer struct {
 	Flow   int
 	Scene  int
@@ -24,8 +41,7 @@ type History struct {
 type Executor struct {
 	ctx            context.Context
 	conn           *Conn
-	setup          tweaker.Setup
-	template       tweaker.Template
+	setup          map[string]interface{}
 	agents         map[string][]*Agent
 	pointer        Pointer
 	history        []History
@@ -35,17 +51,14 @@ type Executor struct {
 func NewExecutor(
 	ctx context.Context,
 	conn *Conn,
-	setup tweaker.Setup,
-	template tweaker.Template,
 ) *Executor {
 	errnie.Trace()
 
 	return &Executor{
-		ctx:      ctx,
-		conn:     conn,
-		setup:    setup,
-		template: template,
-		agents:   make(map[string][]*Agent),
+		ctx:    ctx,
+		conn:   conn,
+		setup:  tweaker.Setups(),
+		agents: make(map[string][]*Agent),
 		pointer: Pointer{
 			Scene:  0,
 			Action: 0,
@@ -78,11 +91,32 @@ func (executor *Executor) Generate() <-chan string {
 			}
 
 			agent, system, user := executor.compile()
+			history := History{
+				Agent:    agent.ID,
+				Response: "",
+			}
+
+			out <- "\n\n---\n\n"
+			out <- system
+			out <- user
 
 			for chunk := range agent.Generate(executor.ctx, system, user) {
+				history.Response += chunk
 				out <- chunk
 			}
 
+			out <- "\n\n---\n\n"
+
+			// Parse the response
+			if parser, ok := parsers[agent.Type]; ok {
+				for _, p := range parser {
+					if err := p.Parse(history.Response); err != nil {
+						errnie.Error(err)
+					}
+				}
+			}
+
+			executor.history = append(executor.history, history)
 			shouldEnd = executor.next()
 		}
 	}()
@@ -96,29 +130,33 @@ compile the templates.
 func (executor *Executor) compile() (agent *Agent, system, user string) {
 	errnie.Trace()
 
-	flow := executor.setup.Flow[executor.pointer.Flow]
-	scene := executor.setup.Prompt.Script[executor.pointer.Scene]
-	action := scene.Actions[executor.pointer.Action]
-	agent = executor.agents[flow.Agent][executor.pointer.Agent]
+	// Extract flow and script dynamically from the config
+	flowConfig := tweaker.Flow()
+	sceneConfig := executor.setup["prompt"].(map[string]interface{})["script"].([]interface{})[executor.pointer.Scene].(map[string]interface{})
+	actionConfig := sceneConfig["actions"].([]interface{})[executor.pointer.Action].(map[string]interface{})
 
-	system = executor.template.System
-	user = executor.template.User
+	currentAgentType := flowConfig[executor.pointer.Flow]["agent"].(string)
+	agent = executor.agents[currentAgentType][executor.pointer.Agent]
 
-	// Replace the placeholders with the setup values.
-	system = strings.ReplaceAll(system, "<{name}>", executor.setup.Name)
-	system = strings.ReplaceAll(system, "<{prefix}>", executor.setup.Prompt.Prefix)
+	// Retrieve the prompt templates dynamically
+	system = tweaker.PromptTemplate("system")
+	user = tweaker.PromptTemplate("user")
+
+	// Replace placeholders with the current values from config
+	system = strings.ReplaceAll(system, "<{name}>", executor.setup["name"].(string))
+	system = strings.ReplaceAll(system, "<{prefix}>", tweaker.PromptPrefix())
 	system = strings.ReplaceAll(system, "<{role}>", agent.Type)
 	system = strings.ReplaceAll(system, "<{responsibilities}>", agent.Responsibilities)
-	system = strings.ReplaceAll(system, "<{instructions}>", flow.Instructions)
-	system = strings.ReplaceAll(system, "<{suffix}>", executor.setup.Prompt.Suffix)
+	system = strings.ReplaceAll(system, "<{instructions}>", flowConfig[executor.pointer.Flow]["instructions"].(string))
+	system = strings.ReplaceAll(system, "<{suffix}>", tweaker.PromptSuffix())
 	user = strings.ReplaceAll(user, "<{context}>", executor.historyContext)
-	user = strings.ReplaceAll(user, "<{action}>", action.User)
+	user = strings.ReplaceAll(user, "<{action}>", actionConfig["user"].(string))
 
-	// Build the context history table.
-	history := ""
-	for _, response := range executor.history {
-		history += fmt.Sprintf("| %s | %s |\n", response.Agent, response.Response)
+	// Append the current agent's response to the history context
+	for _, history := range executor.history {
+		executor.historyContext += fmt.Sprintf("| %s | %s |\n", history.Agent, history.Response)
 	}
+	executor.historyContext += fmt.Sprintf("| %s | %s |\n", agent.ID, "<agent response>")
 
 	return agent, system, user
 }
@@ -140,30 +178,44 @@ The logic is as follows:
 - If the current scene is the last scene, we need to end the story.
 */
 func (executor *Executor) next() (shouldEnd bool) {
-    errnie.Trace()
+	errnie.Trace()
 
-    // Move to the next agent
-    if executor.pointer.Agent < len(executor.agents["flow"])-1 {
-        executor.pointer.Agent++
-        return false
-    }
+	// Get the current agent type
+	flowConfig := tweaker.Flow()
+	currentAgentType := flowConfig[executor.pointer.Flow]["agent"].(string)
 
-    // Reset agent and move to the next action
-    executor.pointer.Agent = 0
+	// Check if all replicas of the current agent type have completed
+	if executor.pointer.Agent < len(executor.agents[currentAgentType])-1 {
+		executor.pointer.Agent++
+		return false
+	}
 
-    if executor.pointer.Action < len(executor.setup.Prompt.Script[executor.pointer.Scene].Actions)-1 {
-        executor.pointer.Action++
-        return false
-    }
+	// Reset agent pointer and move to the next agent type
+	executor.pointer.Agent = 0
 
-    // Reset action and move to the next scene
-    executor.pointer.Action = 0
+	// Check if there are more agent types in the current flow to process
+	if executor.pointer.Flow < len(flowConfig)-1 {
+		executor.pointer.Flow++
+		return false
+	}
 
-    if executor.pointer.Scene < len(executor.setup.Prompt.Script)-1 {
-        executor.pointer.Scene++
-        return false
-    }
+	// Reset flow pointer and move to the next action
+	executor.pointer.Flow = 0
 
-    // End the simulation when all scenes are processed
-    return true
+	sceneConfig := executor.setup["prompt"].(map[string]interface{})["script"].([]interface{})[executor.pointer.Scene].(map[string]interface{})
+	if executor.pointer.Action < len(sceneConfig["actions"].([]interface{}))-1 {
+		executor.pointer.Action++
+		return false
+	}
+
+	// Reset action pointer and move to the next scene
+	executor.pointer.Action = 0
+
+	if executor.pointer.Scene < len(executor.setup["prompt"].(map[string]interface{})["script"].([]interface{}))-1 {
+		executor.pointer.Scene++
+		return false
+	}
+
+	// End the simulation if all scenes have been processed
+	return true
 }

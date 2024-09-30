@@ -10,7 +10,7 @@ import (
 func main() {
 	errnie.Debug("Starting AMSH")
 	if err := cmd.Execute(); err != nil {
-		errnie.Error(err.Error())
+		errnie.Error(err)
 		os.Exit(1)
 	}
 	errnie.Debug("AMSH finished")

@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/logger"
-	"github.com/theapemachine/amsh/tweaker"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -88,7 +87,6 @@ func initConfig() {
 		return
 	}
 
-	tweaker.SetViper(viper.GetViper())
 	logger.Info("Config initialized successfully")
 }
 

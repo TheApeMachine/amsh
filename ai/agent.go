@@ -8,7 +8,6 @@ import (
 	"github.com/google/generative-ai-go/genai"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/theapemachine/amsh/errnie"
-	"golang.org/x/exp/rand"
 	"google.golang.org/api/iterator"
 )
 
@@ -55,21 +54,57 @@ func (agent *Agent) Generate(ctx context.Context, system, user string) <-chan st
 	out := make(chan string)
 
 	// Generate a random int between 0 and 1.
-	selected := rand.Intn(2)
-
-	errnie.Debug("SYSTEM:\n\n%s\n\n---\n\nUSER:\n\n%s---\n\n", system, user)
+	// selected := rand.Intn(2)
 
 	go func() {
 		defer close(out)
 
-		if selected == 0 {
-			agent.NextOpenAI(system, user, out)
-		} else {
-			agent.NextGemini(system, user, out)
-		}
+		agent.NextLocal(system, user, out)
+
+		// if selected == 0 {
+		// 	agent.NextOpenAI(system, user, out)
+		// } else {
+		// 	agent.NextGemini(system, user, out)
+		// }
 	}()
 
 	return out
+}
+
+/*
+NextLocal handles the local LLM interaction.
+*/
+func (agent *Agent) NextLocal(system, user string, out chan string) {
+	request := openai.ChatCompletionRequest{
+		Model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: system},
+			{Role: openai.ChatMessageRoleUser, Content: user},
+		},
+		Stream: true,
+	}
+
+	stream, err := agent.conn.local.CreateChatCompletionStream(agent.ctx, request)
+	if err != nil {
+		errnie.Error(err)
+		return
+	}
+	defer stream.Close()
+
+	for {
+		response, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			errnie.Error(err)
+			break
+		}
+		chunk := response.Choices[0].Delta.Content
+		if chunk != "" {
+			out <- chunk
+		}
+	}
 }
 
 /*
@@ -87,7 +122,7 @@ func (agent *Agent) NextOpenAI(system, user string, out chan string) {
 
 	stream, err := agent.conn.client.CreateChatCompletionStream(agent.ctx, request)
 	if err != nil {
-		errnie.Error(err.Error())
+		errnie.Error(err)
 		return
 	}
 	defer stream.Close()
@@ -98,7 +133,7 @@ func (agent *Agent) NextOpenAI(system, user string, out chan string) {
 			if err == io.EOF {
 				break
 			}
-			errnie.Error(err.Error())
+			errnie.Error(err)
 			break
 		}
 		chunk := response.Choices[0].Delta.Content
@@ -122,7 +157,7 @@ func (agent *Agent) ChatCompletion(system, user string) (string, error) {
 
 	response, err := agent.conn.client.CreateChatCompletion(agent.ctx, request)
 	if err != nil {
-		errnie.Error(err.Error())
+		errnie.Error(err)
 		return "", err
 	}
 
@@ -140,7 +175,7 @@ func (agent *Agent) NextGemini(system, user string, out chan string) {
 			break
 		}
 		if err != nil {
-			errnie.Error(err.Error())
+			errnie.Error(err)
 			break
 		}
 
