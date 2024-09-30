@@ -8,8 +8,10 @@ import (
 )
 
 type Keyboard struct {
-	queue *Queue
-	mode  Mode
+	queue            *Queue
+	mode             Mode
+	chatWindowActive bool
+	chatInputBuffer  string
 }
 
 func NewKeyboard(queue *Queue) *Keyboard {
@@ -48,7 +50,18 @@ func NewKeyboard(queue *Queue) *Keyboard {
 func (keyboard *Keyboard) ReadInput() {
 	b := make([]byte, 1)
 	n, err := os.Stdin.Read(b)
+
 	if err != nil || n == 0 {
+		return
+	}
+
+	if keyboard.chatWindowActive {
+		keyboard.handleChatInput(b[0])
+		return
+	}
+
+	if b[0] == 7 {
+		keyboard.queue.Publish("chat", data.New("Keyboard", "ToggleChat", "", nil))
 		return
 	}
 
@@ -133,5 +146,28 @@ func (keyboard *Keyboard) handleInsertMode(b byte) {
 			// Publish an insert character event
 			keyboard.queue.Publish("buffer", data.New("Keyboard", "InsertChar", "", []byte{b}))
 		}
+	}
+}
+
+func (keyboard *Keyboard) handleChatInput(b byte) {
+	// Handle input for the chat window
+	// For example:
+	switch b {
+	case 13: // Enter key
+		// Send message to AI system
+		message := keyboard.chatInputBuffer
+		keyboard.chatInputBuffer = ""
+		keyboard.queue.Publish("chat", data.New("Keyboard", "SendMessage", "", []byte(message)))
+	case 127: // Backspace
+		if len(keyboard.chatInputBuffer) > 0 {
+			keyboard.chatInputBuffer = keyboard.chatInputBuffer[:len(keyboard.chatInputBuffer)-1]
+			// Update chat input display
+			keyboard.queue.Publish("chat", data.New("Keyboard", "UpdateChatInput", "", []byte(keyboard.chatInputBuffer)))
+		}
+	default:
+		// Append character to input buffer
+		keyboard.chatInputBuffer += string(b)
+		// Update chat input display
+		keyboard.queue.Publish("chat", data.New("Keyboard", "UpdateChatInput", "", []byte(keyboard.chatInputBuffer)))
 	}
 }

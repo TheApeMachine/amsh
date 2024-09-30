@@ -80,6 +80,12 @@ func (pipeline *Pipeline) Generate() <-chan string {
 	return out
 }
 
+func (pipeline *Pipeline) Prompt(message string) string {
+	errnie.Trace()
+
+	return "yes?"
+}
+
 /*
 Save the pipeline.
 */

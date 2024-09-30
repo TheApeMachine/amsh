@@ -4,28 +4,33 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"syscall"
 
+	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/tui/components/chat"
 	"github.com/theapemachine/amsh/tui/core"
 	"golang.org/x/term"
 )
 
 type App struct {
-	cursor    *core.Cursor
-	oldState  *term.State
-	width     int
-	height    int
-	mode      core.Mode // Changed from int to core.Mode
-	running   bool      // Control loop flag
-	buffers   []*core.Buffer
-	bufPtr    int
-	filename  string      // Current file name
-	command   string      // Current command input
-	statusMsg string      // Current status message
-	queue     *core.Queue // Message queue
+	cursor     *core.Cursor
+	oldState   *term.State
+	width      int
+	height     int
+	mode       core.Mode // Changed from int to core.Mode
+	running    bool      // Control loop flag
+	buffers    []*core.Buffer
+	bufPtr     int
+	filename   string      // Current file name
+	command    string      // Current command input
+	statusMsg  string      // Current status message
+	queue      *core.Queue // Message queue
+	chatWindow *chat.ChatWindow
+	aiSystem   *ai.Pipeline
 }
 
 func New() *App {
@@ -59,6 +64,9 @@ func (app *App) Initialize() *App {
 	// Create a new cursor with the queue.
 	app.cursor = core.NewCursor(app.queue)
 
+	// Create a new chat window with the queue.
+	app.chatWindow = chat.NewChatWindow(app.width, app.height, core.NewBuffer(app.height, app.cursor, app.queue))
+
 	// Create a new buffer with the queue.
 	app.buffers = append(app.buffers, core.NewBuffer(app.height, app.cursor, app.queue))
 	app.bufPtr = 0
@@ -69,19 +77,25 @@ func (app *App) Initialize() *App {
 
 	// Subscribe to various topics.
 	cursorSub := app.queue.Subscribe("cursor")
-	go app.handleEvents(cursorSub)
-
 	bufferSub := app.queue.Subscribe("buffer")
-	go app.handleEvents(bufferSub)
-
 	modeSub := app.queue.Subscribe("mode_change")
-	go app.handleEvents(modeSub)
-
 	appQuitSub := app.queue.Subscribe("app")
-	go app.handleEvents(appQuitSub)
-
 	commandInputSub := app.queue.Subscribe("command_input")
-	go app.handleCommandInput(commandInputSub)
+	chatToggleSub := app.queue.Subscribe("chat")
+	chatInputSub := app.queue.Subscribe("chat_input")
+	chatMessageSub := app.queue.Subscribe("chat_message")
+
+	// Pass all subscriptions to handleEvents as a single goroutine
+	go app.handleEvents(
+		cursorSub,
+		bufferSub,
+		modeSub,
+		appQuitSub,
+		commandInputSub,
+		chatToggleSub,
+		chatInputSub,
+		chatMessageSub,
+	)
 
 	// Initialize the Keyboard and start its input loop.
 	keyboard := core.NewKeyboard(app.queue)
@@ -106,22 +120,51 @@ func (app *App) Run() {
 }
 
 // handleEvents processes messages from the queue.
-func (app *App) handleEvents(ch <-chan *data.Artifact) {
+func (app *App) handleEvents(channels ...<-chan *data.Artifact) {
 	var (
 		role    string
 		payload []byte
 		err     error
 	)
 
-	for artifact := range ch {
+	// Create a slice of reflect.SelectCase to hold each channel case
+	cases := make([]reflect.SelectCase, len(channels))
+
+	// Populate the SelectCase slice with each channel
+	for i, c := range channels {
+		cases[i] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv, // We're receiving from the channels
+			Chan: reflect.ValueOf(c),
+		}
+	}
+
+	// Infinite loop to select from the dynamic channels
+	for {
+		chosen, recv, ok := reflect.Select(cases)
+		if !ok {
+			// Channel was closed, remove it from cases slice
+			cases = append(cases[:chosen], cases[chosen+1:]...)
+			if len(cases) == 0 {
+				// Break the loop if no channels remain
+				break
+			}
+			continue
+		}
+
+		// Extract the artifact from the selected channel
+		artifact := recv.Interface().(*data.Artifact)
+
 		if role, err = artifact.Role(); err != nil {
 			errnie.Error(err)
+			continue
 		}
 
 		if payload, err = artifact.Payload(); err != nil {
 			errnie.Error(err)
+			continue
 		}
 
+		// Handle the role switching logic
 		switch role {
 		case "MoveUp":
 			app.cursor.MoveUp(1)
@@ -146,7 +189,6 @@ func (app *App) handleEvents(ch <-chan *data.Artifact) {
 			app.mode = core.NormalMode
 			app.clearStatusLine()
 			app.showCursorShape("block")
-			// Publish mode change event.
 			app.queue.Publish("mode_change", data.New("App", "ModeChange", "NormalMode", nil))
 		case "InsertMode":
 			app.mode = core.InsertMode
@@ -158,10 +200,52 @@ func (app *App) handleEvents(ch <-chan *data.Artifact) {
 			app.command = ""
 			app.showStatus(":")
 			app.queue.Publish("mode_change", data.New("App", "ModeChange", "CommandMode", nil))
+		case "ToggleChat":
+			app.toggleChatWindow()
+		case "SendMessage":
+			message := string(payload)
+			app.handleChatMessage(message)
+		case "UpdateChatInput":
+			input := string(payload)
+			app.chatWindow.UpdateInputDisplay(input)
 		case "Quit":
 			app.cleanupAndExit()
 		}
 	}
+}
+
+func (app *App) toggleChatWindow() {
+	if app.chatWindow.Active {
+		app.closeChatWindow()
+	} else {
+		app.openChatWindow()
+	}
+}
+
+func (app *App) openChatWindow() {
+	app.chatWindow.Active = true
+	// Save the underlying content
+	app.chatWindow.SaveUnderlyingContent()
+	// Draw the chat window
+	app.chatWindow.Draw()
+	// Redirect input to chat window
+	// You may need to adjust your input handling to check if the chat window is active
+}
+
+func (app *App) closeChatWindow() {
+	app.chatWindow.Active = false
+	// Restore the underlying content
+	app.chatWindow.RestoreUnderlyingContent()
+	// Return input focus to the editor
+}
+
+func (app *App) handleChatMessage(message string) {
+	// Display the user's message in the chat window
+	app.chatWindow.AddMessage("You: " + message)
+	// Send the message to the AI system
+	response := app.aiSystem.Prompt(message)
+	// Display the AI's response
+	app.chatWindow.AddMessage("AI: " + response)
 }
 
 // handleCommandInput processes command mode inputs.
