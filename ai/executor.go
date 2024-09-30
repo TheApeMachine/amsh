@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/theapemachine/amsh/errnie"
@@ -45,6 +44,7 @@ type Executor struct {
 	agents         map[string][]*Agent
 	pointer        Pointer
 	history        []History
+	crewHistory    []string
 	historyContext string
 }
 
@@ -112,7 +112,10 @@ func (executor *Executor) Generate() <-chan string {
 				for _, p := range parser {
 					if err := p.Parse(history.Response); err != nil {
 						errnie.Error(err)
+						continue
 					}
+
+					executor.crewHistory = append(executor.crewHistory, p.Markdown())
 				}
 			}
 
@@ -149,14 +152,24 @@ func (executor *Executor) compile() (agent *Agent, system, user string) {
 	system = strings.ReplaceAll(system, "<{responsibilities}>", agent.Responsibilities)
 	system = strings.ReplaceAll(system, "<{instructions}>", flowConfig[executor.pointer.Flow]["instructions"].(string))
 	system = strings.ReplaceAll(system, "<{suffix}>", tweaker.PromptSuffix())
-	user = strings.ReplaceAll(user, "<{context}>", executor.historyContext)
-	user = strings.ReplaceAll(user, "<{action}>", actionConfig["user"].(string))
+
+	if agent.Type == "crew" && len(executor.crewHistory) > 0 {
+		user = strings.ReplaceAll(user, "<{context}>", strings.Join(executor.crewHistory, "\n\n"))
+	} else if agent.Type == "worker" && len(executor.history) > 0 {
+		user = strings.ReplaceAll(user, "<{context}>", executor.historyContext)
+	} else {
+		user = strings.ReplaceAll(user, "<{context}>", "No historical context to display.")
+	}
+
+	if agent.Type == "worker" {
+		user = strings.ReplaceAll(user, "<{action}>", actionConfig["user"].(string))
+	}
 
 	// Append the current agent's response to the history context
-	for _, history := range executor.history {
-		executor.historyContext += fmt.Sprintf("| %s | %s |\n", history.Agent, history.Response)
-	}
-	executor.historyContext += fmt.Sprintf("| %s | %s |\n", agent.ID, "<agent response>")
+	// for _, history := range executor.history {
+	// 	executor.historyContext += fmt.Sprintf("| %s | %s |\n", history.Agent, history.Response)
+	// }
+	// executor.historyContext += fmt.Sprintf("| %s | %s |\n", agent.ID, "<agent response>")
 
 	return agent, system, user
 }

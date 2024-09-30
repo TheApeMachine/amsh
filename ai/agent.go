@@ -8,6 +8,7 @@ import (
 	"github.com/google/generative-ai-go/genai"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/theapemachine/amsh/errnie"
+	"golang.org/x/exp/rand"
 	"google.golang.org/api/iterator"
 )
 
@@ -53,19 +54,16 @@ Generate initiates the generation of the agent's response.
 func (agent *Agent) Generate(ctx context.Context, system, user string) <-chan string {
 	out := make(chan string)
 
-	// Generate a random int between 0 and 1.
-	// selected := rand.Intn(2)
-
 	go func() {
 		defer close(out)
 
-		agent.NextLocal(system, user, out)
+		// agent.NextLocal(system, user, out)
 
-		// if selected == 0 {
-		// 	agent.NextOpenAI(system, user, out)
-		// } else {
-		// 	agent.NextGemini(system, user, out)
-		// }
+		if rand.Intn(2) == 0 {
+			agent.NextOpenAI(system, user, out)
+		} else {
+			agent.NextGemini(system, user, out)
+		}
 	}()
 
 	return out
