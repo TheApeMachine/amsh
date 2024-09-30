@@ -1,34 +1,61 @@
 package core
 
-import (
-	"fmt" // Added fmt for sending ANSI escape codes
-)
+import "fmt"
 
-/*
-Cursor is a management structure that handles the cursor in terminal raw mode.
-*/
 type Cursor struct {
-	x int
-	y int
+	X     int
+	Y     int
+	queue *Queue
 }
 
-func NewCursor() *Cursor {
-	return &Cursor{0, 0}
+func NewCursor(queue *Queue) *Cursor {
+	return &Cursor{
+		X:     1,
+		Y:     1,
+		queue: queue,
+	}
 }
 
-/*
-Move moves the cursor to the given position.
-*/
 func (cursor *Cursor) Move(x, y int) {
-	// Move cursor to (x, y) using ANSI escape codes
+	if x < 1 {
+		x = 1
+	}
+	if y < 1 {
+		y = 1
+	}
+	cursor.X = x
+	cursor.Y = y
 	fmt.Printf("\033[%d;%dH", y, x)
-	cursor.x = x
-	cursor.y = y
 }
 
-/*
-Position returns the current position of the cursor.
-*/
-func (cursor *Cursor) Position() (x, y int) {
-	return cursor.x, cursor.y
+func (cursor *Cursor) MoveForward(n int, maxX int) {
+	cursor.X += n
+	if cursor.X > maxX {
+		cursor.X = maxX
+	}
+	fmt.Printf("\033[%d;%dH", cursor.Y, cursor.X)
+}
+
+func (cursor *Cursor) MoveBackward(n int) {
+	cursor.X -= n
+	if cursor.X < 1 {
+		cursor.X = 1
+	}
+	fmt.Printf("\033[%d;%dH", cursor.Y, cursor.X)
+}
+
+func (cursor *Cursor) MoveUp(n int) {
+	cursor.Y -= n
+	if cursor.Y < 1 {
+		cursor.Y = 1
+	}
+	fmt.Printf("\033[%d;%dH", cursor.Y, cursor.X)
+}
+
+func (cursor *Cursor) MoveDown(n int, maxY int) {
+	cursor.Y += n
+	if cursor.Y > maxY {
+		cursor.Y = maxY
+	}
+	fmt.Printf("\033[%d;%dH", cursor.Y, cursor.X)
 }

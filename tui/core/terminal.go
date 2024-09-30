@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"os"
 	"syscall"
 )
@@ -11,6 +12,7 @@ It is designed to perform terminal-specific operations and
 prioritize raw performance.
 */
 type Terminal struct {
+	buf *bytes.Buffer
 	out int
 }
 
@@ -24,11 +26,11 @@ func NewTerminal() *Terminal {
 }
 
 func (terminal *Terminal) Read(p []byte) (n int, err error) {
-	return 0, nil
+	return syscall.Write(terminal.out, p)
 }
 
 func (terminal *Terminal) Write(p []byte) (n int, err error) {
-	return syscall.Write(terminal.out, p)
+	return terminal.buf.Write(p)
 }
 
 func (terminal *Terminal) Close() error {

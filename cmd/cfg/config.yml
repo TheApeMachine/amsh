@@ -1,5 +1,16 @@
 loglevel: debug
 
+s3:
+  endpoint: "http://minio:9000"
+  access_key: "miniouser"
+  secret_key: "miniosecret"
+  bucket: "amsh"
+
+neo4j:
+  uri: "neo4j://neo4j:7687"
+  user: "neo4j"
+  password: "securepassword"
+
 ai:
   setup: simulation
   prompt:

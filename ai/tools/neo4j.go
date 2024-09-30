@@ -25,10 +25,10 @@ func NewKnowledgeBase(ctx context.Context, cypher string, params map[string]any)
 	)
 
 	errnie.Op[*neo4j.DriverWithContext](neo4j.NewDriverWithContext(
-		viper.GetString("stages.local.neo4j.uri"),
+		viper.GetString("neo4j.uri"),
 		neo4j.BasicAuth(
-			viper.GetString("stages.local.neo4j.user"),
-			viper.GetString("stages.local.neo4j.password"),
+			viper.GetString("neo4j.user"),
+			viper.GetString("neo4j.password"),
 			"",
 		),
 	))
