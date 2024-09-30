@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"capnproto.org/go/capnp/v3"
-	"github.com/theapemachine/amsh/logger"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 const version = "0.0.1"
@@ -32,10 +32,10 @@ func New(origin, role, scope string, data []byte) *Artifact {
 		return nil
 	}
 
-	logger.Error("Error setting origin: %v", artifact.SetOrigin(origin))
-	logger.Error("Error setting role: %v", artifact.SetRole(role))
-	logger.Error("Error setting scope: %v", artifact.SetScope(scope))
-	logger.Error("Error setting payload: %v", artifact.SetPayload(data))
+	errnie.Error(artifact.SetOrigin(origin))
+	errnie.Error(artifact.SetRole(role))
+	errnie.Error(artifact.SetScope(scope))
+	errnie.Error(artifact.SetPayload(data))
 
 	artifact.SetTimestamp(uint64(time.Now().UnixNano()))
 	artifact.SetVersion(version)

@@ -3,9 +3,12 @@ package core
 import "fmt"
 
 type Cursor struct {
-	X     int
-	Y     int
-	queue *Queue
+	X      int
+	Y      int
+	queue  *Queue
+	SavedX int
+	SavedY int
+	saved  bool
 }
 
 func NewCursor(queue *Queue) *Cursor {
@@ -13,6 +16,7 @@ func NewCursor(queue *Queue) *Cursor {
 		X:     1,
 		Y:     1,
 		queue: queue,
+		saved: false,
 	}
 }
 
@@ -58,4 +62,21 @@ func (cursor *Cursor) MoveDown(n int, maxY int) {
 		cursor.Y = maxY
 	}
 	fmt.Printf("\033[%d;%dH", cursor.Y, cursor.X)
+}
+
+// Save stores the current cursor position
+func (c *Cursor) Save() {
+	if !c.saved {
+		c.SavedX = c.X
+		c.SavedY = c.Y
+		c.saved = true
+	}
+}
+
+// Restore restores the saved cursor position
+func (c *Cursor) Restore() {
+	if c.saved {
+		c.Move(c.SavedX, c.SavedY)
+		c.saved = false
+	}
 }

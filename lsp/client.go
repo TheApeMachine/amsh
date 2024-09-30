@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/theapemachine/amsh/logger"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type LSPRequest struct {
@@ -92,9 +92,9 @@ func (client *Client) SendInitializeRequest(rootURI string) error {
 
 	err := client.sendRequest("initialize", params)
 	if err != nil {
-		logger.Error("Failed to send initialize request: %v", err)
+		errnie.Error(err)
 	} else {
-		logger.Debug("Sent initialize request")
+		errnie.Debug("Sent initialize request")
 	}
 	return err
 }
@@ -111,9 +111,9 @@ func (client *Client) SendDidOpenRequest(uri string, languageID string, version 
 
 	err := client.sendRequest("textDocument/didOpen", params)
 	if err != nil {
-		logger.Error("Failed to send didOpen request: %v", err)
+		errnie.Error(err)
 	} else {
-		logger.Debug("Sent didOpen request for %s", uri)
+		errnie.Debug("Sent didOpen request for %s", uri)
 	}
 	return err
 }
@@ -129,9 +129,9 @@ func (client *Client) SendDidChangeRequest(uri string, version int, changes []ma
 
 	err := client.sendRequest("textDocument/didChange", params)
 	if err != nil {
-		logger.Error("Failed to send didChange request: %v", err)
+		errnie.Error(err)
 	} else {
-		logger.Debug("Sent didChange request for %s", uri)
+		errnie.Debug("Sent didChange request for %s", uri)
 	}
 	return err
 }

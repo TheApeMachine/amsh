@@ -8,11 +8,10 @@ import (
 	"io/fs"
 	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/logger"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -37,23 +36,6 @@ var (
 )
 
 func Execute() error {
-	var (
-		currentDir string
-		err        error
-	)
-
-	if currentDir, err = os.Getwd(); err != nil {
-		fmt.Println("Error getting current working directory:", err)
-		return err
-	}
-
-	if err := logger.Init(filepath.Join(currentDir, projectName+".log")); err != nil {
-		fmt.Println("Error initializing logger:", err)
-		return err
-	}
-	defer logger.Close()
-
-	logger.Info("Logger initialized successfully")
 	return rootCmd.Execute()
 }
 
@@ -73,7 +55,7 @@ func initConfig() {
 	var err error
 
 	if err = writeConfig(); err != nil {
-		logger.Error("Error writing config: %v", err)
+		errnie.Error(err)
 		log.Fatal(err)
 	}
 
@@ -82,12 +64,12 @@ func initConfig() {
 	viper.AddConfigPath("$HOME/." + projectName)
 
 	if err = viper.ReadInConfig(); err != nil {
-		logger.Error("Failed to read config file: %v", err)
+		errnie.Error(err)
 		log.Println("failed to read config file", err)
 		return
 	}
 
-	logger.Info("Config initialized successfully")
+	errnie.Info("Config initialized successfully")
 }
 
 func writeConfig() (err error) {
@@ -118,11 +100,11 @@ func writeConfig() (err error) {
 	}
 
 	if err = os.WriteFile(fullPath, buf.Bytes(), 0644); err != nil {
-		logger.Error("Failed to write config file: %v", err)
+		errnie.Error(err)
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	logger.Info("Wrote config file to %s", fullPath)
+	errnie.Info("Wrote config file to %s", fullPath)
 	return
 }
 

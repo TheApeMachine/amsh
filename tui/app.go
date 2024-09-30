@@ -40,7 +40,6 @@ func New() *App {
 }
 
 func (app *App) Initialize() *App {
-	// Handle OS signals to ensure terminal restoration.
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
@@ -48,6 +47,8 @@ func (app *App) Initialize() *App {
 		<-sigChan
 		app.cleanupAndExit()
 	}()
+
+	Render()
 
 	// Switch to raw mode.
 	app.flipMode()
@@ -210,6 +211,9 @@ func (app *App) handleEvents(channels ...<-chan *data.Artifact) {
 			app.chatWindow.UpdateInputDisplay(input)
 		case "Quit":
 			app.cleanupAndExit()
+		case "ChatState":
+			// Handle chat window state if needed
+			// Currently managed by Keyboard component
 		}
 	}
 }
@@ -217,8 +221,12 @@ func (app *App) handleEvents(channels ...<-chan *data.Artifact) {
 func (app *App) toggleChatWindow() {
 	if app.chatWindow.Active {
 		app.closeChatWindow()
+		// Publish chat_state as inactive
+		app.queue.Publish("chat_state", data.New("App", "ChatState", "inactive", nil))
 	} else {
 		app.openChatWindow()
+		// Publish chat_state as active
+		app.queue.Publish("chat_state", data.New("App", "ChatState", "active", nil))
 	}
 }
 
@@ -234,9 +242,11 @@ func (app *App) openChatWindow() {
 
 func (app *App) closeChatWindow() {
 	app.chatWindow.Active = false
-	// Restore the underlying content
 	app.chatWindow.RestoreUnderlyingContent()
-	// Return input focus to the editor
+
+	// Restore cursor to the previous position in the main editor buffer
+	app.buffers[app.bufPtr].Cursor.Move(app.buffers[app.bufPtr].Cursor.X, app.buffers[app.bufPtr].Cursor.Y)
+	app.buffers[app.bufPtr].Render()
 }
 
 func (app *App) handleChatMessage(message string) {
@@ -414,4 +424,20 @@ func (app *App) clearScreen() {
 // flushStdout ensures that the stdout buffer is properly flushed.
 func flushStdout() {
 	os.Stdout.Sync() // Ensure any buffered output is flushed
+}
+
+// Example handler for entering insert mode
+func (app *App) EnterInsertMode() {
+	if app.chatWindow != nil {
+		app.chatWindow.Activate()
+	}
+	// Additional logic for entering insert mode
+}
+
+// Example handler for exiting insert mode
+func (app *App) ExitInsertMode() {
+	if app.chatWindow != nil {
+		app.chatWindow.Deactivate()
+	}
+	// Additional logic for exiting insert mode
 }

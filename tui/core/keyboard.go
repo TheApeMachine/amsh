@@ -44,6 +44,24 @@ func NewKeyboard(queue *Queue) *Keyboard {
 		}
 	}()
 
+	// Subscribe to chat_state to update chatWindowActive flag
+	chatStateSub := queue.Subscribe("chat_state")
+	go func() {
+		for artifact := range chatStateSub {
+			payload, err := artifact.Payload()
+			if err != nil {
+				errnie.Error(err)
+				continue
+			}
+			state := string(payload)
+			if state == "active" {
+				keyboard.chatWindowActive = true
+			} else if state == "inactive" {
+				keyboard.chatWindowActive = false
+			}
+		}
+	}()
+
 	return keyboard
 }
 
@@ -151,7 +169,6 @@ func (keyboard *Keyboard) handleInsertMode(b byte) {
 
 func (keyboard *Keyboard) handleChatInput(b byte) {
 	// Handle input for the chat window
-	// For example:
 	switch b {
 	case 13: // Enter key
 		// Send message to AI system

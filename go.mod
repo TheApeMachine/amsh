@@ -40,6 +40,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -117,6 +118,7 @@ require (
 	github.com/charmbracelet/log v0.4.0
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
+	github.com/gdamore/tcell/v2 v2.7.4
 	github.com/go-rod/rod v0.116.2
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0
@@ -127,6 +129,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2
 	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
+	github.com/rivo/tview v0.0.0-20240921122403-a64fc48d7654
 	github.com/rivo/uniseg v0.4.7
 	github.com/sashabaranov/go-openai v1.29.1
 	github.com/smartystreets/goconvey v1.8.1

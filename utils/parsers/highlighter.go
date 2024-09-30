@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/theapemachine/amsh/logger"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/ui"
 
 	"github.com/smacker/go-tree-sitter/bash"
@@ -153,10 +153,8 @@ We use a background context here as parsing is typically a quick operation,
 but in more complex scenarios, this allows for potential timeout or cancellation.
 */
 func (highlighter *Highlighter) Parse() *Highlighter {
-	logger.Log("highlighter.Parse()")
-
 	if highlighter.language, highlighter.err = highlighter.ExtToLang(highlighter.ext); highlighter.err != nil {
-		logger.Error("highlighter.Parse() error: %s", highlighter.err.Error())
+		errnie.Error(highlighter.err)
 	}
 
 	highlighter.handle.SetLanguage(highlighter.language)
@@ -246,7 +244,7 @@ func (highlighter *Highlighter) processNode(node *sitter.Node) string {
 	case "function", "method", "method_declaration", "function_declaration":
 		highlightedText = highlighter.styles.FunctionStyle.Render(text)
 	default:
-		logger.Warn("unhandled node.Type(): %s", node.Type())
+		errnie.Warn("unhandled node.Type(): %s", node.Type())
 		highlightedText = text
 	}
 
