@@ -1,4 +1,4 @@
-package ai
+package tools
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/google/generative-ai-go/genai"
 	openai "github.com/sashabaranov/go-openai"
 	"github.com/theapemachine/amsh/errnie"
+	"golang.org/x/exp/rand"
 	"google.golang.org/api/iterator"
 )
 
@@ -18,10 +19,9 @@ type Agent struct {
 	Type   string
 	system string
 	user   string
-	Color  string
 }
 
-func NewAgent(ctx context.Context, conn *Conn, ID, Type, system, user, color string) *Agent {
+func NewAgent(ctx context.Context, conn *Conn, ID, Type, system, user string) *Agent {
 	return &Agent{
 		ctx:    ctx,
 		conn:   conn,
@@ -29,7 +29,6 @@ func NewAgent(ctx context.Context, conn *Conn, ID, Type, system, user, color str
 		Type:   Type,
 		system: system,
 		user:   user,
-		Color:  color,
 	}
 }
 
@@ -38,13 +37,12 @@ func (agent *Agent) Generate(ctx context.Context, user string) <-chan string {
 
 	go func() {
 		defer close(out)
-		agent.NextOpenAI(agent.system, user, out)
 
-		// if rand.Intn(2) == 0 {
-		// 	agent.NextOpenAI(agent.system, user, out)
-		// } else {
-		// 	agent.NextGemini(agent.system, user, out)
-		// }
+		if rand.Intn(2) == 0 {
+			agent.NextOpenAI(agent.system, user, out)
+		} else {
+			agent.NextGemini(agent.system, user, out)
+		}
 	}()
 
 	return out
@@ -79,8 +77,8 @@ func (agent *Agent) NextLocal(system, user string, out chan string) {
 			errnie.Error(err)
 			break
 		}
-
-		if chunk := response.Choices[0].Delta.Content; chunk != "" {
+		chunk := response.Choices[0].Delta.Content
+		if chunk != "" {
 			out <- chunk
 		}
 	}
@@ -115,8 +113,8 @@ func (agent *Agent) NextOpenAI(system, user string, out chan string) {
 			errnie.Error(err)
 			break
 		}
-
-		if chunk := response.Choices[0].Delta.Content; chunk != "" {
+		chunk := response.Choices[0].Delta.Content
+		if chunk != "" {
 			out <- chunk
 		}
 	}
@@ -160,9 +158,7 @@ func (agent *Agent) NextGemini(system, user string, out chan string) {
 
 		for _, candidate := range resp.Candidates {
 			for _, part := range candidate.Content.Parts {
-				if formatted := fmt.Sprintf("%s", part); formatted != "" {
-					out <- formatted
-				}
+				out <- fmt.Sprintf("%s", part)
 			}
 		}
 	}

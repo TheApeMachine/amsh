@@ -16,6 +16,8 @@ func ExtractJSON(content string) []byte {
 Colors returns a list of all ANSI colors.
 */
 var Colors = []string{
+	"\033[37m",
+	"\033[30m",
 	"\033[31m",
 	"\033[32m",
 	"\033[33m",

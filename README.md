@@ -1,5 +1,7 @@
 # amsh
 
+Solve the riddle: In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight.
+
 The Ape Machine Shell is the personal terminal workspace of Daniel Owen van Dommelen, a.k.a. The Ape Machine.
 
 It is primarily based on his personal Neovim configuration, but adds various features, the most important of which 

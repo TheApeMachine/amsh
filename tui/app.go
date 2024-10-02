@@ -253,9 +253,9 @@ func (app *App) handleChatMessage(message string) {
 	// Display the user's message in the chat window
 	app.chatWindow.AddMessage("You: " + message)
 	// Send the message to the AI system
-	response := app.aiSystem.Prompt(message)
+	// response := app.aiSystem.Prompt(message)
 	// Display the AI's response
-	app.chatWindow.AddMessage("AI: " + response)
+	// app.chatWindow.AddMessage("AI: " + response)
 }
 
 // handleCommandInput processes command mode inputs.
