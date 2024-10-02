@@ -30,7 +30,7 @@ class PipelineVisualization extends HTMLElement {
     }
 
     setupWebSocket() {
-        this.ws = new WebSocket("ws://localhost:8080/ws");
+        this.ws = new WebSocket("ws://localhost:8567/ws");
         this.ws.onmessage = (event) => {
             const chunk = JSON.parse(event.data);
             this.process(chunk);
@@ -79,6 +79,8 @@ class PipelineVisualization extends HTMLElement {
     }
 
     updateConfidenceGraph() {
+        this.shadowRoot.getElementById('confidenceChart').style.width = '100%';
+
         const ctx = this.shadowRoot.getElementById('confidenceChart');
         if (!ctx) {
             console.error('Cannot find confidence chart canvas');
@@ -261,47 +263,67 @@ class PipelineVisualization extends HTMLElement {
     }
 
     addNewBlock(chunk) {
-        if (this.currentBlock) {
-            const lineElement = document.createElement('div');
-            lineElement.innerHTML = marked.parse(this.content);
-            this.content = ""
-            lineElement.style.opacity = '0';
-            this.currentBlock.appendChild(lineElement);
-    
-            setTimeout(() => {
-                lineElement.style.transition = 'opacity 0.5s ease-in-out';
-                lineElement.style.opacity = '1';
-            }, 10);
-    
-            const outputDiv = this.shadowRoot.getElementById('output');
-            outputDiv.scrollTop = outputDiv.scrollHeight;    
-        }
-
         const outputDiv = this.shadowRoot.getElementById('output');
-        const blockElement = document.createElement('fieldset');
-        blockElement.classList.add('block');
-        const legend = document.createElement('legend');
-        legend.textContent = chunk.agent_type || chunk.agent || 'Unknown Agent';
-        blockElement.appendChild(legend);
-        const loader = document.createElement('script');
-        loader.src = `https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.mjs` 
-        loader.setAttribute("type", "module")
-        const lottie = document.createElement('dotlottie-player');
-        lottie.src = "https://lottie.host/11756a88-ccc6-402b-a472-7be2542bad28/UVq9Y6hMdS.json"
-        lottie.setAttribute("background", "transparent");
-        lottie.setAttribute("speed", "1");
-        lottie.setAttribute("style", "width: 300px; height: 300px;");
-        lottie.setAttribute("loop", "true");
-        lottie.setAttribute("autoplay", "true");
-        blockElement.appendChild(loader);
-        blockElement.appendChild(lottie);
+        const blockElement = document.createElement('details');
+        blockElement.classList.add('card');
+        blockElement.style.setProperty('--agent-color', this.colors[chunk.agent_type] || '#000');
+
+        const summary = document.createElement('summary');
+        summary.textContent = chunk.agent_type || chunk.agent || 'Unknown Agent';
+        blockElement.appendChild(summary);
+
+        const content = document.createElement('div');
+        content.classList.add('card-content');
+
+        blockElement.appendChild(content);
         outputDiv.appendChild(blockElement);
-        this.currentBlock = blockElement;
-        outputDiv.scrollTop = outputDiv.scrollHeight;    
+        this.currentBlock = content;
+
+        // Trigger the animation
+        setTimeout(() => blockElement.classList.add('show'), 10);
+
+        outputDiv.scrollTop = outputDiv.scrollHeight;
+        // Get position of the new block
+        const newBlockPosition = this.currentBlock.getBoundingClientRect();
+        const targetY = newBlockPosition.top + (newBlockPosition.height / 2) - 32;
+        const targetX = newBlockPosition.right + 64;
+        // Position the animoji loader at the vertical center, right of the new block.
+        this.currentAnimojiLoader = this.shadowRoot.getElementById('animojiLoader');
+        this.currentAnimojiLoader.setPosition(targetX, targetY);
+        this.currentAnimojiLoader.setState('thinking');
     }
 
     addLineToOutput(chunk) {
-        this.content += chunk.response.replace("```markdown", "").replace("```", "")
+        if (!this.currentBlock) return;
+
+        if (this.content) {
+            const contentElement = document.createElement('div');
+            contentElement.innerHTML = marked.parse(this.content);
+            this.currentBlock.appendChild(contentElement);
+            this.content = "";
+        }
+
+        this.content += chunk.response.replace("```markdown", "").replace("```", "");
+
+        // Update animoji state based on content
+        if (this.currentAnimojiLoader) {
+            if (chunk.response.includes('high')) {
+                this.currentAnimojiLoader.setState('high');
+            } else if (chunk.response.includes('medium')) {
+                this.currentAnimojiLoader.setState('medium');
+            } else if (chunk.response.includes('low')) {
+                this.currentAnimojiLoader.setState('low');
+            } else {
+                this.currentAnimojiLoader.setState('thinking');
+            }
+        }
+    }
+
+    moveToNextCard() {
+        const nextCard = this.currentBlock.closest('.card').nextElementSibling;
+        if (nextCard && nextCard.classList.contains('card')) {
+            this.currentBlock = nextCard.querySelector('.card-content');
+        }
     }
 
     render() {
@@ -309,14 +331,15 @@ class PipelineVisualization extends HTMLElement {
         <style>
             :host {
                 display: flex;
-                font-family: Arial, sans-serif;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 height: 100vh;
                 width: 100vw;
                 margin: 0;
                 --primary-color: #3498db;
                 --secondary-color: #2ecc71;
-                --background-color: #ecf0f1;
+                --background-color: #f7f9fc;
                 --text-color: #34495e;
+                --card-background: #ffffff;
             }
             
             .container {
@@ -343,18 +366,53 @@ class PipelineVisualization extends HTMLElement {
             .output {
                 flex-grow: 1;
                 padding: 20px;
-                background-color: white;
+                background-color: var(--card-background);
                 width: 50%;
                 overflow-y: auto;
                 border-left: 1px solid var(--primary-color);
             }
             
-            h2 {
-                color: var(--primary-color);
-                border-bottom: 2px solid var(--primary-color);
-                padding-bottom: 10px;
+            .card {
+                background-color: var(--card-background);
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                margin-bottom: 16px;
+                overflow: hidden;
+                transition: all 0.3s ease;
+                opacity: 0;
+                transform: translateY(20px);
+                position: relative;
             }
-            
+
+            .card.show {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            .card summary {
+                padding: 16px;
+                cursor: pointer;
+                font-weight: bold;
+                background-color: var(--agent-color);
+                color: white;
+                transition: background-color 0.3s ease;
+            }
+
+            .card summary:hover {
+                background-color: color-mix(in srgb, var(--agent-color) 80%, white 20%);
+            }
+
+            .card[open] summary {
+                border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            }
+
+            .card-content {
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
             .confidence-graph {
                 flex-grow: 1;
                 margin-top: 20px;
@@ -404,24 +462,19 @@ class PipelineVisualization extends HTMLElement {
                 width: 60px;
             }
 
-            fieldset.block {
-                border: 1px solid var(--primary-color);
-                border-radius: 4px;
-                margin-bottom: 15px;
-                padding: 10px;
-                background-color: #f8f9fa;
-            }
-
-            fieldset.block legend {
-                color: var(--primary-color);
-                font-weight: bold;
-                padding: 0 5px;
-            }
-
             network-graph-visualization {
                 width: 100%;
                 height: 400px;
                 margin-top: 20px;
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+
+            .fade-in {
+                animation: fadeIn 0.5s ease-out;
             }
         </style>
         <div class="container">
@@ -431,8 +484,8 @@ class PipelineVisualization extends HTMLElement {
                     <span id="iteration">Iteration: ${this.iteration + 1} of ${this.maxIterations || 0}</span>
                     <button id="nextBtn">Next</button>
                 </div>
-                <div class="confidence-graph">
-                    <canvas id="confidenceChart"></canvas>
+                <div class="confidence-graph" style="position: relative; height:20vh; width:100%">
+                    <canvas id="confidenceChart" style="position: relative; height: 100%; width:100%"></canvas>
                 </div>
                 <network-graph-visualization></network-graph-visualization>
                 <div class="input-group">
@@ -443,32 +496,33 @@ class PipelineVisualization extends HTMLElement {
             </div>
             <div id="output" class="output"></div>
         </div>
+        <animoji-loader id="animojiLoader"></animoji-loader>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    `;
+        `;
     
-    // Initialize buttons and event listeners
-    this.prevBtn = this.shadowRoot.getElementById('prevBtn');
-    this.nextBtn = this.shadowRoot.getElementById('nextBtn');
-    const sendPromptButton = this.shadowRoot.getElementById('sendPrompt');
-    const iterationsInput = this.shadowRoot.getElementById('iterationsInput');
-    const promptInput = this.shadowRoot.getElementById('promptInput');
+        // Initialize buttons and event listeners
+        this.prevBtn = this.shadowRoot.getElementById('prevBtn');
+        this.nextBtn = this.shadowRoot.getElementById('nextBtn');
+        const sendPromptButton = this.shadowRoot.getElementById('sendPrompt');
+        const iterationsInput = this.shadowRoot.getElementById('iterationsInput');
+        const promptInput = this.shadowRoot.getElementById('promptInput');
 
-    this.prevBtn.addEventListener('click', () => this.navigate(-1));
-    this.nextBtn.addEventListener('click', () => this.navigate(1));
-    sendPromptButton.addEventListener('click', () => {
-        const iterations = iterationsInput.value;
-        const prompt = promptInput.value;
-        this.sendPrompt(`${iterations}<:>${prompt}`);
-    });
+        this.prevBtn.addEventListener('click', () => this.navigate(-1));
+        this.nextBtn.addEventListener('click', () => this.navigate(1));
+        sendPromptButton.addEventListener('click', () => {
+            const iterations = iterationsInput.value;
+            const prompt = promptInput.value;
+            this.sendPrompt(`${iterations}<:>${prompt}`);
+        });
 
-    // Initialize the chart only if Chart.js is already loaded
-    if (typeof Chart !== 'undefined') {
-        this.updateConfidenceGraph();
-    } else {
-        console.error('Chart.js is not loaded. Ensure it is included before the component script.');
+        // Initialize the chart only if Chart.js is already loaded
+        if (typeof Chart !== 'undefined') {
+            this.updateConfidenceGraph();
+        } else {
+            console.error('Chart.js is not loaded. Ensure it is included before the component script.');
+        }
     }
-}
 
     navigate(direction) {
         const newIteration = this.currentIteration + direction;

@@ -29,6 +29,7 @@ require (
 	cloud.google.com/go/longrunning v0.6.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/charmbracelet/x/input v0.1.0 // indirect
 	github.com/charmbracelet/x/term v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.1.0 // indirect
@@ -38,12 +39,15 @@ require (
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/fasthttp/websocket v1.5.8 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/gofiber/fiber/v2 v2.52.5 // indirect
+	github.com/gofiber/utils/v2 v2.0.0-beta.4 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
@@ -55,6 +59,7 @@ require (
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
@@ -71,6 +76,7 @@ require (
 	github.com/robertkrimen/otto v0.4.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
+	github.com/savsgio/gotils v0.0.0-20240303185622-093b76447511 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/smarty/assertions v1.15.0 // indirect
 	github.com/soluchok/go-cloudflare-scraper v0.0.0-20190117212330-ecf651d4e614 // indirect
@@ -79,6 +85,8 @@ require (
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/ysmood/fetchup v0.2.3 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect
@@ -120,12 +128,17 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/gdamore/tcell/v2 v2.7.4
 	github.com/go-rod/rod v0.116.2
+	github.com/goccy/go-json v0.10.3
+	github.com/gofiber/contrib/websocket v1.3.2
+	github.com/gofiber/fiber/v3 v3.0.0-beta.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.16
+	github.com/microsoft/azure-devops-go-api/azuredevops v1.0.0-b5
+	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2
@@ -133,9 +146,11 @@ require (
 	github.com/rivo/tview v0.0.0-20240921122403-a64fc48d7654
 	github.com/rivo/uniseg v0.4.7
 	github.com/sashabaranov/go-openai v1.29.1
+	github.com/slack-go/slack v0.14.0
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.19.0
+	github.com/valyala/fasthttp v1.56.0
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/term v0.24.0
