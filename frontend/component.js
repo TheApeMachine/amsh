@@ -79,10 +79,15 @@ class PipelineVisualization extends HTMLElement {
     }
 
     updateConfidenceGraph() {
-        this.shadowRoot.getElementById('confidenceChart').style.width = '100%';
+        const chartContainer = this.shadowRoot.querySelector('.confidence-graph');
+        const canvas = this.shadowRoot.getElementById('confidenceChart');
 
-        const ctx = this.shadowRoot.getElementById('confidenceChart');
-        if (!ctx) {
+        // Set a fixed aspect ratio for the chart
+        chartContainer.style.height = '300px';  // Set a fixed height
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+
+        if (!canvas) {
             console.error('Cannot find confidence chart canvas');
             return;
         }
@@ -94,6 +99,7 @@ class PipelineVisualization extends HTMLElement {
 
         const options = {
             responsive: true,
+            maintainAspectRatio: false,  // Allow the chart to fill its container
             scales: {
                 y: {
                     beginAtZero: true,
@@ -121,7 +127,7 @@ class PipelineVisualization extends HTMLElement {
             this.chart.options = options;
             this.chart.update('none');
         } else {
-            this.chart = new Chart(ctx, {
+            this.chart = new Chart(canvas, {
                 type: 'bar',
                 data: data,
                 options: options
@@ -165,7 +171,6 @@ class PipelineVisualization extends HTMLElement {
     }
 
     process(chunk) {
-        console.log('Processing chunk:', chunk);
         this.iteration = chunk.iteration;
         this.maxIterations = chunk.maxIterations || this.maxIterations;
 
@@ -414,7 +419,8 @@ class PipelineVisualization extends HTMLElement {
             .confidence-graph {
                 flex-grow: 1;
                 margin-top: 20px;
-                min-height: 200px;
+                height: 300px;  // Set a fixed height
+                position: relative;
             }
             
             .navigation {

@@ -21,10 +21,6 @@ class NetworkGraphVisualization extends HTMLElement {
         this.searchTerm = '';
         this.highlightedNodes = new Set();
         this.debounceTimer = null;
-        this.zoomLevel = 1;
-        this.panPosition = { x: 0, y: 0 };
-        this.historyStack = [];
-        this.futureStack = [];
     }
 
     connectedCallback() {
@@ -32,49 +28,33 @@ class NetworkGraphVisualization extends HTMLElement {
         this.loadDependencies().then(() => {
             this.initCytoscapeGraph();
             this.initTippyTooltips();
-            this.initMinimap();
-            this.initContextMenu();
         });
     }
 
     async loadDependencies() {
-        await Promise.all([
-            this.loadScript('https://unpkg.com/cytoscape@3.21.1/dist/cytoscape.min.js'),
-            this.loadScript('https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js'),
-            this.loadScript('https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.min.js'),
-            this.loadScript('https://unpkg.com/cytoscape-cxtmenu@3.4.0/cytoscape-cxtmenu.js'),
-            this.loadScript('https://unpkg.com/cytoscape-navigator@2.0.1/cytoscape-navigator.js'),
-            this.loadStylesheet('https://unpkg.com/tippy.js@6/dist/tippy.css'),
-            this.loadStylesheet('https://unpkg.com/cytoscape-navigator@2.0.1/cytoscape-navigator.css')
-        ]);
+        // Load Cytoscape.js
+        if (!window.cytoscape) {
+            await this.loadScript('https://unpkg.com/cytoscape@3.21.1/dist/cytoscape.min.js');
+        }
+
+        // Load Tippy.js and its CSS
+        if (!window.tippy) {
+            await this.loadScript('https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js');
+            await this.loadScript('https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.min.js');
+            const tippyCss = document.createElement('link');
+            tippyCss.rel = 'stylesheet';
+            tippyCss.href = 'https://unpkg.com/tippy.js@6/dist/tippy.css';
+            this.shadowRoot.appendChild(tippyCss);
+        }
     }
 
     loadScript(src) {
         return new Promise((resolve, reject) => {
-            if (!this.shadowRoot.querySelector(`script[src="${src}"]`)) {
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = resolve;
-                script.onerror = reject;
-                this.shadowRoot.appendChild(script);
-            } else {
-                resolve();
-            }
-        });
-    }
-
-    loadStylesheet(href) {
-        return new Promise((resolve, reject) => {
-            if (!this.shadowRoot.querySelector(`link[href="${href}"]`)) {
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = href;
-                link.onload = resolve;
-                link.onerror = reject;
-                this.shadowRoot.appendChild(link);
-            } else {
-                resolve();
-            }
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = reject;
+            this.shadowRoot.appendChild(script);
         });
     }
 
@@ -258,12 +238,6 @@ class NetworkGraphVisualization extends HTMLElement {
             this.searchTerm = e.target.value;
             this.debounce(this.searchNodes.bind(this), 300);
         });
-        this.shadowRoot.getElementById('toggleDarkMode').addEventListener('click', () => this.toggleDarkMode());
-        this.shadowRoot.getElementById('resetView').addEventListener('click', () => this.resetView());
-        this.shadowRoot.getElementById('zoomIn').addEventListener('click', () => this.zoom(1.2));
-        this.shadowRoot.getElementById('zoomOut').addEventListener('click', () => this.zoom(0.8));
-        this.shadowRoot.getElementById('undo').addEventListener('click', () => this.undo());
-        this.shadowRoot.getElementById('redo').addEventListener('click', () => this.redo());
     }
 
     initCytoscapeGraph() {
@@ -348,18 +322,6 @@ class NetworkGraphVisualization extends HTMLElement {
         this.cy.on('mouseout', 'node', () => {
             this.unhighlightAll();
         });
-
-        this.cy.on('zoom', (event) => {
-            this.zoomLevel = this.cy.zoom();
-        });
-
-        this.cy.on('pan', (event) => {
-            this.panPosition = this.cy.pan();
-        });
-
-        this.cy.on('add remove', (event) => {
-            this.addToHistory();
-        });
     }
 
     initTippyTooltips() {
@@ -409,51 +371,6 @@ class NetworkGraphVisualization extends HTMLElement {
         });
     }
 
-    initMinimap() {
-        const minimapOptions = {
-            container: this.shadowRoot.getElementById('minimap'),
-            viewLiveFramerate: 30,
-            thumbnailLiveFramerate: 30,
-            thumbnailEventFramerate: 30,
-            zoomLevelDistance: 1.2,
-        };
-        this.cy.navigator(minimapOptions);
-    }
-
-    initContextMenu() {
-        const ctxMenuOptions = {
-            menuRadius: 100,
-            selector: 'node, edge',
-            commands: [
-                {
-                    content: 'Edit',
-                    select: (ele) => {
-                        this.editElement(ele);
-                    }
-                },
-                {
-                    content: 'Delete',
-                    select: (ele) => {
-                        this.deleteElement(ele);
-                    }
-                },
-                {
-                    content: 'Expand/Collapse',
-                    select: (ele) => {
-                        if (ele.isNode()) {
-                            if (ele.isParent()) {
-                                this.expandCluster(ele);
-                            } else {
-                                this.collapseNode(ele);
-                            }
-                        }
-                    }
-                }
-            ]
-        };
-        this.cy.cxtmenu(ctxMenuOptions);
-    }
-
     addThought(thoughtData) {
         const { id, agentName, content, iteration, step, confidence } = thoughtData;
         
@@ -501,7 +418,6 @@ class NetworkGraphVisualization extends HTMLElement {
         }
 
         this.scheduleUpdate();
-        this.addToHistory();
     }
 
     scheduleUpdate() {
@@ -690,45 +606,6 @@ class NetworkGraphVisualization extends HTMLElement {
         this.cy.endBatch();
         this.runLayout();
         this.updateStats();
-        this.addToHistory();
-    }
-
-    editElement(element) {
-        const data = element.data();
-        const isNode = element.isNode();
-        const content = prompt(`Edit ${isNode ? 'node' : 'edge'} content:`, isNode ? data.fullContent : data.weight);
-        if (content !== null) {
-            this.cy.startBatch();
-            if (isNode) {
-                element.data('fullContent', content);
-                element.data('label', `${data.agentName}\n${content.substring(0, 20)}...`);
-            } else {
-                element.data('weight', parseFloat(content));
-            }
-            this.cy.endBatch();
-            this.addToHistory();
-        }
-    }
-
-    deleteElement(element) {
-        if (confirm(`Are you sure you want to delete this ${element.isNode() ? 'node' : 'edge'}?`)) {
-            this.cy.remove(element);
-            this.addToHistory();
-        }
-    }
-
-    collapseNode(node) {
-        const neighborhood = node.neighborhood().nodes();
-        const collapsed = this.cy.add({
-            group: 'nodes',
-            data: {
-                id: 'collapsed_' + node.id(),
-                label: 'Collapsed Group',
-                originalNodes: neighborhood.map(n => n.id())
-            }
-        });
-        neighborhood.move({ parent: collapsed.id() });
-        this.addToHistory();
     }
 
     changeLayout(layoutName) {
@@ -796,27 +673,6 @@ class NetworkGraphVisualization extends HTMLElement {
         this.shadowRoot.getElementById('detailsModal').style.display = 'flex';
     }
 
-    toggleDarkMode() {
-        this.shadowRoot.getElementById('graphContainer').classList.toggle('dark-mode');
-        this.updateGraphStyles();
-    }
-
-    updateGraphStyles() {
-        const isDarkMode = this.shadowRoot.getElementById('graphContainer').classList.contains('dark-mode');
-        this.cy.style()
-            .selector('node')
-            .style({
-                'background-color': isDarkMode ? '#aaa' : '#666',
-                'color': isDarkMode ? '#fff' : '#000'
-            })
-            .selector('edge')
-            .style({
-                'line-color': isDarkMode ? '#888' : '#ccc',
-                'target-arrow-color': isDarkMode ? '#888' : '#ccc'
-            })
-            .update();
-    }
-
     searchNodes() {
         const searchTerm = this.searchTerm.toLowerCase();
         this.highlightedNodes.clear();
@@ -861,57 +717,10 @@ class NetworkGraphVisualization extends HTMLElement {
         `;
     }
 
-    resetView() {
-        this.cy.fit();
-        this.cy.zoom(1);
-        this.cy.pan({ x: 0, y: 0 });
-    }
-
-    zoom(factor) {
-        this.cy.zoom({
-            level: this.cy.zoom() * factor,
-            renderedPosition: { x: this.cy.width() / 2, y: this.cy.height() / 2 }
-        });
-    }
-
-    addToHistory() {
-        const state = this.cy.json();
-        this.historyStack.push(state);
-        this.futureStack = [];
-        this.updateUndoRedoButtons();
-    }
-
-    undo() {
-        if (this.historyStack.length > 1) {
-            const currentState = this.historyStack.pop();
-            this.futureStack.push(currentState);
-            const previousState = this.historyStack[this.historyStack.length - 1];
-            this.cy.json(previousState);
-            this.updateUndoRedoButtons();
-        }
-    }
-
-    redo() {
-        if (this.futureStack.length > 0) {
-            const nextState = this.futureStack.pop();
-            this.historyStack.push(nextState);
-            this.cy.json(nextState);
-            this.updateUndoRedoButtons();
-        }
-    }
-
-    updateUndoRedoButtons() {
-        this.shadowRoot.getElementById('undo').disabled = this.historyStack.length <= 1;
-        this.shadowRoot.getElementById('redo').disabled = this.futureStack.length === 0;
-    }
-
     exportGraph() {
         const graphData = {
             nodes: this.cy.nodes().map(node => node.data()),
-            edges: this.cy.edges().map(edge => edge.data()),
-            layout: this.currentLayout,
-            zoomLevel: this.zoomLevel,
-            panPosition: this.panPosition
+            edges: this.cy.edges().map(edge => edge.data())
         };
 
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(graphData, null, 2));
@@ -921,23 +730,6 @@ class NetworkGraphVisualization extends HTMLElement {
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
-    }
-
-    importGraph(jsonData) {
-        try {
-            const parsedData = JSON.parse(jsonData);
-            this.cy.elements().remove();
-            this.cy.add(parsedData.nodes);
-            this.cy.add(parsedData.edges);
-            this.changeLayout(parsedData.layout || 'cose');
-            this.cy.zoom(parsedData.zoomLevel || 1);
-            this.cy.pan(parsedData.panPosition || { x: 0, y: 0 });
-            this.addToHistory();
-            this.updateStats();
-        } catch (error) {
-            console.error("Error importing graph:", error);
-            alert("Failed to import graph. Please check the file format.");
-        }
     }
 }
 
