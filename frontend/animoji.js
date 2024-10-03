@@ -65,7 +65,7 @@ class AnimojiLoader extends HTMLElement {
                     top: 0;
                     left: 0;
                     overflow: hidden;
-                    filter: drop-shadow(0px 0px 4px rgba(0, 0, 0, 0.5));
+                    filter: drop-shadow(0px 0px 8px rgba(0, 0, 0, 0.8));
                 }
             </style>
             <div id="animoji-container">

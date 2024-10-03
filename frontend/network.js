@@ -18,11 +18,64 @@ class NetworkGraphVisualization extends HTMLElement {
             'grid': { name: 'grid', animate: 'end', animationDuration: 500 }
         };
         this.currentLayout = 'cose';
+        this.searchTerm = '';
+        this.highlightedNodes = new Set();
+        this.debounceTimer = null;
+        this.zoomLevel = 1;
+        this.panPosition = { x: 0, y: 0 };
+        this.historyStack = [];
+        this.futureStack = [];
     }
 
     connectedCallback() {
         this.render();
-        this.initCytoscapeGraph();
+        this.loadDependencies().then(() => {
+            this.initCytoscapeGraph();
+            this.initTippyTooltips();
+            this.initMinimap();
+            this.initContextMenu();
+        });
+    }
+
+    async loadDependencies() {
+        await Promise.all([
+            this.loadScript('https://unpkg.com/cytoscape@3.21.1/dist/cytoscape.min.js'),
+            this.loadScript('https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js'),
+            this.loadScript('https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.min.js'),
+            this.loadScript('https://unpkg.com/cytoscape-cxtmenu@3.4.0/cytoscape-cxtmenu.js'),
+            this.loadScript('https://unpkg.com/cytoscape-navigator@2.0.1/cytoscape-navigator.js'),
+            this.loadStylesheet('https://unpkg.com/tippy.js@6/dist/tippy.css'),
+            this.loadStylesheet('https://unpkg.com/cytoscape-navigator@2.0.1/cytoscape-navigator.css')
+        ]);
+    }
+
+    loadScript(src) {
+        return new Promise((resolve, reject) => {
+            if (!this.shadowRoot.querySelector(`script[src="${src}"]`)) {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                this.shadowRoot.appendChild(script);
+            } else {
+                resolve();
+            }
+        });
+    }
+
+    loadStylesheet(href) {
+        return new Promise((resolve, reject) => {
+            if (!this.shadowRoot.querySelector(`link[href="${href}"]`)) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = href;
+                link.onload = resolve;
+                link.onerror = reject;
+                this.shadowRoot.appendChild(link);
+            } else {
+                resolve();
+            }
+        });
     }
 
     render() {
@@ -32,6 +85,8 @@ class NetworkGraphVisualization extends HTMLElement {
                 display: block;
                 width: 100%;
                 height: 100%;
+                font-family: Arial, sans-serif;
+                box-sizing: border-box;
             }
             #graphContainer {
                 display: flex;
@@ -40,14 +95,101 @@ class NetworkGraphVisualization extends HTMLElement {
                 justify-content: center;
                 width: 100%;
                 height: 100%;
+                padding: 10px;
+                box-sizing: border-box;
             }
             #cytoscapeGraph {
                 width: 100%;
-                height: 100%;
+                height: calc(100% - 180px);
                 border: 1px solid #ddd;
+                border-radius: 5px;
+                overflow: hidden;
+                background-color: #f9f9f9;
             }
             #controls {
                 margin-top: 10px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            label {
+                display: flex;
+                align-items: center;
+                font-size: 0.9em;
+            }
+            input, select {
+                margin-left: 5px;
+                padding: 5px;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                font-size: 0.9em;
+            }
+            button {
+                padding: 5px 10px;
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                cursor: pointer;
+                transition: background-color 0.3s;
+                font-size: 0.9em;
+            }
+            button:hover {
+                background-color: #45a049;
+            }
+            #searchContainer {
+                display: flex;
+                align-items: center;
+                margin-top: 10px;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            #searchInput {
+                flex: 1;
+                padding: 5px;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                font-size: 0.9em;
+            }
+            #searchButton {
+                margin-left: 5px;
+                padding: 5px 10px;
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                cursor: pointer;
+                transition: background-color 0.3s;
+                font-size: 0.9em;
+            }
+            #searchButton:hover {
+                background-color: #0b7dda;
+            }
+            #statsContainer {
+                margin-top: 10px;
+                font-size: 0.9em;
+                width: 100%;
+                text-align: center;
+            }
+            @media (max-width: 600px) {
+                #controls {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                label {
+                    width: 100%;
+                    justify-content: space-between;
+                }
+                #searchContainer {
+                    flex-direction: column;
+                }
+                #searchButton {
+                    margin-left: 0;
+                    margin-top: 5px;
+                }
             }
         </style>
         <div id="graphContainer">
@@ -60,10 +202,20 @@ class NetworkGraphVisualization extends HTMLElement {
                 <label>
                     Min Similarity:
                     <input type="range" id="minSimilarity" min="0" max="1" step="0.1" value="0.5">
+                    <span id="minSimilarityValue">0.5</span>
                 </label>
                 <label>
                     Min Connections for Cluster:
                     <input type="number" id="minConnectionsForCluster" min="2" max="10" value="3">
+                </label>
+                <label>
+                    Agent Name:
+                    <input type="text" id="agentNameFilter" placeholder="e.g., Agent A">
+                </label>
+                <label>
+                    Min Confidence:
+                    <input type="range" id="minConfidence" min="0" max="1" step="0.1" value="0.5">
+                    <span id="minConfidenceValue">0.5</span>
                 </label>
                 <label>
                     Layout:
@@ -77,13 +229,41 @@ class NetworkGraphVisualization extends HTMLElement {
                 </label>
                 <button id="applyFilters">Apply Filters</button>
                 <button id="clusterGraph">Cluster Graph</button>
+                <button id="exportGraph">Export Graph</button>
             </div>
+            <div id="searchContainer">
+                <input type="text" id="searchInput" placeholder="Search nodes...">
+                <button id="searchButton">Search</button>
+            </div>
+            <div id="statsContainer"></div>
         </div>
         `;
 
+        // Event Listeners for Range Inputs to display current value
+        this.shadowRoot.getElementById('minSimilarity').addEventListener('input', (e) => {
+            this.shadowRoot.getElementById('minSimilarityValue').textContent = e.target.value;
+        });
+
+        this.shadowRoot.getElementById('minConfidence').addEventListener('input', (e) => {
+            this.shadowRoot.getElementById('minConfidenceValue').textContent = e.target.value;
+        });
+
+        // Attach event listeners
         this.shadowRoot.getElementById('applyFilters').addEventListener('click', () => this.applyFilters());
         this.shadowRoot.getElementById('clusterGraph').addEventListener('click', () => this.clusterGraph());
         this.shadowRoot.getElementById('layoutSelect').addEventListener('change', (e) => this.changeLayout(e.target.value));
+        this.shadowRoot.getElementById('exportGraph').addEventListener('click', () => this.exportGraph());
+        this.shadowRoot.getElementById('searchButton').addEventListener('click', () => this.searchNodes());
+        this.shadowRoot.getElementById('searchInput').addEventListener('input', (e) => {
+            this.searchTerm = e.target.value;
+            this.debounce(this.searchNodes.bind(this), 300);
+        });
+        this.shadowRoot.getElementById('toggleDarkMode').addEventListener('click', () => this.toggleDarkMode());
+        this.shadowRoot.getElementById('resetView').addEventListener('click', () => this.resetView());
+        this.shadowRoot.getElementById('zoomIn').addEventListener('click', () => this.zoom(1.2));
+        this.shadowRoot.getElementById('zoomOut').addEventListener('click', () => this.zoom(0.8));
+        this.shadowRoot.getElementById('undo').addEventListener('click', () => this.undo());
+        this.shadowRoot.getElementById('redo').addEventListener('click', () => this.redo());
     }
 
     initCytoscapeGraph() {
@@ -99,17 +279,19 @@ class NetworkGraphVisualization extends HTMLElement {
                         'text-valign': 'center',
                         'text-halign': 'center',
                         'text-wrap': 'wrap',
-                        'text-max-width': '100px'
+                        'text-max-width': '100px',
+                        'font-size': '10px'
                     }
                 },
                 {
                     selector: 'edge',
                     style: {
-                        'width': 3,
+                        'width': 'data(weight)',
                         'line-color': '#ccc',
                         'target-arrow-color': '#ccc',
                         'target-arrow-shape': 'triangle',
-                        'curve-style': 'bezier'
+                        'curve-style': 'bezier',
+                        'opacity': 0.7
                     }
                 },
                 {
@@ -118,7 +300,30 @@ class NetworkGraphVisualization extends HTMLElement {
                         'background-opacity': 0.333,
                         'label': 'data(label)',
                         'text-valign': 'top',
-                        'text-halign': 'center'
+                        'text-halign': 'center',
+                        'font-size': '12px'
+                    }
+                },
+                {
+                    selector: 'node.highlighted',
+                    style: {
+                        'background-color': '#ff0',
+                        'border-color': '#f00',
+                        'border-width': '2px'
+                    }
+                },
+                {
+                    selector: 'edge.highlighted',
+                    style: {
+                        'line-color': '#f00',
+                        'target-arrow-color': '#f00',
+                        'width': 4
+                    }
+                },
+                {
+                    selector: '.filtered',
+                    style: {
+                        'display': 'none'
                     }
                 }
             ],
@@ -129,8 +334,124 @@ class NetworkGraphVisualization extends HTMLElement {
             const node = evt.target;
             if (node.isParent()) {
                 this.expandCluster(node);
+            } else {
+                // Using modal instead of alert
+                this.showNodeDetailsModal(node);
             }
         });
+
+        this.cy.on('mouseover', 'node', (event) => {
+            const node = event.target;
+            this.highlightNeighbors(node);
+        });
+
+        this.cy.on('mouseout', 'node', () => {
+            this.unhighlightAll();
+        });
+
+        this.cy.on('zoom', (event) => {
+            this.zoomLevel = this.cy.zoom();
+        });
+
+        this.cy.on('pan', (event) => {
+            this.panPosition = this.cy.pan();
+        });
+
+        this.cy.on('add remove', (event) => {
+            this.addToHistory();
+        });
+    }
+
+    initTippyTooltips() {
+        const self = this;
+        this.cy.nodes().forEach(node => {
+            const ref = node.popperRef(); // used only for positioning
+            const dummyDomEle = document.createElement('div');
+
+            node.tippy = tippy(dummyDomEle, {
+                getReferenceClientRect: ref.getBoundingClientRect,
+                content: () => {
+                    const content = document.createElement('div');
+                    content.innerHTML = `<strong>Agent:</strong> ${node.data('agentName')}<br>
+                                         <strong>Content:</strong> ${node.data('fullContent')}<br>
+                                         <strong>Confidence:</strong> ${node.data('confidence')}`;
+                    return content;
+                },
+                trigger: 'manual', // manual since we handle show/hide
+                placement: 'top',
+                hideOnClick: false,
+                interactive: true,
+            });
+
+            node.on('mouseover', () => node.tippy.show());
+            node.on('mouseout', () => node.tippy.hide());
+        });
+
+        this.cy.edges().forEach(edge => {
+            const ref = edge.popperRef();
+            const dummyDomEle = document.createElement('div');
+
+            edge.tippy = tippy(dummyDomEle, {
+                getReferenceClientRect: ref.getBoundingClientRect,
+                content: () => {
+                    const content = document.createElement('div');
+                    content.innerHTML = `<strong>Weight:</strong> ${edge.data('weight')}`;
+                    return content;
+                },
+                trigger: 'manual',
+                placement: 'top',
+                hideOnClick: false,
+                interactive: true,
+            });
+
+            edge.on('mouseover', () => edge.tippy.show());
+            edge.on('mouseout', () => edge.tippy.hide());
+        });
+    }
+
+    initMinimap() {
+        const minimapOptions = {
+            container: this.shadowRoot.getElementById('minimap'),
+            viewLiveFramerate: 30,
+            thumbnailLiveFramerate: 30,
+            thumbnailEventFramerate: 30,
+            zoomLevelDistance: 1.2,
+        };
+        this.cy.navigator(minimapOptions);
+    }
+
+    initContextMenu() {
+        const ctxMenuOptions = {
+            menuRadius: 100,
+            selector: 'node, edge',
+            commands: [
+                {
+                    content: 'Edit',
+                    select: (ele) => {
+                        this.editElement(ele);
+                    }
+                },
+                {
+                    content: 'Delete',
+                    select: (ele) => {
+                        this.deleteElement(ele);
+                    }
+                },
+                {
+                    content: 'Expand/Collapse',
+                    select: (ele) => {
+                        if (ele.isNode()) {
+                            if (ele.isParent()) {
+                                this.expandCluster(ele);
+                            } else {
+                                this.collapseNode(ele);
+                            }
+                        }
+                    }
+                }
+            ]
+        };
+        this.cy.cxtmenu(ctxMenuOptions);
     }
 
     addThought(thoughtData) {
@@ -172,7 +493,7 @@ class NetworkGraphVisualization extends HTMLElement {
                             id: `${relatedThought.id}-${id}`,
                             source: relatedThought.id,
                             target: id,
-                            weight: relatedThought.similarity
+                            weight: relatedThought.similarity * 5  // Scale up for visibility
                         }
                     });
                 }
@@ -180,6 +501,7 @@ class NetworkGraphVisualization extends HTMLElement {
         }
 
         this.scheduleUpdate();
+        this.addToHistory();
     }
 
     scheduleUpdate() {
@@ -199,6 +521,8 @@ class NetworkGraphVisualization extends HTMLElement {
             this.cy.endBatch();
             this.updateBatch = [];
             this.runLayout();
+            this.initTippyTooltips(); // Reinitialize tooltips for new elements
+            this.updateStats();
         }
     }
 
@@ -209,8 +533,15 @@ class NetworkGraphVisualization extends HTMLElement {
 
     findRelatedThoughts(content, confidence, currentIteration, currentId) {
         const minSimilarity = parseFloat(this.shadowRoot.getElementById('minSimilarity').value) || 0.1;
+        const minConfidence = parseFloat(this.shadowRoot.getElementById('minConfidence').value) || 0.1;
+        const agentNameFilter = this.shadowRoot.getElementById('agentNameFilter').value.toLowerCase();
+
         return this.thoughtConnections
-            .filter(thought => thought.id !== currentId)
+            .filter(thought => 
+                thought.id !== currentId &&
+                thought.confidence >= minConfidence &&
+                (agentNameFilter === '' || thought.agentName.toLowerCase().includes(agentNameFilter))
+            )
             .map(thought => ({
                 id: thought.id,
                 similarity: this.calculateSimilarity(content, thought.content),
@@ -226,11 +557,35 @@ class NetworkGraphVisualization extends HTMLElement {
     }
 
     calculateSimilarity(text1, text2) {
-        // This is a placeholder for a more sophisticated similarity calculation
-        const words1 = new Set(text1.toLowerCase().split(/\W+/));
-        const words2 = new Set(text2.toLowerCase().split(/\W+/));
-        const intersection = new Set([...words1].filter(x => words2.has(x)));
-        return intersection.size / Math.sqrt(words1.size * words2.size);
+        // Basic TF calculation; for better results, integrate a more robust library or algorithm
+        const getTermFrequency = (text) => {
+            const words = text.toLowerCase().split(/\W+/).filter(Boolean);
+            const tf = {};
+            words.forEach(word => {
+                tf[word] = (tf[word] || 0) + 1;
+            });
+            return tf;
+        };
+
+        const tf1 = getTermFrequency(text1);
+        const tf2 = getTermFrequency(text2);
+
+        const allTerms = new Set([...Object.keys(tf1), ...Object.keys(tf2)]);
+        let dotProduct = 0;
+        let magnitude1 = 0;
+        let magnitude2 = 0;
+
+        allTerms.forEach(term => {
+            const tfidf1 = tf1[term] || 0;
+            const tfidf2 = tf2[term] || 0;
+            dotProduct += tfidf1 * tfidf2;
+            magnitude1 += tfidf1 * tfidf1;
+            magnitude2 += tfidf2 * tfidf2;
+        });
+
+        if (magnitude1 === 0 || magnitude2 === 0) return 0;
+
+        return dotProduct / (Math.sqrt(magnitude1) * Math.sqrt(magnitude2));
     }
 
     applyFilters() {
@@ -240,33 +595,44 @@ class NetworkGraphVisualization extends HTMLElement {
     }
 
     updateGraph() {
+        const agentNameFilter = this.shadowRoot.getElementById('agentNameFilter').value.toLowerCase();
+        const minConfidence = parseFloat(this.shadowRoot.getElementById('minConfidence').value) || 0.1;
+        const minSimilarity = parseFloat(this.shadowRoot.getElementById('minSimilarity').value) || 0.1;
+
         this.cy.startBatch();
-        this.cy.edges().remove();
-        
-        this.thoughtConnections.forEach(thought => {
-            const relatedThoughts = this.findRelatedThoughts(thought.content, thought.confidence, thought.iteration, thought.id);
-            relatedThoughts.forEach(relatedThought => {
-                if (thought.id !== relatedThought.id) {
-                    this.cy.add({
-                        group: 'edges',
-                        data: {
-                            id: `${relatedThought.id}-${thought.id}`,
-                            source: relatedThought.id,
-                            target: thought.id,
-                            weight: relatedThought.similarity
-                        }
-                    });
-                }
-            });
+        this.cy.elements().removeClass('filtered');
+
+        this.cy.nodes().forEach(node => {
+            const data = node.data();
+            const matchesAgent = agentNameFilter === '' || data.agentName.toLowerCase().includes(agentNameFilter);
+            const matchesConfidence = data.confidence >= minConfidence;
+            if (!matchesAgent || !matchesConfidence) {
+                node.addClass('filtered');
+            } else {
+                node.removeClass('filtered');
+            }
         });
+
+        this.cy.edges().forEach(edge => {
+            const source = edge.source();
+            const target = edge.target();
+            if (source.hasClass('filtered') || target.hasClass('filtered')) {
+                edge.addClass('filtered');
+            } else {
+                edge.removeClass('filtered');
+            }
+        });
+
         this.cy.endBatch();
 
         this.runLayout();
+        this.updateStats();
     }
 
     clear() {
         this.cy.elements().remove();
         this.thoughtConnections = [];
+        this.updateStats();
     }
 
     clusterGraph() {
@@ -286,6 +652,7 @@ class NetworkGraphVisualization extends HTMLElement {
         this.cy.endBatch();
 
         this.runLayout();
+        this.updateStats();
     }
 
     clusterByConnections() {
@@ -297,11 +664,16 @@ class NetworkGraphVisualization extends HTMLElement {
             const neighborhood = node.neighborhood().nodes().filter(n => !n.isParent());
             if (neighborhood.length >= this.minConnectionsForCluster) {
                 const clusterId = 'cluster_' + this.cy.nodes().length;
+                const clusterColor = this.clusterColors[index % this.clusterColors.length];
                 this.cy.add({
                     group: 'nodes',
                     data: {
                         id: clusterId,
                         label: 'Cluster ' + (index + 1)
+                    },
+                    style: {
+                        'background-color': clusterColor,
+                        'opacity': 0.3
                     }
                 });
                 neighborhood.move({ parent: clusterId });
@@ -317,11 +689,255 @@ class NetworkGraphVisualization extends HTMLElement {
         this.cy.remove(clusterNode);
         this.cy.endBatch();
         this.runLayout();
+        this.updateStats();
+        this.addToHistory();
+    }
+
+    editElement(element) {
+        const data = element.data();
+        const isNode = element.isNode();
+        const content = prompt(`Edit ${isNode ? 'node' : 'edge'} content:`, isNode ? data.fullContent : data.weight);
+        if (content !== null) {
+            this.cy.startBatch();
+            if (isNode) {
+                element.data('fullContent', content);
+                element.data('label', `${data.agentName}\n${content.substring(0, 20)}...`);
+            } else {
+                element.data('weight', parseFloat(content));
+            }
+            this.cy.endBatch();
+            this.addToHistory();
+        }
+    }
+
+    deleteElement(element) {
+        if (confirm(`Are you sure you want to delete this ${element.isNode() ? 'node' : 'edge'}?`)) {
+            this.cy.remove(element);
+            this.addToHistory();
+        }
+    }
+
+    collapseNode(node) {
+        const neighborhood = node.neighborhood().nodes();
+        const collapsed = this.cy.add({
+            group: 'nodes',
+            data: {
+                id: 'collapsed_' + node.id(),
+                label: 'Collapsed Group',
+                originalNodes: neighborhood.map(n => n.id())
+            }
+        });
+        neighborhood.move({ parent: collapsed.id() });
+        this.addToHistory();
     }
 
     changeLayout(layoutName) {
         this.currentLayout = layoutName;
         this.runLayout();
+    }
+
+    highlightNeighbors(node) {
+        const neighborhood = node.neighborhood().add(node);
+        
+        this.cy.elements().removeClass('highlighted');
+        neighborhood.addClass('highlighted');
+        
+        this.cy.elements().difference(neighborhood).style('opacity', 0.3);
+        neighborhood.style('opacity', 1);
+    }
+
+    unhighlightAll() {
+        this.cy.elements().removeClass('highlighted');
+        this.cy.elements().style('opacity', 1);
+    }
+
+    showNodeDetailsModal(node) {
+        const data = node.data();
+        // Create modal if it doesn't exist
+        if (!this.shadowRoot.getElementById('detailsModal')) {
+            const modal = document.createElement('div');
+            modal.id = 'detailsModal';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            modal.style.zIndex = '1000';
+
+            const modalContent = document.createElement('div');
+            modalContent.style.backgroundColor = '#fff';
+            modalContent.style.padding = '20px';
+            modalContent.style.borderRadius = '5px';
+            modalContent.style.width = '300px';
+            modalContent.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+            modalContent.innerHTML = `
+                <h3>Node Details</h3>
+                <p><strong>Agent:</strong> <span id="modalAgentName"></span></p>
+                <p><strong>Content:</strong> <span id="modalContent"></span></p>
+                <p><strong>Confidence:</strong> <span id="modalConfidence"></span></p>
+                <button id="closeModal">Close</button>
+            `;
+
+            modal.appendChild(modalContent);
+            this.shadowRoot.appendChild(modal);
+
+            this.shadowRoot.getElementById('closeModal').addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+        }
+
+        this.shadowRoot.getElementById('modalAgentName').textContent = data.agentName;
+        this.shadowRoot.getElementById('modalContent').textContent = data.fullContent;
+        this.shadowRoot.getElementById('modalConfidence').textContent = data.confidence;
+        this.shadowRoot.getElementById('detailsModal').style.display = 'flex';
+    }
+
+    toggleDarkMode() {
+        this.shadowRoot.getElementById('graphContainer').classList.toggle('dark-mode');
+        this.updateGraphStyles();
+    }
+
+    updateGraphStyles() {
+        const isDarkMode = this.shadowRoot.getElementById('graphContainer').classList.contains('dark-mode');
+        this.cy.style()
+            .selector('node')
+            .style({
+                'background-color': isDarkMode ? '#aaa' : '#666',
+                'color': isDarkMode ? '#fff' : '#000'
+            })
+            .selector('edge')
+            .style({
+                'line-color': isDarkMode ? '#888' : '#ccc',
+                'target-arrow-color': isDarkMode ? '#888' : '#ccc'
+            })
+            .update();
+    }
+
+    searchNodes() {
+        const searchTerm = this.searchTerm.toLowerCase();
+        this.highlightedNodes.clear();
+        
+        if (searchTerm) {
+            this.cy.nodes().forEach(node => {
+                const nodeData = node.data();
+                if (nodeData.fullContent && nodeData.fullContent.toLowerCase().includes(searchTerm)) {
+                    this.highlightedNodes.add(node);
+                }
+            });
+            
+            this.cy.elements().style('opacity', 0.3);
+            this.highlightedNodes.forEach(node => {
+                node.style('opacity', 1);
+                node.neighborhood().style('opacity', 1);
+            });
+        } else {
+            this.cy.elements().style('opacity', 1);
+        }
+    }
+
+    debounce(func, wait) {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = setTimeout(func, wait);
+    }
+
+    updateStats() {
+        const stats = {
+            nodes: this.cy.nodes(':visible').size(),
+            edges: this.cy.edges(':visible').size(),
+            clusters: this.cy.nodes(':parent').filter(node => node.isParent()).size(),
+            avgConnections: this.cy.nodes(':visible').averageDegree()
+        };
+
+        const statsContainer = this.shadowRoot.getElementById('statsContainer');
+        statsContainer.innerHTML = `
+            Nodes: ${stats.nodes} | 
+            Edges: ${stats.edges} | 
+            Clusters: ${stats.clusters} | 
+            Avg. Connections: ${stats.avgConnections.toFixed(2)}
+        `;
+    }
+
+    resetView() {
+        this.cy.fit();
+        this.cy.zoom(1);
+        this.cy.pan({ x: 0, y: 0 });
+    }
+
+    zoom(factor) {
+        this.cy.zoom({
+            level: this.cy.zoom() * factor,
+            renderedPosition: { x: this.cy.width() / 2, y: this.cy.height() / 2 }
+        });
+    }
+
+    addToHistory() {
+        const state = this.cy.json();
+        this.historyStack.push(state);
+        this.futureStack = [];
+        this.updateUndoRedoButtons();
+    }
+
+    undo() {
+        if (this.historyStack.length > 1) {
+            const currentState = this.historyStack.pop();
+            this.futureStack.push(currentState);
+            const previousState = this.historyStack[this.historyStack.length - 1];
+            this.cy.json(previousState);
+            this.updateUndoRedoButtons();
+        }
+    }
+
+    redo() {
+        if (this.futureStack.length > 0) {
+            const nextState = this.futureStack.pop();
+            this.historyStack.push(nextState);
+            this.cy.json(nextState);
+            this.updateUndoRedoButtons();
+        }
+    }
+
+    updateUndoRedoButtons() {
+        this.shadowRoot.getElementById('undo').disabled = this.historyStack.length <= 1;
+        this.shadowRoot.getElementById('redo').disabled = this.futureStack.length === 0;
+    }
+
+    exportGraph() {
+        const graphData = {
+            nodes: this.cy.nodes().map(node => node.data()),
+            edges: this.cy.edges().map(edge => edge.data()),
+            layout: this.currentLayout,
+            zoomLevel: this.zoomLevel,
+            panPosition: this.panPosition
+        };
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(graphData, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "network_graph_export.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    importGraph(jsonData) {
+        try {
+            const parsedData = JSON.parse(jsonData);
+            this.cy.elements().remove();
+            this.cy.add(parsedData.nodes);
+            this.cy.add(parsedData.edges);
+            this.changeLayout(parsedData.layout || 'cose');
+            this.cy.zoom(parsedData.zoomLevel || 1);
+            this.cy.pan(parsedData.panPosition || { x: 0, y: 0 });
+            this.addToHistory();
+            this.updateStats();
+        } catch (error) {
+            console.error("Error importing graph:", error);
+            alert("Failed to import graph. Please check the file format.");
+        }
     }
 }
 

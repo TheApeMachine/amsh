@@ -263,6 +263,13 @@ class PipelineVisualization extends HTMLElement {
     }
 
     addNewBlock(chunk) {
+        if (this.content && this.currentBlock) {
+            const contentElement = document.createElement('div');
+            contentElement.innerHTML = marked.parse(this.content);
+            this.currentBlock.appendChild(contentElement);
+            this.content = "";
+        }
+
         const outputDiv = this.shadowRoot.getElementById('output');
         const blockElement = document.createElement('details');
         blockElement.classList.add('card');
@@ -294,15 +301,6 @@ class PipelineVisualization extends HTMLElement {
     }
 
     addLineToOutput(chunk) {
-        if (!this.currentBlock) return;
-
-        if (this.content) {
-            const contentElement = document.createElement('div');
-            contentElement.innerHTML = marked.parse(this.content);
-            this.currentBlock.appendChild(contentElement);
-            this.content = "";
-        }
-
         this.content += chunk.response.replace("```markdown", "").replace("```", "");
 
         // Update animoji state based on content
