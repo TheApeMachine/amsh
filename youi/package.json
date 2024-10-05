@@ -1,0 +1,26 @@
+{
+  "name": "youi",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": ">=2.0.0",
+    "@tauri-apps/plugin-shell": ">=2.0.0",
+    "gsap": "^3.12.5",
+    "reveal.js": "^5.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": ">=2.0.0",
+    "@types/gsap": "^3.0.0",
+    "@types/node": "^22.7.4",
+    "@types/reveal.js": "^5.0.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.3.1"
+  }
+}
