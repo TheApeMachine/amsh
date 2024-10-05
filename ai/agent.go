@@ -38,16 +38,45 @@ func (agent *Agent) Generate(ctx context.Context, user string) <-chan string {
 
 	go func() {
 		defer close(out)
-		agent.NextOpenAI(agent.system, user, out)
 
-		// if rand.Intn(2) == 0 {
-		// 	agent.NextOpenAI(agent.system, user, out)
-		// } else {
-		// 	agent.NextGemini(agent.system, user, out)
-		// }
+		// Retrieve relevant knowledge
+		relevantKnowledge, err := agent.RetrieveKnowledge(user)
+		if err != nil {
+			fmt.Printf("Error retrieving knowledge: %v\n", err)
+		}
+
+		// Modify user prompt
+		userPrompt := fmt.Sprintf("%s\n\nRelevant Knowledge:\n%s", user, relevantKnowledge)
+
+		agent.NextOpenAI(agent.system, userPrompt, out)
 	}()
 
 	return out
+}
+
+func (agent *Agent) GenerateEmbedding(text string) ([]float32, error) {
+	// Use OpenAI API to generate embeddings
+	embedding, err := agent.conn.client.CreateEmbeddings(agent.ctx, openai.EmbeddingRequest{
+		Input: []string{text},
+		Model: openai.AdaEmbeddingV2,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Convert embedding to []float32
+	var vector []float32
+	for _, v := range embedding.Data[0].Embedding {
+		vector = append(vector, float32(v))
+	}
+	return vector, nil
+}
+
+func (agent *Agent) StoreKnowledge(content string) error {
+	return nil
+}
+
+func (agent *Agent) RetrieveKnowledge(prompt string) (string, error) {
+	return "", nil
 }
 
 /*

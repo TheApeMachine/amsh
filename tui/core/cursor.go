@@ -1,3 +1,5 @@
+// tui/core/cursor.go
+
 package core
 
 import "fmt"

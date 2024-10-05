@@ -1,6 +1,6 @@
 module github.com/theapemachine/amsh
 
-go 1.22
+go 1.22.2
 
 toolchain go1.22.5
 
@@ -28,7 +28,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	cloud.google.com/go/longrunning v0.6.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
-	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/charmbracelet/x/input v0.1.0 // indirect
 	github.com/charmbracelet/x/term v0.1.1 // indirect
@@ -143,6 +143,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2
 	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
+	github.com/qdrant/go-client v1.11.1
 	github.com/rivo/tview v0.0.0-20240921122403-a64fc48d7654
 	github.com/rivo/uniseg v0.4.7
 	github.com/sashabaranov/go-openai v1.29.1

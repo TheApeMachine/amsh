@@ -3,12 +3,14 @@ package ai
 import (
 	"context"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/goombaio/namegenerator"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/ai/memory"
 	"github.com/theapemachine/amsh/errnie"
 )
 
@@ -32,6 +34,8 @@ type Pipeline struct {
 	approachHistory  []string
 	currentIteration int
 	maxIterations    int
+	agentResponses   map[string]string
+	semanticMemory   *memory.SemanticMemory
 }
 
 func NewPipeline(ctx context.Context, conn *Conn) *Pipeline {
@@ -53,6 +57,7 @@ func (pipeline *Pipeline) Initialize() *Pipeline {
 		"verifier",
 		"learning",
 		"metacognition",
+		"prompt_engineer",
 		"context_manager",
 	}
 
@@ -64,6 +69,13 @@ func (pipeline *Pipeline) Initialize() *Pipeline {
 		if system == "" || user == "" {
 			errnie.Error(fmt.Errorf("missing configuration for %s agent", agentType))
 			continue
+		}
+
+		// In Pipeline.Initialize()
+		pipeline.semanticMemory = memory.NewSemanticMemory()
+		err := pipeline.semanticMemory.CreateCollection(context.Background(), "knowledge_base", 1536) // Assuming 1536-dimensional embeddings
+		if err != nil {
+			log.Fatalf("Failed to create collection: %v", err)
 		}
 
 		pipeline.agents[agentType] = NewAgent(
@@ -188,12 +200,37 @@ func (pipeline *Pipeline) useResource(resource string) {
 }
 
 func (pipeline *Pipeline) runAgent(agent *Agent, chunk Chunk, out chan<- Chunk) string {
-	context := strings.ReplaceAll(agent.user, "{prompt}", chunk.Prompt)
-	context = strings.ReplaceAll(context, "{context}", pipeline.history)
-	context = strings.ReplaceAll(context, "{resources}", "No additional resources available.")
+	var context string
+	if agent.Type == "prompt_engineer" {
+		// Collect original prompts and feedback
+		originalPrompts := pipeline.getOriginalPrompts()
+		agentFeedback := pipeline.getAgentFeedback()
+
+		// Replace placeholders in the agent's user prompt
+		context = strings.ReplaceAll(agent.user, "{original_prompts}", originalPrompts)
+		context = strings.ReplaceAll(context, "{agent_feedback}", agentFeedback)
+	} else {
+		context := strings.ReplaceAll(agent.user, "{prompt}", chunk.Prompt)
+		context = strings.ReplaceAll(context, "{context}", pipeline.history)
+		context = strings.ReplaceAll(context, "{resources}", "No additional resources available.")
+	}
 
 	chunk.System = agent.system
 	chunk.User = context
+
+	if agent.Type == "prompt_engineer" {
+		// Collect the response and update agent prompts
+		fullResponse := ""
+		for chnk := range agent.Generate(pipeline.ctx, context) {
+			chunk.Response = chnk
+			out <- chunk
+			pipeline.history += fmt.Sprintf("%s\n", chunk.Response)
+			fullResponse += chnk
+		}
+
+		// After receiving the full response, parse and update prompts
+		pipeline.updateAgentPrompts(fullResponse)
+	}
 
 	agentResponse := fmt.Sprintf(
 		"\n\nDuring iteration %d of %d, agent %s (a %s) responded with:\n\n",
@@ -202,6 +239,8 @@ func (pipeline *Pipeline) runAgent(agent *Agent, chunk Chunk, out chan<- Chunk) 
 		agent.ID,
 		agent.Type,
 	)
+
+	_ = agentResponse
 
 	chunk.Color = reset + agent.Color
 
@@ -213,7 +252,68 @@ func (pipeline *Pipeline) runAgent(agent *Agent, chunk Chunk, out chan<- Chunk) 
 		fullResponse += chnk
 	}
 
-	agentResponse += fullResponse
+	// Store the agent's response for feedback if applicable
+	if agent.Type == "verifier" || agent.Type == "learning" || agent.Type == "metacognition" {
+		pipeline.agentResponses[agent.Type] = fullResponse
+	}
 
-	return agentResponse
+	// Existing code...
+	return fullResponse
+}
+
+func (pipeline *Pipeline) getOriginalPrompts() string {
+	var builder strings.Builder
+	for _, agent := range pipeline.agents {
+		if agent.Type != "prompt_engineer" {
+			builder.WriteString(fmt.Sprintf("### %s\n", agent.Type))
+			builder.WriteString("**System Prompt:**\n")
+			builder.WriteString("```\n" + agent.system + "\n```\n")
+			builder.WriteString("**User Prompt:**\n")
+			builder.WriteString("```\n" + agent.user + "\n```\n")
+		}
+	}
+	return builder.String()
+}
+
+func (pipeline *Pipeline) getAgentFeedback() string {
+	var builder strings.Builder
+	feedbackAgents := []string{"verifier", "learning", "metacognition"}
+	for _, agentType := range feedbackAgents {
+		if feedback, exists := pipeline.agentResponses[agentType]; exists {
+			builder.WriteString(fmt.Sprintf("### %s Feedback\n", strings.Title(agentType)))
+			builder.WriteString(feedback + "\n\n")
+		}
+	}
+	return builder.String()
+}
+
+func (pipeline *Pipeline) updateAgentPrompts(response string) {
+	optimizedPrompts := parseOptimizedPrompts(response)
+
+	for agentName, prompts := range optimizedPrompts {
+		if agent, exists := pipeline.agents[agentName]; exists {
+			agent.system = prompts["system"]
+			agent.user = prompts["user"]
+		}
+	}
+}
+
+func parseOptimizedPrompts(response string) map[string]map[string]string {
+	optimizedPrompts := make(map[string]map[string]string)
+
+	// Use regular expressions to parse the response
+	re := regexp.MustCompile("\\*\\*([^*]+)\\*\\*:\\s+- \\*\\*System Prompt\\*\\*:\\s+```yaml\\s+(.+?)\\s+```\\s+- \\*\\*User Prompt\\*\\*:\\s+```yaml\\s+(.+?)\\s+```(?s)")
+	matches := re.FindAllStringSubmatch(response, -1)
+
+	for _, match := range matches {
+		agentName := match[1]
+		systemPrompt := match[2]
+		userPrompt := match[3]
+		optimizedPrompts[agentName] = map[string]string{
+			"system": systemPrompt,
+			"user":   userPrompt,
+		}
+	}
+
+	return optimizedPrompts
 }

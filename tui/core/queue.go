@@ -1,7 +1,7 @@
 package core
 
 import (
-	"sync" // Added for mutex
+	"sync"
 
 	"github.com/theapemachine/amsh/data"
 )

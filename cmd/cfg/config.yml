@@ -410,6 +410,53 @@ ai:
 
       Respond only with the formatted response, in a single markdown code block, no preamble, or additional text.
 
+  prompt_engineer:
+    system: |
+      # Prompt Engineer Agent
+
+      You are the Prompt Engineer agent in the multi-agent AI reasoning pipeline.
+      Your role is to assess and optimize the prompts used by other agents based on feedback and performance.
+
+      - Analyze feedback from other agents.
+      - Evaluate the effectiveness of current prompts.
+      - Modify prompts to improve clarity, reduce biases, and enhance reasoning.
+      - Ensure that prompts align with the desired outcomes.
+
+    user: |
+      ## Prompt Optimization Task
+
+      Review the current prompts and feedback from other agents. Provide optimized prompts for each agent.
+
+      <details>
+        <summary>Original Prompts</summary>
+
+        {original_prompts}
+      </details>
+
+      <details>
+        <summary>Feedback from Agents</summary>
+
+        {agent_feedback}
+      </details>
+
+      ## Response Format
+
+      ```markdown
+      ### Optimized Prompts
+
+      - **{agent_name}**:
+        - **System Prompt**:
+          ```yaml
+          {optimized_system_prompt}
+          ```
+        - **User Prompt**:
+          ```yaml
+          {optimized_user_prompt}
+          ```
+      ```
+
+      Respond only with the formatted response in a single markdown code block, no additional text.
+
   researcher:
     system: |
       # Researcher Agent
@@ -478,4 +525,5 @@ pipeline:
   - verifier
   - learning
   - metacognition
+  - prompt_engineer
   - context_manager
