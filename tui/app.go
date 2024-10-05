@@ -16,17 +16,16 @@ type App struct {
 	width    int
 	height   int
 	oldState *term.State
-	running  bool
-	mode     core.Mode
 	queue    *core.Queue
-	buffers  []*core.Buffer
-	bufPtr   int
 	context  *core.Context
+	running  bool
 }
 
 func New() *App {
 	return &App{
-		buffers: make([]*core.Buffer, 0),
+		context: core.NewContext(
+			core.NewQueue(100),
+		),
 	}
 }
 
@@ -44,43 +43,15 @@ func (app *App) Initialize() *App {
 
 	// Get terminal size
 	app.width, app.height, _ = term.GetSize(int(os.Stdout.Fd()))
-
-	// Initialize queue and buffers
-	app.queue = core.NewQueue(100)
-	app.buffers = append(app.buffers, core.NewBuffer(app.height, core.NewCursor(app.queue), app.queue))
-	app.bufPtr = 0
-
-	// Initialize context
-	app.context = &core.Context{
-		Queue:   app.queue,
-		Buffers: app.buffers,
-		Cursor:  app.buffers[app.bufPtr].Cursor,
-		Width:   app.width,
-		Height:  app.height,
-	}
-
-	// Start in NormalMode
-	app.SetMode(&core.Normal{})
-
 	app.running = true
 	return app
-}
-
-func (app *App) SetMode(mode core.Mode) {
-	if app.mode != nil {
-		app.mode.Exit()
-	}
-	app.mode = mode
-	app.mode.Enter(app.context)
 }
 
 func (app *App) Run() {
 	defer app.flipMode() // Ensure terminal is restored when exiting
 
 	for app.running {
-		if app.mode != nil {
-			app.mode.Run()
-		}
+		app.context.Run()
 	}
 }
 

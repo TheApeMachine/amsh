@@ -7,11 +7,33 @@ import (
 )
 
 type Context struct {
-	Queue   *Queue
-	Buffers []*Buffer
-	Cursor  *Cursor
-	Width   int
-	Height  int
+	Mode     Mode
+	Queue    *Queue
+	Buffers  []*Buffer
+	Keyboard *Keyboard
+	Cursor   *Cursor
+	Width    int
+	Height   int
+}
+
+func NewContext(queue *Queue) *Context {
+	return &Context{
+		Mode:     &Normal{},
+		Queue:    queue,
+		Buffers:  make([]*Buffer, 0),
+		Keyboard: NewKeyboard(queue),
+		Cursor:   NewCursor(queue),
+		Width:    80,
+		Height:   24,
+	}
+}
+
+func (ctx *Context) SetMode(mode Mode) {
+	ctx.Mode = mode
+}
+
+func (ctx *Context) Run() {
+	ctx.Mode.Run()
 }
 
 // UpdateBuffer updates the content of the buffer at a given line and column.

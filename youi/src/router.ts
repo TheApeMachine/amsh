@@ -4,27 +4,15 @@ interface Route {
 }
 
 const routes: Route[] = [{
+    path: "/404",
+    view: async () => {
+        const module = await import("@/routes/notfound");
+        return await module.render();
+    }
+}, {
     path: "/",
     view: async () => {
         const module = await import("@/routes/home");
-        return await module.render();
-    }
-}, {
-    path: "/work",
-    view: async () => {
-        const module = await import("@/routes/work");
-        return await module.render();
-    }
-}, {
-    path: "/learn",
-    view: async () => {
-        const module = await import("@/routes/learn");
-        return await module.render();
-    }
-}, {
-    path: "/connect",
-    view: async () => {
-        const module = await import("@/routes/connect");
         return await module.render();
     }
 }];
@@ -45,15 +33,18 @@ export const router = async (targetElement: HTMLElement) => {
             targetElement.appendChild(content);
         } catch (error: any) {
             console.error("Routing error:", error);
-            targetElement.innerHTML = `<error-boundary><pre>${error.message}</pre></error-boundary>`;
+            const errorElement = document.createElement("error-boundary");
+            errorElement.textContent = error.message;
+            targetElement.innerHTML = '';
+            targetElement.appendChild(errorElement);
         }
     }
 };
 
 window.addEventListener("popstate", () => {
-    const main = document.querySelector('layout-component')?.shadowRoot?.querySelector('main');
+    const main = document.querySelector('layout-component');
     if (main) {
-        router(main);
+        router(main as HTMLElement);
     }
 });
 

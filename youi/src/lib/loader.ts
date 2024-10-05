@@ -29,6 +29,7 @@ export const loader = async (
                 const response = await fetchWithParams(url, method, params, headers);
                 const data = await response.json();
                 results[key] = data;
+                window.stateManager.setState(key, data);
                 cache[cacheKey] = { data, timestamp: now }; // Store with timestamp
                 console.debug("loader", "cache miss", cacheKey, results[key])
             }
