@@ -6,19 +6,24 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 )
 
 type Service struct {
-	orgURL string
-	pat    string
+	orgURL      string
+	projectID   string
+	projectName string
+	pat         string
 }
 
 func NewService() *Service {
 	return &Service{
-		orgURL: os.Getenv("AZDO_ORG_URL"),
-		pat:    os.Getenv("AZDO_PAT"),
+		orgURL:      os.Getenv("AZDO_ORG_URL"),
+		pat:         os.Getenv("AZDO_PAT"),
+		projectID:   "9b0e875e-c3b5-481d-a8c5-48e96f624015",
+		projectName: "fanapp",
 	}
 }
 
@@ -40,6 +45,8 @@ func (srv *Service) GetProjects(ctx context.Context) (projects []core.TeamProjec
 	if responseValue, err = srv.GetClient(ctx).GetProjects(ctx, core.GetProjectsArgs{}); err != nil {
 		return nil, err
 	}
+
+	spew.Dump(responseValue)
 
 	for responseValue != nil {
 		// Log the page of team project names

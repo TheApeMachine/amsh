@@ -36,7 +36,7 @@ class ToastContainer extends HTMLElement {
         this.shadowRoot.innerHTML = `
         <style>
           :host {
-            position: fixed;
+            position: absolute;
             bottom: 16px;
             right: 16px;
             width: 300px;
