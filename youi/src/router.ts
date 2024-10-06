@@ -1,6 +1,7 @@
 interface Route {
     path: string;
     view: () => Promise<DocumentFragment>;
+    effect: () => Promise<void|null>;
 }
 
 const routes: Route[] = [{
@@ -8,12 +9,19 @@ const routes: Route[] = [{
     view: async () => {
         const module = await import("@/routes/notfound");
         return await module.render();
+    },
+    effect: async () => {
+        return null;
     }
 }, {
     path: "/",
     view: async () => {
         const module = await import("@/routes/home");
         return await module.render();
+    },
+    effect: async () => {
+        const module = await import("@/routes/home");
+        return await module.effect();
     }
 }];
 
@@ -29,8 +37,8 @@ export const router = async (targetElement: HTMLElement) => {
 
         try {
             const content = await route.view();
-            targetElement.innerHTML = '';
             targetElement.appendChild(content);
+            await route.effect();
         } catch (error: any) {
             console.error("Routing error:", error);
             const errorElement = document.createElement("error-boundary");
@@ -42,7 +50,7 @@ export const router = async (targetElement: HTMLElement) => {
 };
 
 window.addEventListener("popstate", () => {
-    const main = document.querySelector('layout-component');
+    const main = document.body;
     if (main) {
         router(main as HTMLElement);
     }

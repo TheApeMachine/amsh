@@ -22,6 +22,8 @@ class LayoutComponent extends HTMLElement {
             flex-direction: column;
             height: 100%;
             width: 100%;
+            transform-style: preserve-3d;
+            perspective: 500px;
         }
         main {
             display: flex;
@@ -30,6 +32,8 @@ class LayoutComponent extends HTMLElement {
             width: 100%;
             margin: auto;
             padding: 4em 0 0 0;
+            transform-style: preserve-3d;
+            perspective: 500px;
         }
         .no-scroll {
             overflow: hidden;

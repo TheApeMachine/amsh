@@ -4,7 +4,6 @@ export const EventManager = () => {
     const init = () => {[
         "click", 
         "wheel",
-        "keydown", 
         "drag"
     ].forEach(eventType => {
         console.log("lib.EventManager.init", eventType);

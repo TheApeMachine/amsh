@@ -16,7 +16,9 @@ export const StateManager = () => {
         console.log("lib.StateManager.onmessage", event);
         const { topic, effect } = event.data;
         if (topic === "state" && effect) {
-            getState(effect)();
+            const fn = getState(effect)
+            console.log("lib.StateManager.onmessage", fn);
+            fn();
         }
     };
 
@@ -26,7 +28,7 @@ export const StateManager = () => {
         const stateValue = state[key];
         const registryValue = stateValue ? undefined : registry[key];
 
-        if (!stateValue) {
+        if (!stateValue && !registryValue) {
             console.error("lib.StateManager.get", "No state value found for key", key);
         }
 
@@ -39,6 +41,7 @@ export const StateManager = () => {
     };
 
     const register = (key: string, value: any) => {
+        console.log("lib.StateManager.register", key, value);
         registry[key] = value;
     };
 
@@ -65,7 +68,8 @@ export const StateManager = () => {
         getState,
         setState,
         register,
-        init
+        init,
+        registry
     };
 }
 

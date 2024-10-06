@@ -2,7 +2,8 @@ import { onMount, onUnmount } from "@/lib/lifecycle";
 import { getWorker } from "@/workers/utils";
 import { gsap } from "gsap";
 import { Draggable } from "gsap/Draggable";
-
+import "../plots/bar";
+import "../plots/radial";
 gsap.registerPlugin(Draggable);
 
 class DashboardEditor extends HTMLElement {
@@ -30,7 +31,7 @@ class DashboardEditor extends HTMLElement {
                 .grid {
                     flex-grow: 1;
                     position: relative;
-                    background: #ddd;
+                    background: #333;
                     padding: 1px;
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(min(${this.cellSize}px, 100%), 1fr));
@@ -45,7 +46,7 @@ class DashboardEditor extends HTMLElement {
                 }
                 .draggable {
                     position: absolute;
-                    background: #EEE;
+                    background: #666;
                     border: 1px solid #AAA;
                     z-index: 10;
                     cursor: move;
@@ -98,7 +99,7 @@ class DashboardEditor extends HTMLElement {
 
     connectedCallback() {
         onMount(this, () => {
-            window.state.register('add-block', this.addBlockToGrid.bind(this));
+            window.stateManager.register('add-block', this.addBlockToGrid.bind(this));
             this.renderGrid();    
             this.updateEmptyMessage();
         });
@@ -142,6 +143,9 @@ class DashboardEditor extends HTMLElement {
         chart.style.left = `${this.cellSize}px`;
         chart.style.top = `${this.cellSize}px`;
         chart.setAttribute('data-id', this.draggables.length.toString());
+
+        const plot = document.createElement("radial-plot")
+        block.appendChild(plot)
 
         const handle = document.createElement('div');
         handle.classList.add('resize-handle');

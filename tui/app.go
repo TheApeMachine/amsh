@@ -1,5 +1,3 @@
-// tui/app.go
-
 package tui
 
 import (
@@ -12,15 +10,20 @@ import (
 	"golang.org/x/term"
 )
 
+/*
+App is the main application structure.
+*/
 type App struct {
 	width    int
 	height   int
 	oldState *term.State
-	queue    *core.Queue
 	context  *core.Context
 	running  bool
 }
 
+/*
+New creates a new application.
+*/
 func New() *App {
 	return &App{
 		context: core.NewContext(
@@ -29,6 +32,9 @@ func New() *App {
 	}
 }
 
+/*
+Initialize sets up the application.
+*/
 func (app *App) Initialize() *App {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
@@ -47,6 +53,9 @@ func (app *App) Initialize() *App {
 	return app
 }
 
+/*
+Run starts the main event loop.
+*/
 func (app *App) Run() {
 	defer app.flipMode() // Ensure terminal is restored when exiting
 
@@ -55,7 +64,9 @@ func (app *App) Run() {
 	}
 }
 
-// flipMode toggles the terminal between raw and cooked mode.
+/*
+flipMode toggles the terminal between raw and cooked mode.
+*/
 func (app *App) flipMode() {
 	var err error
 	if app.oldState == nil {
@@ -71,7 +82,9 @@ func (app *App) flipMode() {
 	fmt.Println("\nTerminal restored")
 }
 
-// cleanupAndExit gracefully exits the application.
+/*
+cleanupAndExit gracefully exits the application.
+*/
 func (app *App) cleanupAndExit() {
 	app.running = false
 	app.flipMode()
@@ -79,7 +92,9 @@ func (app *App) cleanupAndExit() {
 	os.Exit(0)
 }
 
-// clearScreen clears the terminal screen using ANSI escape codes.
+/*
+clearScreen clears the terminal screen using ANSI escape codes.
+*/
 func (app *App) clearScreen() {
 	fmt.Print("\033[H\033[2J")
 	os.Stdout.Sync() // Flush output

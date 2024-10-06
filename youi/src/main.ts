@@ -2,9 +2,11 @@ import { StateManager } from "@/lib/state";
 import { EventManager } from "@/lib/event";
 import {router} from "@/router.ts";
 import "@/components/root.ts";
+import "@/components/ui/gridspace";
 import "@/components/error";
 import "@/components/loader";
-import "@/components/ui/layout";
+import "@/components/toast/container";
+import "@/components/toast/message";
 
 declare global {
     interface Window {
@@ -20,5 +22,5 @@ window.addEventListener("DOMContentLoaded", () => {
     window.eventManager = EventManager();
     window.eventManager.init();
 
-    router(document.body.querySelector("layout-component")!);
+    router(document.body!);
 });

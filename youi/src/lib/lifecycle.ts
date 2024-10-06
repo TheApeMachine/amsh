@@ -48,11 +48,6 @@ const observeShadowRoot = (shadowRoot: ShadowRoot) => {
     observer.observe(shadowRoot, { childList: true, subtree: true });
 };
 
-// Observe the main document body
-observeShadowRoot(
-    document.body.querySelector('layout-component') as unknown as ShadowRoot
-);
-
 // Function to trigger the "onMount" lifecycle when a node is added to the DOM
 const triggerMount = (node: Node) => {
     console.debug("lifecycle", "triggerMount", node)
@@ -83,6 +78,6 @@ const observer = new MutationObserver((mutationsList) => {
 
 // Start observing the document for added/removed nodes
 observer.observe(
-    document.body.querySelector('layout-component') as unknown as Node, 
+    document.body, 
     { childList: true, subtree: true }
 );

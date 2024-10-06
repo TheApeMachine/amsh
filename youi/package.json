@@ -12,7 +12,10 @@
   "dependencies": {
     "@tauri-apps/api": ">=2.0.0",
     "@tauri-apps/plugin-shell": ">=2.0.0",
+    "@types/d3": "^7.4.3",
+    "@uwdata/vgplot": "^0.11.0",
     "arquero": "^7.1.0",
+    "d3": "^7.9.0",
     "echarts": "^5.5.1",
     "gsap": "^3.12.5",
     "localforage": "^1.10.0",
