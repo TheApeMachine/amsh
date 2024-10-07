@@ -1,5 +1,6 @@
 import Reveal from 'reveal.js';
 import '../lookingglass/lens';
+import '../agentviz/conversation';
 
 class SlidesComponent extends HTMLElement {
     private revealInstance: Reveal.Api | undefined;
@@ -41,13 +42,7 @@ class SlidesComponent extends HTMLElement {
             <div class="reveal">
                 <div class="slides">
                     <section>
-                        <button 
-                            data-event="click"
-                            data-effect="slides" 
-                            data-target="logic"
-                        >
-                            Go to Logic Layer
-                        </button>
+                        <conversation-visualizer></conversation-visualizer>
                     </section>
                     <section>
                         <looking-glass-lens></looking-glass-lens>
