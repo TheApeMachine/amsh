@@ -3,6 +3,7 @@ package ai
 import (
 	"github.com/google/uuid"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 /*
@@ -21,13 +22,20 @@ type Prompt struct {
 NewPrompt creates a new Prompt for a given agent type.
 */
 func NewPrompt(agentType string) *Prompt {
+	errnie.Info("Creating new prompt for agent type: %s", agentType)
+	system := viper.GetViper().GetString(`ai.`+agentType+`.system`) + "\n\n"
+	user := viper.GetViper().GetString(`ai.`+agentType+`.user`) + "\n\n"
+
+	errnie.Debug("[SYSTEM PROMPT]\n%s\n\n", system)
+	errnie.Debug("[USER PROMPT]\n%s\n\n", user)
+
 	return &Prompt{
 		SessionID: uuid.New().String(),
 		System: []string{
-			viper.GetViper().GetString(`ai.` + agentType + `.system`),
+			system,
 		},
 		User: []string{
-			viper.GetViper().GetString(`ai.` + agentType + `.user`),
+			user,
 		},
 	}
 }

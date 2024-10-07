@@ -1,15 +1,31 @@
 package ai
 
-import "strings"
+import (
+	"encoding/json"
+	"regexp"
+
+	"github.com/gofiber/fiber/v3"
+)
 
 /*
-ExtractJSON removes code block markers from the content string.
+ExtractJSON finds Markdown JSON blocks and returns an array of JSON objects.
 */
-func ExtractJSON(content string) []byte {
-	content = strings.ReplaceAll(content, "```json", "")
-	content = strings.ReplaceAll(content, "```", "")
-	content = strings.TrimSpace(content)
-	return []byte(content)
+func ExtractJSON(content string) []fiber.Map {
+	jsonBlocks := []fiber.Map{}
+
+	re := regexp.MustCompile("(?s)```json\\s*(.*?)\\s*```")
+	matches := re.FindAllStringSubmatch(content, -1)
+
+	for _, match := range matches {
+		var jsonBlock fiber.Map
+		err := json.Unmarshal([]byte(match[1]), &jsonBlock)
+		if err != nil {
+			continue
+		}
+		jsonBlocks = append(jsonBlocks, jsonBlock)
+	}
+
+	return jsonBlocks
 }
 
 /*

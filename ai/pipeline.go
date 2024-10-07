@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/theapemachine/amsh/ai/tools"
@@ -28,8 +29,9 @@ It provides methods to initialize the pipeline, generate responses, and manage t
 type Pipeline struct {
 	ctx              context.Context
 	sessionID        string
-	teams            []*Team
+	teams            map[string]*Team
 	currentIteration int
+	Response         string
 }
 
 /*
@@ -42,7 +44,7 @@ func NewPipeline(ctx context.Context) *Pipeline {
 	return &Pipeline{
 		ctx:              ctx,
 		sessionID:        uuid.New().String(),
-		teams:            make([]*Team, 0),
+		teams:            make(map[string]*Team),
 		currentIteration: 0,
 	}
 }
@@ -54,42 +56,49 @@ It creates teams with the specified names and agents, starts them, and adds them
 func (pipeline *Pipeline) Initialize() *Pipeline {
 	errnie.Trace()
 
-	for _, teamName := range []string{
-		"ingress",
+	for _, team := range [][]string{
+		{"prompt_engineers", "prompt_engineer"},
+		{"routing", "router"},
+		{"reasoners", "reasoner"},
+		{"verifiers", "verifier"},
+		{"researchers", "researcher"},
+		{"analysts", "analyst"},
 	} {
-		team := NewTeam(
+		pipeline.teams[team[0]] = NewTeam(
 			pipeline.ctx,
-			teamName,
+			team[0],
 			NewAgent(
 				pipeline.ctx,
-				"prompt_engineer",
+				team[1],
 				[]tools.Tool{},
 			),
 			NewAgent(
 				pipeline.ctx,
-				"prompt_engineer",
+				team[1],
 				[]tools.Tool{},
 			),
 			NewAgent(
 				pipeline.ctx,
-				"prompt_engineer",
+				team[1],
 				[]tools.Tool{},
 			),
 		)
 
-		team.Start() // Ensure this is called
-		pipeline.teams = append(pipeline.teams, team)
-	}
-
-	for _, team := range pipeline.teams {
-		team.Initialize()
-
-		for _, agent := range team.Agents {
-			agent.Prompt.System = append(agent.Prompt.System, team.Prompt.System...)
-		}
+		pipeline.teams[team[0]].Initialize()
+		pipeline.teams[team[0]].Start()
 	}
 
 	return pipeline
+}
+
+func (pipeline *Pipeline) newChunk() Chunk {
+	errnie.Trace()
+
+	return Chunk{
+		SessionID:  pipeline.sessionID,
+		SequenceID: uuid.New().String(),
+		Iteration:  pipeline.currentIteration,
+	}
 }
 
 /*
@@ -104,21 +113,84 @@ func (pipeline *Pipeline) Generate(prompt string, iterations int) <-chan Chunk {
 	go func() {
 		defer close(out)
 
-		for _, team := range pipeline.teams {
-			team.SetPrompt(prompt)
+		var (
+			team     *Team
+			chunk    Chunk
+			response string
+		)
 
-			chunk := Chunk{
-				SessionID:  pipeline.sessionID,
-				SequenceID: uuid.New().String(),
-				Iteration:  pipeline.currentIteration,
-				Team:       team,
+		for {
+			team = pipeline.teams["routing"]
+			team.SetPrompt(prompt)
+			chunk = pipeline.newChunk()
+			chunk.Team = team
+
+			response = ""
+			for chunkOut := range team.Generate(chunk) {
+				response += chunkOut.Response
+				out <- chunkOut
 			}
 
-			for chunkOut := range team.Generate(chunk) {
+			command := NewAgent(pipeline.ctx, "command", []tools.Tool{})
+			command.SetPrompt(response)
+			command.Start()
+			chunk = pipeline.newChunk()
+			chunk.Team = &Team{
+				ID: "command",
+			}
+
+			response = ""
+			for chunkOut := range command.Generate(chunk) {
+				response += chunkOut.Response
 				out <- chunkOut
+			}
+
+			if shouldEnd := pipeline.next(out, response); shouldEnd {
+				break
 			}
 		}
 	}()
 
 	return out
+}
+
+func (pipeline *Pipeline) next(out chan Chunk, response string) bool {
+	errnie.Trace()
+
+	commands := ExtractJSON(response)
+
+	if len(commands) > 0 {
+		var prompt string
+
+		for _, command := range commands {
+			switch command["command"] {
+			case "transfer":
+				prompt = command["arguments"].(map[string]any)["context"].(string)
+			case "goto":
+				teamName := command["arguments"].(map[string]any)["team"].(string)
+
+				if prompt == "" {
+					prompt = command["arguments"].(map[string]any)["prompt"].(string)
+				}
+
+				team := pipeline.teams[teamName]
+				team.SetPrompt(prompt)
+				chunk := pipeline.newChunk()
+				chunk.Team = team
+
+				for chunkOut := range team.Generate(chunk) {
+					out <- chunkOut
+				}
+
+				prompt = ""
+			case "return":
+				pipeline.Response = command["response"].(string)
+				return true
+			default:
+				os.Exit(1)
+			}
+		}
+	}
+
+	return false
 }

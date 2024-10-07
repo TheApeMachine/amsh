@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -51,6 +52,13 @@ func NewAgent(
 	}
 }
 
+func (agent *Agent) SetPrompt(prompt string) {
+	agent.Prompt.User = append(agent.Prompt.User, fmt.Sprintf(
+		"## Final Response\n\n**Extract any commands from the following response.**\n\n%s\n\n## Response\n\n> Please provide your response.\n\n",
+		prompt,
+	))
+}
+
 /*
 Generate is a method that generates responses based on a given chunk.
 It returns a channel that emits Chunk objects, each containing a response from the AI service.
@@ -66,16 +74,7 @@ func (agent *Agent) Generate(chunk Chunk) chan Chunk {
 	out := make(chan Chunk)
 
 	go func() {
-		errnie.Info("---AGENT: %s (%s)---\n\n", agent.ID, agent.Type)
-		errnie.Debug("SYSTEM:\n\n")
-		for _, s := range agent.Prompt.System {
-			errnie.Debug("%s", s)
-		}
-		errnie.Debug("USER:\n\n")
-		for _, u := range agent.Prompt.User {
-			errnie.Debug("%s", u)
-		}
-
+		errnie.Info("---AGENT: %s (%s)---\n", agent.ID, agent.Type)
 		defer close(out)
 
 		for chunk := range agent.conn.Next(agent.ctx, agent.Prompt, chunk) {

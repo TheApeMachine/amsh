@@ -78,6 +78,11 @@ func (conn *Conn) Next(ctx context.Context, prompt *Prompt, chunk Chunk) chan Ch
 		randomIndex := rand.Intn(len(active))
 		selectedService := active[randomIndex]
 
+		errnie.Debug("SYSTEM:\n\n")
+		errnie.Debug(strings.Join(prompt.System, "\n\n"))
+		errnie.Debug("USER:\n\n")
+		errnie.Debug(strings.Join(prompt.User, "\n\n"))
+
 		switch selectedService {
 		case "openai":
 			conn.nextOpenAI(ctx, out, prompt, chunk)
