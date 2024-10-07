@@ -13,8 +13,6 @@ import (
 	"github.com/theapemachine/amsh/sockpuppet"
 )
 
-const prefix = "stages."
-
 /*
 HTTPS wraps the Fiber app and sets up the middleware. It also contains the mapping
 to internal service endpoints.
@@ -50,12 +48,20 @@ func (https *HTTPS) Up() error {
 		favicon.New(),
 	)
 
-	https.app.Get("/ws", sockpuppet.NewWebsocket(NewWebSocketHandler(ai.NewPipeline(context.Background(), ai.NewConn()).Initialize())))
+	https.app.Get("/ws", sockpuppet.NewWebsocket(
+		NewWebSocketHandler(
+			ai.NewPipeline(context.Background()).Initialize(),
+		),
+	))
+
 	https.app.Use("/", static.New("./frontend"))
 
 	return https.app.Listen(":8567", fiber.ListenConfig{EnablePrefork: true})
 }
 
+/*
+Shutdown gracefully shuts down the HTTPS service.
+*/
 func (https *HTTPS) Shutdown() error {
 	return https.app.Shutdown()
 }

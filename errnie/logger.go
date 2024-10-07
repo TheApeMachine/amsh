@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/theapemachine/amsh/tweaker"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -180,28 +180,38 @@ func Log(format string, v ...interface{}) {
 Trace logs a trace message with the appropriate symbol
 */
 func Trace() {
+	if viper.GetViper().GetString("loglevel") != "trace" {
+		return
+	}
+
 	pc := make([]uintptr, 10)
 	runtime.Callers(2, pc)
 	f := runtime.FuncForPC(pc[0])
-	// _, line := f.FileLine(pc[0])
-	fmt.Println("🔰", f.Name())
+	fn, line := f.FileLine(pc[0])
+	fmt.Println("▫️", " ", f.Name(), " ", fn, ":", line)
 }
 
 // Raw logs a raw message with the appropriate symbol
 func Raw(obj any) {
-	if tweaker.LogLevel() == "debug" {
-		spew.Dump(obj)
+	if viper.GetViper().GetString("loglevel") != "debug" {
+		return
 	}
+
+	spew.Dump(obj)
 }
 
 // Debug logs a debug message with the appropriate symbol
 func Debug(format string, v ...interface{}) {
+	if viper.GetViper().GetString("loglevel") != "debug" {
+		return
+	}
+
 	fmt.Println("🐛", fmt.Sprintf(format, v...))
 }
 
 // Info logs an info message with the appropriate symbol
 func Info(format string, v ...interface{}) {
-	LogWithSymbol("🔷", format, v...)
+	fmt.Println("🔷", fmt.Sprintf(format, v...))
 }
 
 // Warn logs a warning message with the appropriate symbol

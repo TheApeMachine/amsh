@@ -2,7 +2,9 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -35,6 +37,8 @@ Example:
 	conn := NewConn()
 */
 func NewConn() *Conn {
+	errnie.Trace()
+
 	return &Conn{
 		client: openai.NewClient(os.Getenv("OPENAI_API_KEY")),
 		gemini: NewGeminiConn(),
@@ -42,8 +46,16 @@ func NewConn() *Conn {
 	}
 }
 
-func (conn *Conn) Next(ctx context.Context, prompt *Prompt) chan string {
-	out := make(chan string)
+/*
+Next is the core function that orchestrates the generation of responses from the AI services.
+It randomly selects an active service and processes the request through that service.
+The selected service is determined by the availability of the service and the presence of a valid API key.
+The function returns a channel that emits Chunk objects, each containing a response from the AI service.
+*/
+func (conn *Conn) Next(ctx context.Context, prompt *Prompt, chunk Chunk) chan Chunk {
+	errnie.Trace()
+
+	out := make(chan Chunk, 128)
 	active := make([]string, 0)
 
 	if conn.client != nil {
@@ -68,25 +80,27 @@ func (conn *Conn) Next(ctx context.Context, prompt *Prompt) chan string {
 
 		switch selectedService {
 		case "openai":
-			conn.nextOpenAI(ctx, out, prompt)
+			conn.nextOpenAI(ctx, out, prompt, chunk)
 		case "gemini":
-			conn.nextGemini(ctx, out, prompt)
+			conn.nextGemini(ctx, out, prompt, chunk)
 		case "local":
-			conn.nextLocal(ctx, out, prompt)
+			conn.nextLocal(ctx, out, prompt, chunk)
 		}
 	}()
 
 	return out
 }
 
-func (conn *Conn) nextOpenAI(ctx context.Context, out chan string, prompt *Prompt) {
-	var (
-		response openai.ChatCompletionResponse
-		err      error
-	)
+/*
+nextOpenAI is a helper function that handles the generation of responses using the OpenAI service.
+It constructs a ChatCompletionRequest with the provided prompt and sends it to the OpenAI API.
+The response is then formatted and sent to the output channel.
+*/
+func (conn *Conn) nextOpenAI(ctx context.Context, out chan Chunk, prompt *Prompt, chunk Chunk) {
+	errnie.Trace()
 
-	if response, err = conn.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT4,
+	req := openai.ChatCompletionRequest{
+		Model: openai.GPT4oMini,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
@@ -97,14 +111,41 @@ func (conn *Conn) nextOpenAI(ctx context.Context, out chan string, prompt *Promp
 				Content: strings.Join(prompt.User, "\n\n"),
 			},
 		},
-	}); errnie.Error(err) != nil {
-		return
+		Stream: true,
 	}
 
-	out <- response.Choices[0].Message.Content
+	stream, err := conn.client.CreateChatCompletionStream(ctx, req)
+	if err != nil {
+		fmt.Printf("ChatCompletionStream error: %v\n", err)
+		return
+	}
+	defer stream.Close()
+
+	for {
+		response, err := stream.Recv()
+
+		if errors.Is(err, io.EOF) {
+			return
+		}
+
+		if err != nil {
+			errnie.Error(err)
+			return
+		}
+
+		chunk.Response = response.Choices[0].Delta.Content
+		out <- chunk
+	}
 }
 
-func (conn *Conn) nextGemini(ctx context.Context, out chan string, prompt *Prompt) {
+/*
+nextGemini is a helper function that handles the generation of responses using the Gemini service.
+It constructs a GenerativeModel with the specified model name and sends the prompt to the Gemini API.
+The response is then formatted and sent to the output channel.
+*/
+func (conn *Conn) nextGemini(ctx context.Context, out chan Chunk, prompt *Prompt, chunk Chunk) {
+	errnie.Trace()
+
 	model := conn.gemini.GenerativeModel("gemini-1.5-flash")
 	iter := model.GenerateContentStream(ctx, genai.Text(
 		strings.Join([]string{
@@ -126,15 +167,28 @@ func (conn *Conn) nextGemini(ctx context.Context, out chan string, prompt *Promp
 		for _, candidate := range resp.Candidates {
 			for _, part := range candidate.Content.Parts {
 				if formatted := fmt.Sprintf("%s", part); formatted != "" {
-					out <- formatted
+					chunk.Response = formatted
+					out <- chunk
 				}
 			}
 		}
 	}
 }
 
-func (conn *Conn) nextLocal(ctx context.Context, out chan string, prompt *Prompt) {
-	conn.local.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+/*
+nextLocal is a helper function that handles the generation of responses using a local LLM.
+It constructs a ChatCompletionRequest with the provided prompt and sends it to the local LLM API.
+The response is then formatted and sent to the output channel.
+*/
+func (conn *Conn) nextLocal(ctx context.Context, out chan Chunk, prompt *Prompt, chunk Chunk) {
+	errnie.Trace()
+
+	var (
+		response openai.ChatCompletionResponse
+		err      error
+	)
+
+	if response, err = conn.local.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: openai.GPT4,
 		Messages: []openai.ChatCompletionMessage{
 			{
@@ -146,7 +200,12 @@ func (conn *Conn) nextLocal(ctx context.Context, out chan string, prompt *Prompt
 				Content: strings.Join(prompt.User, "\n\n"),
 			},
 		},
-	})
+	}); errnie.Error(err) != nil {
+		return
+	}
+
+	chunk.Response = response.Choices[0].Message.Content
+	out <- chunk
 }
 
 /*
@@ -154,6 +213,8 @@ NewGeminiConn establishes a connection to the Gemini API.
 This function is separated to allow for potential future customization of the Gemini client.
 */
 func NewGeminiConn() *genai.Client {
+	errnie.Trace()
+
 	ctx := context.Background()
 	var (
 		err    error
@@ -177,10 +238,12 @@ Example:
 	localConn := NewLocalConn()
 */
 func NewLocalConn() *openai.Client {
+	errnie.Trace()
+
 	config := openai.DefaultConfig("lm-studio")
 	config.BaseURL = "http://localhost:1234/v1"
 
-	return openai.NewClientWithConfig(config)
+	return nil
 }
 
 /*
@@ -193,6 +256,8 @@ Example:
 	conn.WithClient(customClient)
 */
 func (c *Conn) WithClient(client *openai.Client) *Conn {
+	errnie.Trace()
+
 	c.client = client
 	return c
 }

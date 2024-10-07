@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 )
@@ -45,8 +44,6 @@ func (srv *Service) GetProjects(ctx context.Context) (projects []core.TeamProjec
 	if responseValue, err = srv.GetClient(ctx).GetProjects(ctx, core.GetProjectsArgs{}); err != nil {
 		return nil, err
 	}
-
-	spew.Dump(responseValue)
 
 	for responseValue != nil {
 		// Log the page of team project names
