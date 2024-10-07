@@ -7,8 +7,6 @@ const sanitizeHeader = (header: string): string => {
 
 class DataTable extends HTMLElement {
     private arqueroTable: aq.Table | null = null;
-    private messagingChannel: MessageChannel;
-    private port: MessagePort;
     private table: HTMLTableElement;
     private thead: HTMLTableSectionElement;
     private tbody: HTMLTableSectionElement;
@@ -106,8 +104,8 @@ class DataTable extends HTMLElement {
         console.log('DataTable.connectedCallback.observeKey', observeKey);
 
         if (observeKey) {
-            window.state.subscribe(observeKey, this.handleStateChange);
-            const initialData = window.state.getState(observeKey);
+            window.stateManager.subscribe(observeKey, this.handleStateChange);
+            const initialData = window.stateManager.getState(observeKey);
             if (initialData) {
                 this.setData(initialData);
             }
@@ -117,10 +115,6 @@ class DataTable extends HTMLElement {
     disconnectedCallback() {
         const observeKey = this.getObserveKey();
         console.log('DataTable.disconnectedCallback.observeKey', observeKey);
-
-        if (observeKey) {
-            window.state.unsubscribe(observeKey, this.handleStateChange);
-        }
     }
 
     private getObserveKey(): string | null {

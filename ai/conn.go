@@ -2,11 +2,17 @@ package ai
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/sashabaranov/go-openai"
+	"github.com/theapemachine/amsh/errnie"
+	"golang.org/x/exp/rand"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -34,6 +40,113 @@ func NewConn() *Conn {
 		gemini: NewGeminiConn(),
 		local:  NewLocalConn(),
 	}
+}
+
+func (conn *Conn) Next(ctx context.Context, prompt *Prompt) chan string {
+	out := make(chan string)
+	active := make([]string, 0)
+
+	if conn.client != nil {
+		active = append(active, "openai")
+	}
+
+	if conn.gemini != nil {
+		active = append(active, "gemini")
+	}
+
+	if conn.local != nil {
+		active = append(active, "local")
+	}
+
+	go func() {
+		defer close(out)
+
+		// Generate a random integer between 0 and the amount of active services.
+		rand.Seed(uint64(time.Now().UnixNano()))
+		randomIndex := rand.Intn(len(active))
+		selectedService := active[randomIndex]
+
+		switch selectedService {
+		case "openai":
+			conn.nextOpenAI(ctx, out, prompt)
+		case "gemini":
+			conn.nextGemini(ctx, out, prompt)
+		case "local":
+			conn.nextLocal(ctx, out, prompt)
+		}
+	}()
+
+	return out
+}
+
+func (conn *Conn) nextOpenAI(ctx context.Context, out chan string, prompt *Prompt) {
+	var (
+		response openai.ChatCompletionResponse
+		err      error
+	)
+
+	if response, err = conn.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: openai.GPT4,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: strings.Join(prompt.System, "\n\n"),
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: strings.Join(prompt.User, "\n\n"),
+			},
+		},
+	}); errnie.Error(err) != nil {
+		return
+	}
+
+	out <- response.Choices[0].Message.Content
+}
+
+func (conn *Conn) nextGemini(ctx context.Context, out chan string, prompt *Prompt) {
+	model := conn.gemini.GenerativeModel("gemini-1.5-flash")
+	iter := model.GenerateContentStream(ctx, genai.Text(
+		strings.Join([]string{
+			strings.Join(prompt.System, "\n\n"),
+			strings.Join(prompt.User, "\n\n"),
+		}, "\n\n"),
+	))
+
+	for {
+		resp, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			errnie.Error(err)
+			break
+		}
+
+		for _, candidate := range resp.Candidates {
+			for _, part := range candidate.Content.Parts {
+				if formatted := fmt.Sprintf("%s", part); formatted != "" {
+					out <- formatted
+				}
+			}
+		}
+	}
+}
+
+func (conn *Conn) nextLocal(ctx context.Context, out chan string, prompt *Prompt) {
+	conn.local.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: openai.GPT4,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: strings.Join(prompt.System, "\n\n"),
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: strings.Join(prompt.User, "\n\n"),
+			},
+		},
+	})
 }
 
 /*
