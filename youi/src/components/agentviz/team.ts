@@ -1,9 +1,9 @@
 import { gsap } from 'gsap';
-import { Conversation } from './agent';
+import { Team, Chunk } from './agent';
 
 class TeamConversationView extends HTMLElement {
-    private team: number;
-    private conversations: Conversation[] = [];
+    private team: Team | null = null;
+    private chunks: Chunk[] = [];
     private currentIndex = 0;
     private zoomLevel = 0;
     private container: HTMLElement | null = null;
@@ -12,7 +12,6 @@ class TeamConversationView extends HTMLElement {
 
     constructor() {
         super();
-        this.team = 1;
         this.attachShadow({ mode: 'open' });
     }
 
@@ -23,9 +22,16 @@ class TeamConversationView extends HTMLElement {
 
     attributeChangedCallback(name: string, oldValue: string, newValue: string) {
         if (name === 'team' && oldValue !== newValue) {
-            this.team = parseInt(newValue);
+            // Team ID changed, reset view
+            this.team = null;
+            this.chunks = [];
             this.render();
         }
+    }
+
+    updateTeamData(team: Team) {
+        this.team = team;
+        this.render();
     }
 
     private render() {
@@ -78,7 +84,7 @@ class TeamConversationView extends HTMLElement {
                 background-color: #2980b9;
             }
         </style>
-        <h2>Team ${this.team}</h2>
+        <h2>${this.team ? this.team.name : 'Loading...'}</h2>
         <div class="conversation-container"></div>
         <div class="controls">
             <button class="cycle-left">←</button>
@@ -100,25 +106,25 @@ class TeamConversationView extends HTMLElement {
         this.shadowRoot.querySelector('.reset')?.addEventListener('click', () => this.reset());
 
         window.addEventListener('data-updated', (event: CustomEvent) => {
-            const newConversations = event.detail.conversations[this.team] || [];
-            this.updateConversations(newConversations);
+            if (this.team && event.detail.conversations[this.team.id]) {
+                this.updateConversations(event.detail.conversations[this.team.id]);
+            }
         });
     }
 
-    private updateConversations(newConversations: Conversation[]) {
+    private updateConversations(newChunks: Chunk[]) {
         if (!this.container) return;
 
-        const newMessages = newConversations.filter(conv => 
-            !this.conversations.some(existing => existing.id === conv.id)
+        const newMessages = newChunks.filter(chunk => 
+            !this.chunks.some(existing => existing.sequence_id === chunk.sequence_id)
         );
 
-        this.conversations = [...newMessages, ...this.conversations].slice(0, 10);
+        this.chunks = [...newMessages, ...this.chunks].slice(0, 10);
 
-        newMessages.forEach((conv, index) => {
+        newMessages.forEach((chunk, index) => {
             const elem = document.createElement('div');
             elem.className = 'conversation';
-            elem.textContent = conv.message;
-            elem.style.backgroundColor = conv.sentiment === 'positive' ? 'lightgreen' : 'lightpink';
+            elem.innerHTML = this.formatChunkContent(chunk);
             this.container!.prepend(elem);
 
             gsap.fromTo(elem, 
@@ -128,6 +134,16 @@ class TeamConversationView extends HTMLElement {
         });
 
         this.updatePositions();
+    }
+
+    private formatChunkContent(chunk: Chunk): string {
+        let content = `<strong>Sequence ID:</strong> ${chunk.sequence_id}<br>`;
+        content += `<strong>Iteration:</strong> ${chunk.iteration}<br>`;
+        if (chunk.agent) {
+            content += `<strong>Agent:</strong> ${chunk.agent.type} (${chunk.agent.id})<br>`;
+        }
+        content += `<strong>Response:</strong> ${chunk.response}`;
+        return content;
     }
 
     private updatePositions() {
@@ -148,7 +164,7 @@ class TeamConversationView extends HTMLElement {
     }
 
     private cycle(direction: number) {
-        this.currentIndex = Math.max(0, Math.min(this.conversations.length - 1, this.currentIndex + direction));
+        this.currentIndex = Math.max(0, Math.min(this.chunks.length - 1, this.currentIndex + direction));
         this.updatePositions();
     }
 

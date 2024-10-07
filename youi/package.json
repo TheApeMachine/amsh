@@ -21,7 +21,8 @@
     "echarts": "^5.5.1",
     "gsap": "^3.12.5",
     "localforage": "^1.10.0",
-    "reveal.js": "^5.1.0"
+    "reveal.js": "^5.1.0",
+    "socket.io-client": "^4.8.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": ">=2.0.0",

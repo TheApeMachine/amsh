@@ -1,15 +1,11 @@
 package service
 
 import (
-	"context"
-
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/favicon"
-	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/static"
-	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/sockpuppet"
 )
 
@@ -43,16 +39,25 @@ Up adds the middleware and starts the HTTPS service.
 */
 func (https *HTTPS) Up() error {
 	https.app.Use(
-		logger.New(),
-		cors.New(),
+		cors.New(cors.Config{
+			AllowOrigins: []string{"*"},
+			AllowHeaders: []string{"*"},
+			AllowMethods: []string{"*"},
+		}),
 		favicon.New(),
 	)
 
-	https.app.Get("/ws", sockpuppet.NewWebsocket(
-		NewWebSocketHandler(
-			ai.NewPipeline(context.Background()).Initialize(),
-		),
-	))
+	https.app.Use("/ws", func(c fiber.Ctx) error {
+		// IsWebSocketUpgrade returns true if the client
+		// requested upgrade to the WebSocket protocol.
+		if sockpuppet.IsWebSocketUpgrade(c) {
+			c.Locals("allowed", true)
+			return c.Next()
+		}
+		return fiber.ErrUpgradeRequired
+	})
+
+	https.app.Get("/ws", sockpuppet.NewWebsocket(NewWebSocketHandler()))
 
 	https.app.Use("/", static.New("./frontend"))
 

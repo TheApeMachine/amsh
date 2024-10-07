@@ -74,6 +74,7 @@ func (agent *Agent) Generate(chunk Chunk) chan Chunk {
 	out := make(chan Chunk)
 
 	go func() {
+		chunk.Agent = agent
 		errnie.Info("---AGENT: %s (%s)---\n", agent.ID, agent.Type)
 		defer close(out)
 

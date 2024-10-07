@@ -70,7 +70,7 @@ class SlidesComponent extends HTMLElement {
                 hash: true,
                 respondToHashChanges: true,
                 history: true,
-                keyboard: true,
+                keyboard: false,
                 keyboardCondition: null,
                 disableLayout: true,
                 overview: true,

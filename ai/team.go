@@ -126,7 +126,6 @@ func (team *Team) Generate(chunk Chunk) chan Chunk {
 			agent := team.Agents[idx%len(team.Agents)]
 
 			for chunk := range team.Lead.Generate(team.makeChunk(chunk)) {
-				chunk.Agent = team.Lead
 				team.history = append(team.history, chunk)
 				out <- chunk
 			}
@@ -136,7 +135,6 @@ func (team *Team) Generate(chunk Chunk) chan Chunk {
 			}
 
 			for chunk := range agent.Generate(team.makeChunk(chunk)) {
-				chunk.Agent = agent
 				team.history = append(team.history, chunk)
 				out <- chunk
 			}
