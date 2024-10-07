@@ -2,7 +2,9 @@ package boards
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
@@ -10,7 +12,7 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
-func (srv *Service) SearchWorkitems(ctx context.Context, query string) (err error) {
+func (srv *Service) SearchWorkitems(ctx context.Context, query string) (out string, err error) {
 	var (
 		client        search.Client
 		responseValue *search.WorkItemSearchResponse
@@ -23,7 +25,7 @@ func (srv *Service) SearchWorkitems(ctx context.Context, query string) (err erro
 	)
 
 	if client, err = search.NewClient(ctx, azuredevops.NewPatConnection(srv.orgURL, srv.pat)); err != nil {
-		return errnie.Error(err)
+		return "", errnie.Error(err)
 	}
 
 	if responseValue, err = client.FetchWorkItemSearchResults(ctx, search.FetchWorkItemSearchResultsArgs{
@@ -35,7 +37,7 @@ func (srv *Service) SearchWorkitems(ctx context.Context, query string) (err erro
 		},
 		Project: &srv.projectName,
 	}); err != nil {
-		return errnie.Error(err)
+		return "", errnie.Error(err)
 	}
 
 	if responseValue.Results == nil {
@@ -43,10 +45,21 @@ func (srv *Service) SearchWorkitems(ctx context.Context, query string) (err erro
 		return
 	}
 
+	builder := strings.Builder{}
 	for _, result := range *responseValue.Results {
-		spew.Dump(result)
+		tickets := *result.Fields
+
+		spew.Dump(tickets)
+		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.workitemtype"]))
+		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.title"]))
+		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.description"]))
+		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.state"]))
+		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.assignedto"]))
+		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.createddate"]))
+		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.tags"]))
+		builder.WriteString(fmt.Sprintf("%s\n", tickets["---"]))
 		index++
 	}
 
-	return
+	return builder.String(), nil
 }

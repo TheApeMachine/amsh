@@ -22,7 +22,7 @@ type Prompt struct {
 NewPrompt creates a new Prompt for a given agent type.
 */
 func NewPrompt(agentType string) *Prompt {
-	errnie.Info("Creating new prompt for agent type: %s", agentType)
+	errnie.Debug("Creating new prompt for agent type: %s", agentType)
 	system := viper.GetViper().GetString(`ai.`+agentType+`.system`) + "\n\n"
 	user := viper.GetViper().GetString(`ai.`+agentType+`.user`) + "\n\n"
 

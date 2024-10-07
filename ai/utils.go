@@ -2,7 +2,9 @@ package ai
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -26,6 +28,32 @@ func ExtractJSON(content string) []fiber.Map {
 	}
 
 	return jsonBlocks
+}
+
+func ReplaceHolders(value string, values [][]string) string {
+	for _, replacement := range values {
+		value = strings.ReplaceAll(value, replacement[0], replacement[1])
+	}
+
+	return value
+}
+
+func ChunksToResponse(chunks []Chunk) string {
+	if len(chunks) == 0 {
+		return ""
+	}
+
+	builder := strings.Builder{}
+	builder.WriteString(fmt.Sprintf(
+		"[%s (%s)]\n\n", chunks[0].Agent.ID, chunks[0].Agent.Type,
+	))
+
+	for _, chunk := range chunks {
+		builder.WriteString(chunk.Response)
+	}
+
+	builder.WriteString("\n\n")
+	return builder.String()
 }
 
 /*
