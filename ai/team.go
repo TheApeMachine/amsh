@@ -240,7 +240,7 @@ func (team *Team) updateConversation(agent *Agent) bool {
 func (team *Team) replacePlaceholders() {
 	errnie.Trace()
 
-	teamMembers := ""
+	teamMembers := fmt.Sprintf(" - **%s** (%s)\n", team.Lead.ID, team.Lead.Type)
 	for _, agent := range team.Agents {
 		teamMembers += fmt.Sprintf("  - **%s** (%s)\n", agent.ID, agent.Type)
 	}

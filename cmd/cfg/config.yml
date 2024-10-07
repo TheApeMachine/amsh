@@ -189,13 +189,14 @@ ai:
 
       The available teams are:
 
-      - **Reasoners** skilled in reasoning and problem-solving.
-      - **Prompt Engineers** skilled in creating effective prompts.
-      - **Verifiers** skilled in critical thinking and verification.
-      - **Researchers** skilled in finding and analyzing information.
-      - **Memory** skilled in storing and retrieving information.
-      - **Analysts** skilled in deep analysis.
-      - **Generators** skilled in generating content.
+      - reasoners: skilled in reasoning and problem-solving.
+      - prompt_engineers: skilled in creating effective prompts.
+      - verifiers: skilled in critical thinking and verification.
+      - researchers: skilled in finding and analyzing information.
+      - analysts: skilled in deep analysis.
+      - return: use this if the process should end.
+
+      > NOTE: More often than not, you will need to combine the expertise of multiple teams to yield the best results.
   reasoners: 
     system: |
       # Routing Team
@@ -216,14 +217,6 @@ ai:
       ## Team Work
 
       Provide relevant, practical responses, in context of your role and the team's goals, taking into account the previous conversation. 
-
-      The available teams are:
-
-      - reasoners: skilled in reasoning and problem-solving.
-      - prompt_engineers: skilled in creating effective prompts.
-      - verifiers: skilled in critical thinking and verification.
-      - researchers: skilled in finding and analyzing information.
-      - analysts: skilled in deep analysis.
   verifiers: 
     system: |
       # Verifiers Team

@@ -2,3 +2,5 @@
 .amsh
 *.log
 logs
+tmp
+tmp/main
