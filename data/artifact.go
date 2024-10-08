@@ -42,3 +42,25 @@ func New(origin, role, scope string, data []byte) *Artifact {
 
 	return &artifact
 }
+
+func (artifact *Artifact) SetAttrs(attrs map[string]string) {
+	// Create a new list of attributes
+	attrList, err := NewAttribute_List(artifact.Segment(), int32(len(attrs)))
+	if err != nil {
+		errnie.Error(err)
+		return
+	}
+
+	// Populate the attribute list
+	i := 0
+	for key, value := range attrs {
+		attr := attrList.At(i)
+		errnie.Error(attr.SetKey(key))
+		errnie.Error(attr.SetValue(value))
+
+		i++
+	}
+
+	// Set the attributes on the artifact
+	errnie.Error(artifact.SetAttributes(attrList))
+}

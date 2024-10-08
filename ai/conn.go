@@ -46,6 +46,52 @@ func NewConn() *Conn {
 	}
 }
 
+func (conn *Conn) Stream(
+	ctx context.Context, req openai.ChatCompletionRequest,
+) (chan openai.ChatCompletionResponse, error) {
+	errnie.Trace()
+
+	var (
+		stream openai.ChatCompletionResponse
+		err    error
+	)
+
+	out := make(chan openai.ChatCompletionResponse)
+
+	if stream, err = conn.client.CreateChatCompletion(ctx, req); err != nil {
+		return nil, err
+	}
+
+	// defer stream.Close()
+
+	go func() {
+		defer close(out)
+		out <- stream
+
+		// for {
+		// 	response, err := stream.Recv()
+
+		// 	if errors.Is(err, io.EOF) {
+		// 		return
+		// 	}
+
+		// 	if err != nil {
+		// 		errnie.Error(err)
+		// 		return
+		// 	}
+
+		// 	spew.Dump(response.Choices[0].Delta.Content)
+
+		// 	chunk := response.Choices[0].Delta.Content
+		// 	fmt.Print(chunk)
+		// 	artifact.Write([]byte(chunk))
+		// 	out <- artifact
+		// }
+	}()
+
+	return out, nil
+}
+
 /*
 Next is the core function that orchestrates the generation of responses from the AI services.
 It randomly selects an active service and processes the request through that service.

@@ -1,16 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/theapemachine/amsh/ai"
-	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/integration/boards"
+	"github.com/theapemachine/amsh/mastercomputer"
 )
 
 var smallTest = []string{
@@ -29,75 +23,81 @@ var testCmd = &cobra.Command{
 	Short: "Run the AI pipeline interactively",
 	Long:  `Run the AI pipeline interactively, allowing you to input prompts and see the reasoning process.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		control := mastercomputer.NewControl()
+		control.Initialize()
 
-		work := boards.NewService()
-		prompt, err := work.SearchWorkitems(
-			context.Background(),
-			"push",
-		)
-
-		if err != nil {
-			errnie.Error(fmt.Errorf("failed to search workitems: %v", err))
-			return err
+		for artifact := range control.Generate() {
+			fmt.Println(artifact.Type)
 		}
 
-		fmt.Println(prompt)
+		// work := boards.NewService()
+		// prompt, err := work.SearchWorkitems(
+		// 	context.Background(),
+		// 	"push",
+		// )
 
-		// Start a log file for the full conversation, including prompts.
-		logFileName := fmt.Sprintf("logs/run_%s.md", time.Now().Format("2006-01-02_15-04-05"))
-		logFile, err := os.Create(logFileName)
-		if err != nil {
-			errnie.Error(fmt.Errorf("failed to create log file: %v", err))
-			return err
-		}
+		// if err != nil {
+		// 	errnie.Error(fmt.Errorf("failed to search workitems: %v", err))
+		// 	return err
+		// }
 
-		// Start a log file that only shows the repsonses.
-		responsesLogFileName := fmt.Sprintf("logs/run_%s_responses.md", time.Now().Format("2006-01-02_15-04-05"))
-		responsesLogFile, err := os.Create(responsesLogFileName)
-		if err != nil {
-			errnie.Error(fmt.Errorf("failed to create responses log file: %v", err))
-			return err
-		}
+		// fmt.Println(prompt)
 
-		pipeline := ai.NewPipeline(context.Background())
-		pipeline.Initialize()
+		// // Start a log file for the full conversation, including prompts.
+		// logFileName := fmt.Sprintf("logs/run_%s.md", time.Now().Format("2006-01-02_15-04-05"))
+		// logFile, err := os.Create(logFileName)
+		// if err != nil {
+		// 	errnie.Error(fmt.Errorf("failed to create log file: %v", err))
+		// 	return err
+		// }
 
-		currentAgent := ""
+		// // Start a log file that only shows the repsonses.
+		// responsesLogFileName := fmt.Sprintf("logs/run_%s_responses.md", time.Now().Format("2006-01-02_15-04-05"))
+		// responsesLogFile, err := os.Create(responsesLogFileName)
+		// if err != nil {
+		// 	errnie.Error(fmt.Errorf("failed to create responses log file: %v", err))
+		// 	return err
+		// }
 
-		for chunk := range pipeline.Generate(prompt, 3) {
-			fmt.Print(chunk.Response)
+		// pipeline := ai.NewPipeline(context.Background())
+		// pipeline.Initialize()
 
-			if chunk.Agent.ID != currentAgent {
-				if _, err := logFile.WriteString(strings.Join([]string{
-					strings.Join(chunk.Agent.Prompt.System, ""),
-					strings.Join(chunk.Agent.Prompt.User, ""),
-				}, "")); err != nil {
-					errnie.Error(fmt.Errorf("failed to write to log file: %v", err))
-				}
+		// currentAgent := ""
 
-				if _, err := responsesLogFile.WriteString(fmt.Sprintf("**AGENT: %s (%s)**\n\n", chunk.Agent.ID, chunk.Agent.Type)); err != nil {
-					errnie.Error(fmt.Errorf("failed to write to responses log file: %v", err))
-				}
+		// for chunk := range pipeline.Generate(prompt, 3) {
+		// 	fmt.Print(chunk.Response)
 
-				currentAgent = chunk.Agent.ID
-			}
+		// 	if chunk.Agent.ID != currentAgent {
+		// 		if _, err := logFile.WriteString(strings.Join([]string{
+		// 			strings.Join(chunk.Agent.Prompt.System, ""),
+		// 			strings.Join(chunk.Agent.Prompt.User, ""),
+		// 		}, "")); err != nil {
+		// 			errnie.Error(fmt.Errorf("failed to write to log file: %v", err))
+		// 		}
 
-			if _, err := logFile.WriteString(chunk.Response); err != nil {
-				errnie.Error(fmt.Errorf("failed to write to log file: %v", err))
-			}
+		// 		if _, err := responsesLogFile.WriteString(fmt.Sprintf("**AGENT: %s (%s)**\n\n", chunk.Agent.ID, chunk.Agent.Type)); err != nil {
+		// 			errnie.Error(fmt.Errorf("failed to write to responses log file: %v", err))
+		// 		}
 
-			if _, err := responsesLogFile.WriteString(chunk.Response); err != nil {
-				errnie.Error(fmt.Errorf("failed to write to responses log file: %v", err))
-			}
-		}
+		// 		currentAgent = chunk.Agent.ID
+		// 	}
 
-		if err := logFile.Close(); err != nil {
-			errnie.Error(fmt.Errorf("failed to close log file: %v", err))
-		}
+		// 	if _, err := logFile.WriteString(chunk.Response); err != nil {
+		// 		errnie.Error(fmt.Errorf("failed to write to log file: %v", err))
+		// 	}
 
-		if err := responsesLogFile.Close(); err != nil {
-			errnie.Error(fmt.Errorf("failed to close responses log file: %v", err))
-		}
+		// 	if _, err := responsesLogFile.WriteString(chunk.Response); err != nil {
+		// 		errnie.Error(fmt.Errorf("failed to write to responses log file: %v", err))
+		// 	}
+		// }
+
+		// if err := logFile.Close(); err != nil {
+		// 	errnie.Error(fmt.Errorf("failed to close log file: %v", err))
+		// }
+
+		// if err := responsesLogFile.Close(); err != nil {
+		// 	errnie.Error(fmt.Errorf("failed to close responses log file: %v", err))
+		// }
 
 		return nil
 	},
