@@ -1,4 +1,4 @@
-loglevel: trace
+loglevel: info
 
 s3:
   endpoint: "http://minio:9000"

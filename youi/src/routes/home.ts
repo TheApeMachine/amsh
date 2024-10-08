@@ -8,6 +8,7 @@ import "../components/layers/manager"
 import "../components/dashboard/editor"
 import "../components/slides/component"
 import "../components/datatable/table"
+import "../components/nodegraph/editor"
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};

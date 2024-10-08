@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/mastercomputer"
 )
@@ -23,12 +21,11 @@ var testCmd = &cobra.Command{
 	Short: "Run the AI pipeline interactively",
 	Long:  `Run the AI pipeline interactively, allowing you to input prompts and see the reasoning process.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		control := mastercomputer.NewControl()
-		control.Initialize()
+		system := mastercomputer.NewSystem()
+		system.Initialize()
+		system.Generate()
 
-		for artifact := range control.Generate() {
-			fmt.Println(artifact.Type)
-		}
+		// work := boards.NewService()
 
 		// work := boards.NewService()
 		// prompt, err := work.SearchWorkitems(

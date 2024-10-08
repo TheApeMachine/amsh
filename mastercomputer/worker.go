@@ -22,7 +22,7 @@ func NewWorker(pctx context.Context) *Worker {
 		pctx: pctx,
 		Function: &openai.FunctionDefinition{
 			Name:        "worker",
-			Description: "Use to create a worker agent, pass in the system prompt and user prompt",
+			Description: "Use to create a worker agent, which can become anything you can imagine, using the system and user prompt, and providing a toolset.",
 			Strict:      true,
 			Parameters: jsonschema.Definition{
 				Type:                 jsonschema.Object,
@@ -37,8 +37,12 @@ func NewWorker(pctx context.Context) *Worker {
 						Type:        jsonschema.String,
 						Description: "The user prompt",
 					},
+					"toolset": {
+						Type:        jsonschema.String,
+						Description: "The toolset to use, or 'none' if no toolset is required",
+					},
 				},
-				Required: []string{"system", "user"},
+				Required: []string{"system", "user", "toolset"},
 			},
 		},
 	}

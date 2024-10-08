@@ -1,7 +1,7 @@
 import Reveal from 'reveal.js';
 import '../lookingglass/lens';
 import '../agentviz/conversation';
-
+import '../timeline/3dtimeline';
 class SlidesComponent extends HTMLElement {
     private revealInstance: Reveal.Api | undefined;
 
@@ -17,6 +17,41 @@ class SlidesComponent extends HTMLElement {
                     width: 100%;
                     height: 100%;
                 }
+                :root {
+                    --background-color: #000011;
+                    --text-color: #ffffff;
+                    --control-background: rgba(0, 0, 0, 0.7);
+                }
+
+                .theme-light {
+                    --background-color: #ffffff;
+                    --text-color: #000000;
+                    --control-background: rgba(255, 255, 255, 0.7);
+                }
+
+                button {
+                    background-color: var(--control-background);
+                    color: var(--text-color);
+                    border: none;
+                    padding: 8px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    margin-top: 5px;
+                }
+
+                button:hover {
+                    background-color: rgba(255, 255, 255, 0.1);
+                }
+
+                input[type="range"], input[type="text"], select {
+                    width: 100%;
+                    margin-top: 5px;
+                }
+
+                label {
+                    color: var(--text-color);
+                }
+
                 .reveal {
                     width: 100%;
                     height: 100%;
@@ -37,10 +72,11 @@ class SlidesComponent extends HTMLElement {
                     background-image: linear-gradient(to right, #434343 0%, black 100%);
                 }
             </style>
-            <link rel="stylesheet" href="node_modules/reveal.js/dist/reveal.css" />
-            <link rel="stylesheet" href="node_modules/reveal.js/dist/theme/white.css" />
             <div class="reveal">
                 <div class="slides">
+                    <section>
+                        <nodegraph-editor></nodegraph-editor>
+                    </section>
                     <section>
                         <conversation-visualizer></conversation-visualizer>
                     </section>

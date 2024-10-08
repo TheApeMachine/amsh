@@ -21,10 +21,12 @@ Available Arguments:
 `
 
 var help = map[string][]string{
-	"list":    {"list", "list elements of the system (processes, tools, messages, files, etc.)", "  processes\n  tools\n  messages\n  files\n"},
-	"send":    {"send", "send a message to a process", "  <process id>, <message>"},
-	"inspect": {"inspect", "inspect a process", "  <process id>"},
-	"kill":    {"kill", "kill a process", "  <process id>"},
+	"list":     {"list", "list elements of the system (processes, tools, messages, files, etc.)", "  processes\n  tools\n  messages\n  files\n"},
+	"send":     {"send", "send a message to a process", "  <process id>, <message>"},
+	"inspect":  {"inspect", "inspect a process", "  <process id>"},
+	"kill":     {"kill", "kill a process", "  <process id>"},
+	"sequence": {"sequence", "sequence tools", "  <tool, param, ...|tool, param, ...|...>"},
+	"loop":     {"loop", "loop one or more components", "  <component, component, ...|objective|stop condition>"},
 }
 
 type Command struct {
@@ -43,7 +45,7 @@ func NewCommand() *Command {
 				Properties: map[string]jsonschema.Definition{
 					"command": {
 						Type:        jsonschema.String,
-						Enum:        []string{"list", "inspect", "kill"},
+						Enum:        []string{"list", "inspect", "kill", "sequence", "loop"},
 						Description: "The command to execute",
 					},
 					"args": {
