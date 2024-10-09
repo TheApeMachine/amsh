@@ -8,6 +8,11 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
+type Feature interface {
+	Initialize() error
+	Run(ctx context.Context, parentID string, args map[string]any) (string, error)
+}
+
 type Toolset struct {
 	tools    map[string][]openai.Tool
 	Function *openai.FunctionDefinition
@@ -25,7 +30,7 @@ func NewToolSet(ctx context.Context) *Toolset {
 				},
 				openai.Tool{
 					Type:     openai.ToolTypeFunction,
-					Function: NewWorker(ctx).Function,
+					Function: NewWorker().Function,
 				},
 				openai.Tool{
 					Type:     openai.ToolTypeFunction,

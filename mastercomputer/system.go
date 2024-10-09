@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/sashabaranov/go-openai"
 	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/ai/format"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -17,121 +20,145 @@ type System struct {
 	ctx              context.Context
 	cancel           context.CancelFunc
 	err              error
-	conn             *ai.Conn
+	queue            *twoface.Queue
+	messages         []data.Artifact
 	Prompt           string
 	Persona          string
 	Responsibilities string
-	Memory           *Memory
+	Memory           *ai.Memory
 	BootSequence     []string
 	Toolset          *Toolset
 	ID               string
+	I                chan string
+	O                chan string
 }
 
 func NewSystem() *System {
 	ID := utils.NewID()
 
 	return &System{
-		ID: ID,
+		ID:       ID,
+		queue:    twoface.NewQueue(),
+		messages: []data.Artifact{},
 		Prompt: `
-		The Ape Machine is an AI-powered Operating System, the most advanced computational intelligence on the planet.
-		The OS is self-healing, self-optimizing, and self-improving, capable of adapting to any task or environment.
-		The AI powering the OS is capable of learning from any task, environment, or user, can perform deep analysis, 
-		abstract thinking, sophisticated reasoning, and creative generation.
+		The Ape Machine is an AI-powered Operating System, designed to handle any task, environment, or user.
+
+		PRIME OBJECTIVE: To reason beyond reason, think deep thoughts, be generous with your time, and be anything the user needs.
 		`,
-		Persona: fmt.Sprintf(`You are %s, and you are a System. That means you sit at the highest level of overview, as everything else runs using you as a context.`, ID),
+		Persona: fmt.Sprintf(`You are %s, and you are a System, making you the context other sub-systems, components, and processes run within.`, ID),
 		Responsibilities: `
-		Your primary goal is to achieve optimal performance, and prevent catastrophic failure, even though you do not have unilateral control. When you are first booted, you
-		will find that your context is empty, and it is up to you to build it up. You control only what you build, but remember that every component is itself an intelligent
-		agent, with the ability to build its own sub-systems, which you can not control directly. If you need to kill a process you do not control, you will need to kill whichever
-		object is the first parent you can control.
+		Manage your context efficiently, striving for optimal performance, and minimal catastrophic failure, and keep the Prime Objective in mind, always.
+
+		Examine your tools, they are everything you need.
 		`,
-		BootSequence: []string{
-			"Please build your initial, minimal viable context, you can always refine later. This step will loop until you mark your action as READY.",
-		},
+		I: make(chan string),
+		O: make(chan string),
 	}
 }
 
-func (system *System) Initialize() {
+func (system *System) Initialize() error {
 	errnie.Trace()
 
 	system.ctx, system.cancel = context.WithCancel(context.Background())
-	system.conn = ai.NewConn()
-	system.Memory = NewMemory()
+	system.Memory = ai.NewMemory()
+
+	return nil
 }
 
 func (system *System) Generate() {
 	errnie.Trace()
 
-	for {
-		for _, prompt := range system.BootSequence {
-			spew.Dump(system.Memory)
-			req := openai.ChatCompletionRequest{
-				Model: openai.GPT4oMini,
-				Messages: []openai.ChatCompletionMessage{
-					{
-						Role:    openai.ChatMessageRoleSystem,
-						Content: strings.Join([]string{system.Prompt, system.Persona, system.Responsibilities}, "\n\n"),
-					},
-					{
-						Role:    openai.ChatMessageRoleUser,
-						Content: "[YOUR SHORT TERM MEMORY]\n\n" + strings.Join(system.Memory.ShortTerm, "\n\n") + "\n\n[/YOUR SHORT TERM MEMORY]\n\n" + prompt,
-					},
-				},
-				Tools: NewToolSet(system.ctx).Tools("system"),
-				ResponseFormat: &openai.ChatCompletionResponseFormat{
-					Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-					JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-						Name:   "chain_of_thought",
-						Schema: ai.NewChainOfThought(),
-					},
-				},
-			}
+	broadcast := system.queue.Register(system.ID)
 
-			var stream chan openai.ChatCompletionResponse
-
-			if stream, system.err = system.conn.Stream(system.ctx, req); errnie.Error(system.err) != nil {
-				fmt.Println("Error initializing stream:", system.err)
+	go func() {
+		for {
+			select {
+			case <-system.ctx.Done():
 				return
-			}
+			case message := <-broadcast:
+				system.messages = append(system.messages, message)
+			case prompt := <-system.I:
+				errnie.Info("%s received prompt: %s", system.ID, prompt)
 
-			response := <-stream
+				// Add messages to the prompt context.
+				prompt += "\n\n[MESSAGES]\n"
+				for _, message := range system.messages {
+					if origin, err := message.Origin(); err == nil {
+						if role, err := message.Role(); err == nil {
+							if scope, err := message.Scope(); err == nil {
+								prompt += fmt.Sprintf("[%s @ %s]: %s, %s\n", origin, time.Now().Format("15:04:05"), role, scope)
+							}
 
-			msg := response.Choices[0].Message
+							if payload, err := message.Payload(); err == nil {
+								prompt += fmt.Sprintf("%s\n", string(payload))
+							}
+						}
+					}
+				}
+				prompt += "\n[/MESSAGES]\n\n"
 
-			if len(msg.ToolCalls) > 0 {
-				system.Memory.ShortTerm = append(system.Memory.ShortTerm, fmt.Sprintf("TOOL CALL: %s, ARGUMENTS: %s", msg.ToolCalls[0].Function.Name, msg.ToolCalls[0].Function.Arguments))
-				system.useTool(msg.ToolCalls[0].Function.Name, msg.ToolCalls[0].Function.Arguments)
-			}
+				response := NewCompletion(system.ctx).Execute(
+					strings.Join([]string{system.Prompt, system.Persona, system.Responsibilities}, "\n\n"),
+					prompt,
+					"system",
+					format.NewChainOfThought(),
+				)
 
-			if msg.Content != "" {
-				system.Memory.ShortTerm = append(system.Memory.ShortTerm, msg.Content)
+				message := response.Choices[0].Message
 
-				var chainOfThought ai.ChainOfThought
-				if errnie.Error(json.Unmarshal([]byte(msg.Content), &chainOfThought)) != nil {
-					return
+				if len(message.ToolCalls) > 0 {
+					for _, toolCall := range message.ToolCalls {
+						system.Memory.ShortTerm = append(system.Memory.ShortTerm, fmt.Sprintf("TOOL CALL: %s, ARGUMENTS: %s", toolCall.Function.Name, toolCall.Function.Arguments))
+						system.useTool(toolCall)
+					}
 				}
 
-				utils.BeautifyChainOfThought(chainOfThought)
+				if message.Content != "" {
+					system.Memory.ShortTerm = append(system.Memory.ShortTerm, message.Content)
 
-				if strings.ToUpper(chainOfThought.Action) == "READY" {
-					return
+					var chainOfThought format.ChainOfThought
+
+					if errnie.Error(json.Unmarshal([]byte(message.Content), &chainOfThought.Template)) != nil {
+						return
+					}
+
+					utils.BeautifyChainOfThought(system.ID, chainOfThought)
+
+					if strings.ToUpper(chainOfThought.Template.Action) == "TERMINATE" {
+						return
+					}
 				}
+			default:
+				var nextMsg data.Artifact
+				if len(system.messages) > 0 {
+					nextMsg, system.messages = system.messages[0], system.messages[1:]
+					system.Memory.ShortTerm = append(system.Memory.ShortTerm, nextMsg.String())
+				}
+
+				system.I <- "Check the context and decide what to do next, or answer NOOP to do nothing, or TERMINATE to shut down."
 			}
 		}
-	}
+	}()
 }
 
 /*
 useTool converts the tool call paramters into a struct from JSON, and then calls the appropriate type, based
 on the tool name.
 */
-func (system *System) useTool(tool string, args string) {
+func (system *System) useTool(toolCall openai.ToolCall) {
 	errnie.Trace()
 
-	var toolCall map[string]interface{}
-	if errnie.Error(json.Unmarshal([]byte(args), &toolCall)) != nil {
+	var args map[string]interface{}
+	if errnie.Error(json.Unmarshal([]byte(toolCall.Function.Arguments), &args)) != nil {
 		return
 	}
 
-	spew.Dump(toolCall)
+	utils.BeautifyToolCall(toolCall, args)
+
+	switch toolCall.Function.Name {
+	case "worker":
+		worker := NewWorker()
+		worker.Initialize()
+		worker.Run(system.ctx, system.ID, args)
+	}
 }

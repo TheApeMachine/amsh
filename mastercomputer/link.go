@@ -1,8 +1,11 @@
 package mastercomputer
 
 import (
+	"context"
+
 	"github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -53,4 +56,15 @@ func NewLink() *Link {
 			},
 		},
 	}
+}
+
+func (link *Link) Initialize() error {
+	errnie.Trace()
+	return nil
+}
+
+func (link *Link) Run(ctx context.Context, args map[string]any) (string, error) {
+	errnie.Trace()
+
+	return "", nil
 }

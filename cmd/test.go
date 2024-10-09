@@ -1,6 +1,11 @@
 package cmd
 
 import (
+	"bufio"
+	"context"
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/mastercomputer"
 )
@@ -21,80 +26,21 @@ var testCmd = &cobra.Command{
 	Short: "Run the AI pipeline interactively",
 	Long:  `Run the AI pipeline interactively, allowing you to input prompts and see the reasoning process.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		system := mastercomputer.NewSystem()
+		system := mastercomputer.NewWorker()
 		system.Initialize()
-		system.Generate()
+		system.Run(context.Background(), "test", map[string]any{
+			"system":  "The Ape Machine is an AI-powered Operating System, designed to handle any task, environment, or user.",
+			"user":    "I need you to build the workers you think you need, and then let me know when you're ready.",
+			"toolset": "test",
+		})
 
-		// work := boards.NewService()
-
-		// work := boards.NewService()
-		// prompt, err := work.SearchWorkitems(
-		// 	context.Background(),
-		// 	"push",
-		// )
-
-		// if err != nil {
-		// 	errnie.Error(fmt.Errorf("failed to search workitems: %v", err))
-		// 	return err
-		// }
-
-		// fmt.Println(prompt)
-
-		// // Start a log file for the full conversation, including prompts.
-		// logFileName := fmt.Sprintf("logs/run_%s.md", time.Now().Format("2006-01-02_15-04-05"))
-		// logFile, err := os.Create(logFileName)
-		// if err != nil {
-		// 	errnie.Error(fmt.Errorf("failed to create log file: %v", err))
-		// 	return err
-		// }
-
-		// // Start a log file that only shows the repsonses.
-		// responsesLogFileName := fmt.Sprintf("logs/run_%s_responses.md", time.Now().Format("2006-01-02_15-04-05"))
-		// responsesLogFile, err := os.Create(responsesLogFileName)
-		// if err != nil {
-		// 	errnie.Error(fmt.Errorf("failed to create responses log file: %v", err))
-		// 	return err
-		// }
-
-		// pipeline := ai.NewPipeline(context.Background())
-		// pipeline.Initialize()
-
-		// currentAgent := ""
-
-		// for chunk := range pipeline.Generate(prompt, 3) {
-		// 	fmt.Print(chunk.Response)
-
-		// 	if chunk.Agent.ID != currentAgent {
-		// 		if _, err := logFile.WriteString(strings.Join([]string{
-		// 			strings.Join(chunk.Agent.Prompt.System, ""),
-		// 			strings.Join(chunk.Agent.Prompt.User, ""),
-		// 		}, "")); err != nil {
-		// 			errnie.Error(fmt.Errorf("failed to write to log file: %v", err))
-		// 		}
-
-		// 		if _, err := responsesLogFile.WriteString(fmt.Sprintf("**AGENT: %s (%s)**\n\n", chunk.Agent.ID, chunk.Agent.Type)); err != nil {
-		// 			errnie.Error(fmt.Errorf("failed to write to responses log file: %v", err))
-		// 		}
-
-		// 		currentAgent = chunk.Agent.ID
-		// 	}
-
-		// 	if _, err := logFile.WriteString(chunk.Response); err != nil {
-		// 		errnie.Error(fmt.Errorf("failed to write to log file: %v", err))
-		// 	}
-
-		// 	if _, err := responsesLogFile.WriteString(chunk.Response); err != nil {
-		// 		errnie.Error(fmt.Errorf("failed to write to responses log file: %v", err))
-		// 	}
-		// }
-
-		// if err := logFile.Close(); err != nil {
-		// 	errnie.Error(fmt.Errorf("failed to close log file: %v", err))
-		// }
-
-		// if err := responsesLogFile.Close(); err != nil {
-		// 	errnie.Error(fmt.Errorf("failed to close responses log file: %v", err))
-		// }
+		for {
+			// Get user input from the terminal
+			fmt.Print("> ")
+			reader := bufio.NewReader(os.Stdin)
+			prompt, _ := reader.ReadString('\n')
+			system.I <- prompt
+		}
 
 		return nil
 	},

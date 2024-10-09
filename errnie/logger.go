@@ -202,7 +202,8 @@ func Raw(obj any) {
 
 // Debug logs a debug message with the appropriate symbol
 func Debug(format string, v ...interface{}) {
-	if viper.GetViper().GetString("loglevel") != "debug" {
+	level := viper.GetViper().GetString("loglevel")
+	if level == "trace" || level == "debug" {
 		return
 	}
 

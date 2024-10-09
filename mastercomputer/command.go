@@ -1,12 +1,14 @@
 package mastercomputer
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 var helpTemplate = `
@@ -59,16 +61,23 @@ func NewCommand() *Command {
 	}
 }
 
-func (command *Command) Use(cmd string, args string) (string, error) {
+func (command *Command) Initialize() error {
+	errnie.Trace()
+	return nil
+}
+
+func (command *Command) Run(ctx context.Context, args map[string]any) (string, error) {
+	errnie.Trace()
+
 	builder := strings.Builder{}
 
-	builder.WriteString(fmt.Sprintf("[%s] @ %s\n\n", cmd, time.Now().Format("2006-01-02 15:04:05")))
+	builder.WriteString(fmt.Sprintf("[%s] @ %s\n\n", args["command"], time.Now().Format("2006-01-02 15:04:05")))
 
-	if args == "--help" {
+	if args["args"] == "--help" {
 		tmpl := helpTemplate
-		tmpl = strings.ReplaceAll(tmpl, "{command}", cmd)
-		tmpl = strings.ReplaceAll(tmpl, "{description}", help[cmd][1])
-		tmpl = strings.ReplaceAll(tmpl, "{arguments}", help[cmd][2])
+		tmpl = strings.ReplaceAll(tmpl, "{command}", args["command"].(string))
+		tmpl = strings.ReplaceAll(tmpl, "{description}", help[args["command"].(string)][1])
+		tmpl = strings.ReplaceAll(tmpl, "{arguments}", help[args["command"].(string)][2])
 		builder.WriteString(tmpl)
 	}
 

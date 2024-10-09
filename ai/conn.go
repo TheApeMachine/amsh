@@ -46,50 +46,21 @@ func NewConn() *Conn {
 	}
 }
 
-func (conn *Conn) Stream(
+func (conn *Conn) Request(
 	ctx context.Context, req openai.ChatCompletionRequest,
-) (chan openai.ChatCompletionResponse, error) {
+) (openai.ChatCompletionResponse, error) {
 	errnie.Trace()
 
 	var (
-		stream openai.ChatCompletionResponse
-		err    error
+		response openai.ChatCompletionResponse
+		err      error
 	)
 
-	out := make(chan openai.ChatCompletionResponse)
-
-	if stream, err = conn.client.CreateChatCompletion(ctx, req); err != nil {
-		return nil, err
+	if response, err = conn.client.CreateChatCompletion(ctx, req); err != nil {
+		return openai.ChatCompletionResponse{}, err
 	}
 
-	// defer stream.Close()
-
-	go func() {
-		defer close(out)
-		out <- stream
-
-		// for {
-		// 	response, err := stream.Recv()
-
-		// 	if errors.Is(err, io.EOF) {
-		// 		return
-		// 	}
-
-		// 	if err != nil {
-		// 		errnie.Error(err)
-		// 		return
-		// 	}
-
-		// 	spew.Dump(response.Choices[0].Delta.Content)
-
-		// 	chunk := response.Choices[0].Delta.Content
-		// 	fmt.Print(chunk)
-		// 	artifact.Write([]byte(chunk))
-		// 	out <- artifact
-		// }
-	}()
-
-	return out, nil
+	return response, nil
 }
 
 /*

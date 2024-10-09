@@ -1,8 +1,11 @@
 package mastercomputer
 
 import (
+	"context"
+
 	"github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type LogicCircuit struct {
@@ -49,4 +52,14 @@ func NewLogicCircuit() *LogicCircuit {
 			},
 		},
 	}
+}
+
+func (logic *LogicCircuit) Initialize() error {
+	errnie.Trace()
+	return nil
+}
+
+func (logic *LogicCircuit) Run(ctx context.Context, args map[string]any) (string, error) {
+	errnie.Trace()
+	return "", nil
 }
