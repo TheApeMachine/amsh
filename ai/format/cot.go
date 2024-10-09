@@ -2,6 +2,7 @@ package format
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/theapemachine/amsh/errnie"
@@ -55,10 +56,17 @@ func (format *ChainOfThought) Schema() *jsonschema.Definition {
 }
 
 func (chain ChainOfThought) ToString() string {
-	output := "[ Chain of Thought ]\n"
+	builder := strings.Builder{}
+	builder.WriteString("[CHAIN OF THOUGHT]\n")
 	for _, step := range chain.Template.Steps {
-		output += fmt.Sprintf("[step]\n  thought: %s\n  reasoning: %s\n  next step: %s\n[/step]\n\n", step.Thought, step.Reasoning, step.NextStep)
+		builder.WriteString("  [STEP]")
+		builder.WriteString(fmt.Sprintf("      Thought: %s\n", step.Thought))
+		builder.WriteString(fmt.Sprintf("    Reasoning: %s\n", step.Reasoning))
+		builder.WriteString(fmt.Sprintf("    Next Step: %s\n", step.NextStep))
+		builder.WriteString("  [STEP]")
 	}
-	output += fmt.Sprintf("action: %s\nresult: %s\n", chain.Template.Action, chain.Template.Result)
-	return output
+	builder.WriteString(fmt.Sprintf("Action: %s\n", chain.Template.Action))
+	builder.WriteString(fmt.Sprintf("Result: %s\n", chain.Template.Result))
+	builder.WriteString("[/CHAIN OF THOUGHT]")
+	return builder.String()
 }

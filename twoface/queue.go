@@ -18,14 +18,14 @@ var queueCache *Queue
 
 type Queue struct {
 	mu            sync.Mutex
-	subscriptions map[string]Subscriber
+	subscriptions []Subscriber
 	I             chan data.Artifact
 }
 
 func NewQueue() *Queue {
 	if queueCache == nil {
 		queueCache = &Queue{
-			subscriptions: make(map[string]Subscriber),
+			subscriptions: make([]Subscriber, 0),
 			I:             make(chan data.Artifact, 128),
 		}
 	}
@@ -43,6 +43,8 @@ func (q *Queue) Run(ctx context.Context) {
 				q.Publish(message)
 			case <-ctx.Done():
 				return
+			default:
+				// noop
 			}
 		}
 	}()
@@ -52,21 +54,28 @@ func (q *Queue) Register(ID string) chan data.Artifact {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	q.subscriptions[ID] = Subscriber{
+	q.subscriptions = append(q.subscriptions, Subscriber{
 		ID:     ID,
-		O:      make(chan data.Artifact),
+		O:      make(chan data.Artifact, 100), // Buffered channel to prevent blocking
 		topics: make(map[string]chan data.Artifact),
-	}
+	})
 
-	return q.subscriptions[ID].O
+	return q.subscriptions[len(q.subscriptions)-1].O
 }
 
 func (q *Queue) Subscribe(ID, topic string) chan data.Artifact {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	ch := make(chan data.Artifact)
-	q.subscriptions[ID].topics[topic] = ch
+	ch := make(chan data.Artifact, 100) // Buffered channel for topic subscriptions
+
+	for i, subscriber := range q.subscriptions {
+		if subscriber.ID == ID {
+			q.subscriptions[i].topics[topic] = ch
+			break
+		}
+	}
+
 	return ch
 }
 
@@ -90,15 +99,24 @@ func (q *Queue) Publish(message data.Artifact) {
 
 	if scope == "broadcast" {
 		for _, subscriber := range q.subscriptions {
-			subscriber.O <- message
+			select {
+			case subscriber.O <- message:
+				// Message sent successfully
+			default:
+				errnie.Warn("Dropping message for subscriber %s: channel full", subscriber.ID)
+			}
 		}
 	}
 
 	if role == "topic" {
-		// Loop over all the subscribers and send the message to each one who is subscribed to the topic.
 		for _, subscriber := range q.subscriptions {
 			if ch, ok := subscriber.topics[scope]; ok {
-				ch <- message
+				select {
+				case ch <- message:
+					// Message sent successfully
+				default:
+					errnie.Warn("Dropping message for subscriber %s on topic %s: channel full", subscriber.ID, scope)
+				}
 			}
 		}
 	}
@@ -106,7 +124,12 @@ func (q *Queue) Publish(message data.Artifact) {
 	if role == "report" || role == "ACK" {
 		for _, subscriber := range q.subscriptions {
 			if subscriber.ID == scope {
-				subscriber.O <- message
+				select {
+				case subscriber.O <- message:
+					// Message sent successfully
+				default:
+					errnie.Warn("Dropping message for subscriber %s: channel full", subscriber.ID)
+				}
 			}
 		}
 	}

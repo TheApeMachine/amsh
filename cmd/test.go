@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
-	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/mastercomputer"
 )
 
@@ -26,20 +24,24 @@ var testCmd = &cobra.Command{
 	Short: "Run the AI pipeline interactively",
 	Long:  `Run the AI pipeline interactively, allowing you to input prompts and see the reasoning process.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		system := mastercomputer.NewWorker()
-		system.Initialize()
-		system.Run(context.Background(), "test", map[string]any{
-			"system":  "The Ape Machine is an AI-powered Operating System, designed to handle any task, environment, or user.",
-			"user":    "I need you to build the workers you think you need, and then let me know when you're ready.",
-			"toolset": "test",
+		systems := []*mastercomputer.Worker{
+			mastercomputer.NewWorker().Initialize(),
+		}
+
+		prompt := data.New(
+			"user",
+			"prompt",
+			"discussion",
+			[]byte("Solve the riddle: In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight."),
+		)
+
+		prompt.SetAttrs(map[string]string{
+			"system": "You are part of an advanced AI system, called The Ape Machine.",
+			"user":   "If at some point you do not know what to do, you should just say so and ask for help. Never make up an answer, or try to guess at an answer.",
 		})
 
-		for {
-			// Get user input from the terminal
-			fmt.Print("> ")
-			reader := bufio.NewReader(os.Stdin)
-			prompt, _ := reader.ReadString('\n')
-			system.I <- prompt
+		for _, system := range systems {
+			prompt = system.Run(context.Background(), prompt)
 		}
 
 		return nil

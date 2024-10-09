@@ -2,6 +2,7 @@ package format
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/theapemachine/amsh/errnie"
@@ -58,11 +59,27 @@ func (format *TreeOfThought) Schema() *jsonschema.Definition {
 }
 
 func (tree TreeOfThought) ToString() string {
-	output := "[ Tree of Thought ]\n"
-	output += fmt.Sprintf("Root Thought: %s\n", tree.Template.RootThought)
+	builder := strings.Builder{}
+	builder.WriteString("[TREE OF THOUGHT]\n")
+	builder.WriteString(fmt.Sprintf("  Root Thought: %s\n", tree.Template.RootThought))
+
+	// Follow all branches.
 	for _, branch := range tree.Template.Branches {
-		output += fmt.Sprintf("[branch]\n  thought: %s\n  reasoning: %s\n[/branch]\n", branch.Thought, branch.Reasoning)
+		builder.WriteString(fmt.Sprintf("    Thought: %s\n", branch.Thought))
+		builder.WriteString(fmt.Sprintf("    Reasoning: %s\n", branch.Reasoning))
+		for _, subBranch := range branch.Branches {
+			builder.WriteString(fmt.Sprintf("      Sub Thought: %s\n", subBranch.SubThought))
+			builder.WriteString(fmt.Sprintf("        Reasoning: %s\n", subBranch.Reasoning))
+			builder.WriteString(fmt.Sprintf("          Outcome: %s\n", subBranch.Outcome))
+			for _, nextBranch := range subBranch.NextBranches {
+				builder.WriteString(fmt.Sprintf("        Sub Thought: %s\n", nextBranch.SubThought))
+				builder.WriteString(fmt.Sprintf("          Reasoning: %s\n", nextBranch.Reasoning))
+				builder.WriteString(fmt.Sprintf("            Outcome: %s\n", nextBranch.Outcome))
+			}
+		}
 	}
-	output += fmt.Sprintf("Final Conclusion: %s\n", tree.Template.FinalConclusion)
-	return output
+
+	builder.WriteString(fmt.Sprintf("  Final Conclusion: %s\n", tree.Template.FinalConclusion))
+	builder.WriteString("[/TREE OF THOUGHT]")
+	return builder.String()
 }

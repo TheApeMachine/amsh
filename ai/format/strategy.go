@@ -2,6 +2,7 @@ package format
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/theapemachine/amsh/errnie"
@@ -19,11 +20,12 @@ type ReasoningStrategy struct {
 	Label      string                 `json:"name"`
 	Definition *jsonschema.Definition `json:"schema"`
 	Template   struct {
-		Strategies []struct {
-			Thought   string   `json:"thought"`
-			Reasoning string   `json:"reasoning"`
-			Strategy  Strategy `json:"next_step"`
-		}
+		Steps []struct {
+			Thought   string `json:"thought"`
+			Reasoning string `json:"reasoning"`
+			Strategy  string `json:"strategy"`
+		} `json:"steps"`
+		OrderedStrategies []string `json:"ordered_strategies"`
 	}
 }
 
@@ -31,7 +33,7 @@ func NewReasoningStrategy() *ReasoningStrategy {
 	errnie.Trace()
 
 	definition, err := jsonschema.GenerateSchemaForType(
-		ChainOfThought{}.Template,
+		ReasoningStrategy{}.Template,
 	)
 
 	if errnie.Error(err) != nil {
@@ -39,7 +41,7 @@ func NewReasoningStrategy() *ReasoningStrategy {
 	}
 
 	return &ReasoningStrategy{
-		Label:      "strategy",
+		Label:      "reasoning_strategy",
 		Definition: definition,
 	}
 }
@@ -55,9 +57,15 @@ func (format *ReasoningStrategy) Schema() *jsonschema.Definition {
 }
 
 func (format *ReasoningStrategy) ToString() string {
-	output := "[ Reasoning Strategy ]\n"
-	for _, step := range format.Template.Strategies {
-		output += fmt.Sprintf("[step]\n  thought: %s\n  reasoning: %s\n  next step: %s\n[/step]\n\n", step.Thought, step.Reasoning, step.Strategy)
+	builder := strings.Builder{}
+	builder.WriteString("[REASONING STRATEGY]\n")
+	for _, step := range format.Template.Steps { // Changed 'Strategies' to 'Steps'
+		builder.WriteString("  [STEP]")
+		builder.WriteString(fmt.Sprintf("      Thought: %s\n", step.Thought))
+		builder.WriteString(fmt.Sprintf("    Reasoning: %s\n", step.Reasoning))
+		builder.WriteString(fmt.Sprintf("     Strategy: %s\n", step.Strategy))
+		builder.WriteString("  [STEP]")
 	}
-	return output
+	builder.WriteString("[/REASONING STRATEGY]")
+	return builder.String()
 }

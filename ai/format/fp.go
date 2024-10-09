@@ -2,6 +2,7 @@ package format
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/theapemachine/amsh/errnie"
@@ -48,11 +49,14 @@ func (format *FirstPrinciplesReasoning) Schema() *jsonschema.Definition {
 }
 
 func (firstPrinciples FirstPrinciplesReasoning) ToString() string {
-	output := "[ First Principles Reasoning ]\n"
-	output += fmt.Sprintf("Principle: %s\n", firstPrinciples.Template.Principle)
-	for _, concept := range firstPrinciples.Template.Breakdown {
-		output += fmt.Sprintf("[concept]\n  key concept: %s\n  explanation: %s\n[/concept]\n", concept.KeyConcept, concept.Explanation)
+	builder := strings.Builder{}
+	builder.WriteString("[FIRST PRINCIPLES REASONING]\n")
+	builder.WriteString(fmt.Sprintf("  Principle: %s\n", firstPrinciples.Template.Principle))
+	for _, breakdown := range firstPrinciples.Template.Breakdown {
+		builder.WriteString(fmt.Sprintf("    Key Concept: %s\n", breakdown.KeyConcept))
+		builder.WriteString(fmt.Sprintf("    Explanation: %s\n", breakdown.Explanation))
 	}
-	output += fmt.Sprintf("Derived Solution: %s\n", firstPrinciples.Template.DerivedSolution)
-	return output
+	builder.WriteString(fmt.Sprintf("  Derived Solution: %s\n", firstPrinciples.Template.DerivedSolution))
+	builder.WriteString("[/FIRST PRINCIPLES REASONING]")
+	return builder.String()
 }

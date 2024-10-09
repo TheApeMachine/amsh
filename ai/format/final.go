@@ -2,6 +2,7 @@ package format
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/theapemachine/amsh/errnie"
@@ -48,10 +49,14 @@ func (format *Final) Schema() *jsonschema.Definition {
 }
 
 func (format *Final) ToString() string {
-	output := "[ Final ]\n"
+	builder := strings.Builder{}
+	builder.WriteString("[FINAL]\n")
 	for _, step := range format.Template.Verify {
-		output += fmt.Sprintf("[step]\n  thought: %s\n  reasoning: %s\n  verification: %s\n[/step]\n\n", step.Thought, step.Reasoning, step.Verification)
+		builder.WriteString(fmt.Sprintf("       Thought: %s\n", step.Thought))
+		builder.WriteString(fmt.Sprintf("     Reasoning: %s\n", step.Reasoning))
+		builder.WriteString(fmt.Sprintf("  Verification: %s\n", step.Verification))
 	}
-	output += fmt.Sprintf("final_answer: %s\n", format.Template.FinalAnswer)
-	return output
+	builder.WriteString(fmt.Sprintf("  Final Answer: %s\n", format.Template.FinalAnswer))
+	builder.WriteString("[/FINAL]")
+	return builder.String()
 }

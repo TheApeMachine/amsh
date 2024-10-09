@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/theapemachine/amsh/ai"
@@ -30,8 +28,6 @@ type Worker struct {
 	queue    *twoface.Queue
 	messages []data.Artifact
 	Function *openai.FunctionDefinition
-	I        chan string
-	O        chan string
 }
 
 func NewWorker() *Worker {
@@ -44,8 +40,6 @@ func NewWorker() *Worker {
 		Memory:   ai.NewMemory(),
 		Workload: make([]string, 0),
 		queue:    twoface.NewQueue(),
-		I:        make(chan string),
-		O:        make(chan string),
 		Function: &openai.FunctionDefinition{
 			Name:        "worker",
 			Description: "Use to create a worker agent, which can become anything you can imagine, using the system and user prompt, and providing a toolset.",
@@ -74,147 +68,63 @@ func NewWorker() *Worker {
 	}
 }
 
-func (worker *Worker) Initialize() error {
+func (worker *Worker) Initialize() *Worker {
 	errnie.Trace()
-	return nil
+	return worker
 }
 
-func (worker *Worker) Run(ctx context.Context, parentID string, args map[string]any) (string, error) {
+func (worker *Worker) Run(ctx context.Context, prompt *data.Artifact) *data.Artifact {
 	errnie.Trace()
 
-	worker.parentID = parentID
-	worker.system = args["system"].(string)
-	worker.user = args["user"].(string)
-	worker.toolset = args["toolset"].(string)
+	var (
+		payload []byte
+		err     error
+	)
 
-	worker.Generate()
+	payload, err = prompt.Payload()
 
-	return "", nil
-}
-
-func (worker *Worker) Generate() {
-	errnie.Trace()
-
-	broadcast := worker.queue.Register(worker.ID)
-
-	go func() {
-		for {
-			select {
-			case <-worker.ctx.Done():
-				return
-			case message := <-broadcast:
-				worker.messages = append(worker.messages, message)
-			case prompt := <-worker.I:
-				errnie.Info("%s received prompt: %s", worker.ID, prompt)
-				if worker.parentID != "" {
-					worker.queue.Publish(*data.New(
-						worker.ID,
-						"ACK",
-						worker.parentID,
-						[]byte("READY! Received: "+prompt),
-					))
-				}
-
-				worker.Workload = append(worker.Workload, prompt)
-			default:
-				if len(worker.Workload) == 0 {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-
-				// Step 1: Analyze Prompt and Choose Reasoning Strategies
-				var prompt string
-				prompt, worker.Workload = worker.Workload[0], worker.Workload[1:]
-				prompt = worker.processMessages(prompt) + "\n\n" + worker.Memory.ToString()
-
-				initialMessage := worker.printResponse(NewCompletion(worker.ctx).Execute(
-					worker.system,
-					prompt+"\nPlease begin by analyzing the prompt and selecting one or more appropriate reasoning strategies.",
-					worker.toolset,
-					format.NewReasoningStrategy(),
-				))
-
-				// Step 2: Extract the selected strategies
-				strategies := worker.ExtractReasoningStrategy(initialMessage)
-
-				// Step 3: Loop over the selected strategies
-				for _, strategy := range strategies {
-					strategyResponse := worker.printResponse(NewCompletion(worker.ctx).Execute(
-						worker.system,
-						prompt+"\nProceed with the selected strategy: "+strategy.Name(),
-						worker.toolset,
-						strategy,
-					))
-
-					// Pretty-print the current reasoning strategy response
-					utils.BeautifyReasoning(worker.ID, strategy)
-
-					// Update worker memory with the response
-					worker.Memory.ShortTerm = append(worker.Memory.ShortTerm, strategyResponse.Content)
-
-					// Pretty-print memory after every reasoning step
-					utils.BeautifyMemory(worker.Memory)
-				}
-
-				// Step 4: Verification Step
-				verificationPrompt := "\nCombined Responses:\n" + worker.Memory.ToString() + "\nPlease verify correctness, coherence, and completeness of each response."
-				verificationResponse := worker.printResponse(NewCompletion(worker.ctx).Execute(
-					worker.system,
-					verificationPrompt,
-					worker.toolset,
-					format.NewFinal(),
-				))
-
-				// Pretty-print verification response
-				fmt.Println("Verification Response:")
-				fmt.Println(color.MagentaString(verificationResponse.Content))
-
-				// Step 5: Generate Final Answer
-				finalPrompt := prompt + "\n\nVerification Results:\n" + verificationResponse.Content + "\n\nBased on the verified reasoning, please provide a final answer."
-				finalMessage := worker.printResponse(NewCompletion(worker.ctx).Execute(
-					worker.system,
-					finalPrompt,
-					worker.toolset,
-					format.NewFinal(),
-				))
-
-				// Publish the final response if there's a parent system to send to.
-				if worker.parentID != "" {
-					worker.queue.Publish(*data.New(worker.ID, worker.parentID, finalMessage.Content, []byte(finalMessage.Content)))
-				}
-			}
-		}
-	}()
-}
-
-func (worker *Worker) ExtractReasoningStrategy(message openai.ChatCompletionMessage) []format.Response {
-	errnie.Trace()
-
-	var strategy format.ReasoningStrategy
-
-	if errnie.Error(json.Unmarshal([]byte(message.Content), &strategy)) != nil {
-		return []format.Response{
-			format.NewChainOfThought(),
-		}
+	if err != nil {
+		return nil
 	}
 
-	var out []format.Response
+	loaded := worker.processMessages(string(payload)) + "\n\n" + worker.Memory.ToString()
 
-	for _, strategy := range strategy.Template.Strategies {
-		switch strategy.Strategy {
-		case format.StrategyChainOfThought:
-			out = append(out, format.NewChainOfThought())
-		case format.StrategyTreeOfThought:
-			out = append(out, format.NewTreeOfThought())
-		case format.StrategyFirstPrinciples:
-			out = append(out, format.NewFirstPrinciplesReasoning())
-		}
+	response := worker.printResponse(NewCompletion(worker.ctx).Execute(
+		worker.system,
+		worker.user+"\n\n"+loaded+"\n\nPlease start by selecting one or more reasoning strategies. Available strategies are: chain_of_thought, tree_of_thought, first_principles",
+		worker.toolset,
+		format.NewReasoningStrategy(),
+	), "reasoning_strategy")
+
+	for _, strategy := range worker.ExtractReasoningStrategy(response) {
+		errnie.Info("applying strategy: %s", strategy)
+
+		response = worker.printResponse(NewCompletion(worker.ctx).Execute(
+			worker.system,
+			worker.user+"\n\n"+loaded,
+			worker.toolset,
+			strategymap[strategy],
+		), strategy)
 	}
 
-	return out
+	return data.New(worker.ID, "response", "broadcast", []byte(response.Content))
 }
 
-func (worker *Worker) printResponse(response openai.ChatCompletionResponse) openai.ChatCompletionMessage {
+var strategymap = map[string]format.Response{
+	"reasoning_strategy": format.NewReasoningStrategy(),
+	"chain_of_thought":   format.NewChainOfThought(),
+	"tree_of_thought":    format.NewTreeOfThought(),
+	"first_principles":   format.NewFirstPrinciplesReasoning(),
+}
+
+func (worker *Worker) ExtractReasoningStrategy(response openai.ChatCompletionMessage) []string {
+	errnie.Trace()
+	buf := format.ReasoningStrategy{}.Template
+	errnie.Error(json.Unmarshal([]byte(response.Content), &buf))
+	return buf.OrderedStrategies
+}
+
+func (worker *Worker) printResponse(response openai.ChatCompletionResponse, strategy string) openai.ChatCompletionMessage {
 	errnie.Trace()
 
 	message := response.Choices[0].Message
@@ -228,18 +138,7 @@ func (worker *Worker) printResponse(response openai.ChatCompletionResponse) open
 
 	if message.Content != "" {
 		worker.Memory.ShortTerm = append(worker.Memory.ShortTerm, message.Content)
-
-		var chainOfThought format.ChainOfThought
-
-		if errnie.Error(json.Unmarshal([]byte(message.Content), &chainOfThought.Template)) != nil {
-			return message
-		}
-
-		utils.BeautifyChainOfThought(worker.ID, chainOfThought)
-
-		if strings.ToUpper(chainOfThought.Template.Action) == "TERMINATE" {
-			return message
-		}
+		utils.BeautifyReasoning(worker.ID, strategymap[strategy])
 	}
 
 	return message
@@ -278,10 +177,17 @@ func (worker *Worker) useTool(toolCall openai.ToolCall) {
 
 	utils.BeautifyToolCall(toolCall, args)
 
+	prompt := data.New(
+		worker.ID,
+		"prompt",
+		"broadcast",
+		[]byte(args["user"].(string)),
+	)
+
 	switch toolCall.Function.Name {
 	case "worker":
 		worker := NewWorker()
 		worker.Initialize()
-		worker.Run(worker.ctx, worker.ID, args)
+		worker.Run(worker.ctx, prompt)
 	}
 }

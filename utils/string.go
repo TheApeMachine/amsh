@@ -35,30 +35,13 @@ func BeautifyReasoning(ID string, reasoning format.Response) {
 		fmt.Println(color.GreenString(r.ToString()))
 	case *format.FirstPrinciplesReasoning:
 		fmt.Println(color.YellowString(r.ToString()))
+	case *format.SelfReflection:
+		fmt.Println(color.MagentaString(r.ToString()))
+	case *format.ReasoningStrategy:
+		fmt.Println(color.BlueString(r.ToString()))
 	default:
 		fmt.Println("Unknown reasoning type")
 	}
-	fmt.Println("[/", ID, "]")
-	fmt.Println()
-}
-
-/*
-Turns ChainOfThought into a more human readable format,
-using colors to make sections more readable.
-*/
-func BeautifyChainOfThought(ID string, data format.ChainOfThought) {
-	fmt.Println("[", ID, "]")
-	for _, step := range data.Template.Steps {
-		fmt.Println("[step]")
-		fmt.Println("  thought:", color.RedString(step.Thought))
-		fmt.Println("reasoning:", color.YellowString(step.Reasoning))
-		fmt.Println("next step:", color.GreenString(step.NextStep))
-		fmt.Println("[/step]")
-		fmt.Println()
-	}
-
-	fmt.Println("   action:", color.BlueString(data.Template.Action))
-	fmt.Println("   result:", color.MagentaString(data.Template.Result))
 	fmt.Println("[/", ID, "]")
 	fmt.Println()
 }
