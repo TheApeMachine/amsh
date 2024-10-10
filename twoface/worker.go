@@ -4,14 +4,18 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/theapemachine/amsh/data"
 )
 
 // Worker processes jobs from the job channel.
 type Worker struct {
+	ctx          context.Context
+	buffer       map[string]*data.Artifact
+	err          error
 	ID           int
 	WorkerPool   chan chan Job
 	JobChannel   chan Job
-	ctx          context.Context
 	wg           *sync.WaitGroup
 	lastUse      time.Time
 	lastDuration int64
@@ -21,13 +25,21 @@ type Worker struct {
 // NewWorker creates a new worker.
 func NewWorker(ID int, workerPool chan chan Job, ctx context.Context) *Worker {
 	return &Worker{
+		ctx:        ctx,
+		buffer:     make(map[string]*data.Artifact),
 		ID:         ID,
 		WorkerPool: workerPool,
 		JobChannel: make(chan Job),
-		ctx:        ctx,
 		lastUse:    time.Now(),
 		drain:      false,
 	}
+}
+
+/*
+Error implements the error interface for the worker.
+*/
+func (worker *Worker) Error() string {
+	return worker.err.Error()
 }
 
 // Start the worker to be ready to accept jobs from the job queue.

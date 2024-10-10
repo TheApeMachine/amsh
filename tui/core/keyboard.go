@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/theapemachine/amsh/data"
@@ -8,62 +9,190 @@ import (
 )
 
 type Keyboard struct {
-	queue            *Queue
-	mode             Mode
-	chatWindowActive bool
-	chatInputBuffer  string
+	queue              *Queue
+	mode               Mode
+	chatWindowActive   bool
+	chatInputBuffer    string
+	commandInputBuffer string   // Field for Command Mode input
+	ctx                *Context // New field to reference Context
 }
 
+// NewKeyboard initializes a new Keyboard without a Context.
 func NewKeyboard(queue *Queue) *Keyboard {
-	var (
-		role string
-		err  error
-	)
-
 	keyboard := &Keyboard{
 		queue: queue,
-		mode:  &Normal{}, // Initialize with Normal mode
+		mode:  &Normal{},
 	}
 
-	// Subscribe to mode_change to update the current mode.
-	modeSub := queue.Subscribe("mode_change")
-	go func() {
-		for artifact := range modeSub {
-			if role, err = artifact.Role(); err != nil {
-				errnie.Error(err)
-				continue
-			}
-
-			switch role {
-			case "NormalMode":
-				keyboard.mode = &Normal{}
-			case "InsertMode":
-				keyboard.mode = &Insert{}
-			case "CommandMode":
-				keyboard.mode = &Command{}
-			}
-		}
-	}()
-
-	// Subscribe to chat_state to update chatWindowActive flag
-	chatStateSub := queue.Subscribe("chat_state")
-	go func() {
-		for artifact := range chatStateSub {
-			payload, err := artifact.Payload()
-			if err != nil {
-				errnie.Error(err)
-				continue
-			}
-			state := string(payload)
-			if state == "active" {
-				keyboard.chatWindowActive = true
-			} else if state == "inactive" {
-				keyboard.chatWindowActive = false
-			}
-		}
-	}()
-
 	return keyboard
+}
+
+func (keyboard *Keyboard) SetContext(ctx *Context) {
+	keyboard.ctx = ctx
+
+	// Subscribe to mode_change events to update the current mode.
+	modeSub := keyboard.queue.Subscribe("mode_change")
+	go keyboard.handleModeChange(modeSub)
+}
+
+// getContext safely retrieves the Context.
+func (keyboard *Keyboard) getContext() *Context {
+	return keyboard.ctx
+}
+
+func (keyboard *Keyboard) handleKeys(b byte) {
+	switch keyboard.mode.(type) {
+	case *Normal:
+		keyboard.handleNormalMode(b)
+	case *Insert:
+		keyboard.handleInsertMode(b)
+	case *Command:
+		keyboard.handleCommandModeKey(b)
+	default:
+		errnie.Warn("Unhandled mode type")
+	}
+}
+
+func (keyboard *Keyboard) handleCommandModeKey(b byte) {
+	switch b {
+	case '\r', '\n': // Enter key
+		artifact := data.New("keyboard", "SubmitCommandInput", "", nil)
+		keyboard.queue.Publish("command_input", artifact)
+	case 127, '\b': // Backspace key
+		artifact := data.New("keyboard", "BackspaceCommandInput", "", nil)
+		keyboard.queue.Publish("command_input", artifact)
+	default:
+		// Handle other printable characters
+		if b >= 32 && b <= 126 {
+			artifact := data.New("keyboard", "UpdateCommandInput", "", []byte{b})
+			keyboard.queue.Publish("command_input", artifact)
+		}
+	}
+}
+
+func (keyboard *Keyboard) HandleInput(b byte) {
+	keyboard.handleKeys(b)
+}
+
+func (keyboard *Keyboard) handleModeChange(modeSub <-chan *data.Artifact) {
+	for artifact := range modeSub {
+		role, err := artifact.Role()
+		if err != nil {
+			errnie.Error(err)
+			continue
+		}
+
+		var newMode Mode
+		switch role {
+		case "NormalMode":
+			newMode = &Normal{}
+		case "InsertMode":
+			newMode = &Insert{}
+		case "CommandMode":
+			newMode = &Command{}
+		default:
+			errnie.Warn("Unknown mode: %s", role)
+			continue
+		}
+
+		// Exit the current mode and enter the new mode.
+		if keyboard.mode != nil {
+			keyboard.mode.Exit()
+		}
+		keyboard.mode = newMode
+		if keyboard.mode != nil {
+			keyboard.mode.Enter(keyboard.ctx) // Pass the context here
+		}
+	}
+}
+
+func (keyboard *Keyboard) handleNormalMode(b byte) {
+	switch b {
+	case 'i':
+		// Switch to Insert Mode
+		artifact := data.New("Keyboard", "InsertMode", "", nil)
+		keyboard.queue.Publish("mode_change", artifact)
+		fmt.Print("\033[?25h") // Show cursor
+	case ':':
+		// Switch to Command Mode
+		artifact := data.New("Keyboard", "CommandMode", "", nil)
+		keyboard.queue.Publish("mode_change", artifact)
+		fmt.Print("\033[?25l") // Hide cursor
+	case 'q':
+		// Publish a quit event
+		artifact := data.New("app_event", "quit", "", nil)
+		keyboard.queue.Publish("app_event", artifact)
+	case 'h':
+		// Move left in normal mode
+		artifact := data.New("Keyboard", "MoveLeft", "", nil)
+		keyboard.queue.Publish("buffer", artifact)
+	case 'l':
+		// Move right in normal mode
+		artifact := data.New("Keyboard", "MoveRight", "", nil)
+		keyboard.queue.Publish("buffer", artifact)
+	case 'j':
+		// Move down in normal mode
+		artifact := data.New("Keyboard", "MoveDown", "", nil)
+		keyboard.queue.Publish("buffer", artifact)
+	case 'k':
+		// Move up in normal mode
+		artifact := data.New("Keyboard", "MoveUp", "", nil)
+		keyboard.queue.Publish("buffer", artifact)
+	case 'x':
+		// Publish a delete character event
+		artifact := data.New("Keyboard", "DeleteChar", "", nil)
+		keyboard.queue.Publish("buffer", artifact)
+	}
+}
+
+func (keyboard *Keyboard) handleInsertMode(b byte) {
+	switch b {
+	case 127: // Backspace key
+		artifact := data.New("Keyboard", "DeleteChar", "", nil)
+		keyboard.queue.Publish("buffer", artifact)
+	case 13: // Enter key
+		artifact := data.New("Keyboard", "Enter", "", nil)
+		keyboard.queue.Publish("buffer", artifact)
+	case 27: // Escape key to return to Normal Mode
+		artifact := data.New("Keyboard", "NormalMode", "", nil)
+		keyboard.queue.Publish("mode_change", artifact)
+		fmt.Print("\033[?25h") // Show cursor
+	default:
+		if b >= 32 && b <= 126 {
+			// Publish an insert character event
+			artifact := data.New("Keyboard", "InsertChar", "", []byte{b})
+			keyboard.queue.Publish("buffer", artifact)
+		}
+		// Ignore other keys (e.g., arrow keys)
+	}
+}
+
+// Example: handleCommandMode publishing to "command_event" topic
+func (keyboard *Keyboard) handleCommandMode(b byte) {
+	if b == 13 { // Enter key
+		command := keyboard.commandInputBuffer
+		keyboard.commandInputBuffer = "" // Reset the buffer
+
+		switch command {
+		case "q", "quit":
+			// Publish a quit event
+			artifact := data.New("app_event", "Quit", "quit", nil)
+			keyboard.queue.Publish("app_event", artifact)
+		// Add more commands here as needed
+		default:
+			errnie.Warn("Unknown command: %s", command)
+		}
+	} else if b == 27 { // Escape key to exit Command Mode
+		artifact := data.New("mode_event", "NormalMode", "exit_command_mode", nil)
+		keyboard.queue.Publish("mode_event", artifact)
+		fmt.Print("\033[?25h") // Show cursor
+	} else {
+		// Append character to command buffer
+		keyboard.commandInputBuffer += string(b)
+		// Optionally, update the command input display
+		artifact := data.New("Keyboard", "UpdateCommandInput", "", []byte(keyboard.commandInputBuffer))
+		keyboard.queue.Publish("command_input", artifact)
+	}
 }
 
 func (keyboard *Keyboard) ReadInput() {
@@ -128,64 +257,6 @@ func (keyboard *Keyboard) ReadInput() {
 	case *Command:
 		_ = mode
 		// Add Command mode handling if needed
-	}
-}
-
-func (keyboard *Keyboard) handleNormalMode(b byte) {
-	switch b {
-	case 'i':
-		// Publish an event to switch to Insert Mode
-		artifact := data.New("Keyboard", "InsertMode", "", nil)
-		keyboard.queue.Publish("mode_change", artifact)
-	case 'h':
-		// Move left in normal mode
-		artifact := data.New("Keyboard", "MoveLeft", "", nil)
-		keyboard.queue.Publish("buffer", artifact)
-	case 'l':
-		// Move right in normal mode
-		artifact := data.New("Keyboard", "MoveRight", "", nil)
-		keyboard.queue.Publish("buffer", artifact)
-	case 'j':
-		// Move down in normal mode
-		artifact := data.New("Keyboard", "MoveDown", "", nil)
-		keyboard.queue.Publish("buffer", artifact)
-	case 'k':
-		// Move up in normal mode
-		artifact := data.New("Keyboard", "MoveUp", "", nil)
-		keyboard.queue.Publish("buffer", artifact)
-	case ':':
-		// Publish an event to switch to Command Mode
-		artifact := data.New("Keyboard", "CommandMode", "", nil)
-		keyboard.queue.Publish("mode_change", artifact)
-	case 'q':
-		// Publish a quit event
-		artifact := data.New("Keyboard", "Quit", "", nil)
-		keyboard.queue.Publish("app", artifact)
-	case 'x':
-		// Publish a delete character event
-		artifact := data.New("Keyboard", "DeleteChar", "", nil)
-		keyboard.queue.Publish("buffer", artifact)
-	}
-}
-
-// handleInsertMode processes input in Insert Mode.
-func (keyboard *Keyboard) handleInsertMode(b byte) {
-	switch b {
-	case 127: // Backspace key
-		artifact := data.New("Keyboard", "Backspace", "", nil)
-		keyboard.queue.Publish("buffer", artifact)
-	case 13: // Enter key
-		artifact := data.New("Keyboard", "Enter", "", nil)
-		keyboard.queue.Publish("buffer", artifact)
-	case 27: // Escape key to return to Normal Mode
-		artifact := data.New("Keyboard", "NormalMode", "", nil)
-		keyboard.queue.Publish("mode_change", artifact)
-	default:
-		if b >= 32 && b <= 126 {
-			// Publish an insert character event
-			artifact := data.New("Keyboard", "InsertChar", "", []byte{b})
-			keyboard.queue.Publish("buffer", artifact)
-		}
 	}
 }
 

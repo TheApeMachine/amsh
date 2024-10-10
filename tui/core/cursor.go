@@ -1,5 +1,3 @@
-// tui/core/cursor.go
-
 package core
 
 import "fmt"
@@ -31,22 +29,19 @@ func (cursor *Cursor) Move(x, y int) {
 	}
 	cursor.X = x
 	cursor.Y = y
-	fmt.Printf("\033[%d;%dH", y, x)
-}
-
-func (cursor *Cursor) MoveForward(n int, maxX int) {
-	cursor.X += n
-	if cursor.X > maxX {
-		cursor.X = maxX
-	}
 	fmt.Printf("\033[%d;%dH", cursor.Y, cursor.X)
 }
 
-func (cursor *Cursor) MoveBackward(n int) {
+func (cursor *Cursor) MoveLeft(n int) {
 	cursor.X -= n
 	if cursor.X < 1 {
 		cursor.X = 1
 	}
+	fmt.Printf("\033[%d;%dH", cursor.Y, cursor.X)
+}
+
+func (cursor *Cursor) MoveRight(n int) {
+	cursor.X += n
 	fmt.Printf("\033[%d;%dH", cursor.Y, cursor.X)
 }
 

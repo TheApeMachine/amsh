@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 /*
@@ -17,6 +18,8 @@ able to benefit from high concurrency in all kinds of scenarios.
 type Pool struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
+	buffer     map[string]*data.Artifact
+	err        error
 	workerPool chan chan Job
 	jobQueue   chan Job
 	workers    []*Worker
@@ -32,12 +35,12 @@ context for cleanly canceling all of the sub-processes it starts.
 func NewPool(ctx context.Context, numWorkers int) *Pool {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
-
 	pr, pw := io.Pipe()
 
 	pool := &Pool{
 		ctx:        ctx,
 		cancel:     cancel,
+		buffer:     make(map[string]*data.Artifact),
 		workerPool: make(chan chan Job, numWorkers),
 		jobQueue:   make(chan Job),
 		workers:    make([]*Worker, 0, numWorkers),
@@ -54,6 +57,13 @@ func NewPool(ctx context.Context, numWorkers int) *Pool {
 	go pool.dispatch()
 
 	return pool
+}
+
+/*
+Error implements the error interface for the pool.
+*/
+func (pool *Pool) Error() string {
+	return errnie.Error(pool.err).Error()
 }
 
 /*
