@@ -1,16 +1,14 @@
 import Reveal from 'reveal.js';
-import '../lookingglass/lens';
-import '../agentviz/conversation';
-import '../timeline/3dtimeline';
+import '@/components/ui/layout';
+
 class SlidesComponent extends HTMLElement {
     private revealInstance: Reveal.Api | undefined;
+    private template: HTMLTemplateElement;
 
     constructor() {
         super();
-        this.attachShadow({ mode: 'open' });
-
-        const template = document.createElement('template');
-        template.innerHTML = `
+        this.template = document.createElement('template');
+        this.template.innerHTML = `
             <style>
                 :host {
                     display: flex;
@@ -75,22 +73,22 @@ class SlidesComponent extends HTMLElement {
             <div class="reveal">
                 <div class="slides">
                     <section>
-                        <nodegraph-editor></nodegraph-editor>
+                        <layout-component></layout-component>
                     </section>
                     <section>
-                        <conversation-visualizer></conversation-visualizer>
-                    </section>
-                    <section>
-                        <looking-glass-lens></looking-glass-lens>
+                        <h2>Slide 2</h2>
+                        <p>This is the second slide.</p>
                     </section>
                 </div>
             </div>
         `;
 
-        this.shadowRoot!.appendChild(template.content.cloneNode(true));
+        this.attachShadow({ mode: 'open' });
     }
 
     connectedCallback() {
+        this.shadowRoot!.appendChild(this.template.content.cloneNode(true));
+
         const revealElement = this.shadowRoot!.querySelector('.reveal');
         if (revealElement instanceof HTMLElement) {
             this.revealInstance = new Reveal(revealElement, {});
@@ -106,7 +104,7 @@ class SlidesComponent extends HTMLElement {
                 hash: true,
                 respondToHashChanges: true,
                 history: true,
-                keyboard: false,
+                keyboard: true,
                 keyboardCondition: null,
                 disableLayout: true,
                 overview: true,

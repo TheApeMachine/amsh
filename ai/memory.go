@@ -1,9 +1,6 @@
 package ai
 
-import (
-	"fmt"
-	"strings"
-)
+import "strings"
 
 type Memory struct {
 	ShortTerm []string
@@ -15,14 +12,14 @@ func NewMemory() *Memory {
 	}
 }
 
-func (m *Memory) ToString() string {
-	builder := strings.Builder{}
+func (m *Memory) String() string {
+	return strings.Join([]string{
+		"[CURRENT CONTEXT]",
+		strings.Join(m.ShortTerm, "\n\n"),
+		"[/CURRENT CONTEXT]",
+	}, "\n\n")
+}
 
-	builder.WriteString("[SHORT TERM MEMORY]\n")
-	for _, item := range m.ShortTerm {
-		builder.WriteString(fmt.Sprintf("  - %s\n", item))
-	}
-	builder.WriteString("[/SHORT TERM MEMORY]")
-
-	return builder.String()
+func (m *Memory) Add(item string) {
+	m.ShortTerm = append(m.ShortTerm, item)
 }

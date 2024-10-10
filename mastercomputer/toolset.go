@@ -40,6 +40,26 @@ func NewToolSet(ctx context.Context) *Toolset {
 					Type:     openai.ToolTypeFunction,
 					Function: NewLogicCircuit().Function,
 				},
+				openai.Tool{
+					Type:     openai.ToolTypeFunction,
+					Function: NewBrowser().Function,
+				},
+				openai.Tool{
+					Type:     openai.ToolTypeFunction,
+					Function: NewEnvironment().Function,
+				},
+			},
+			"research": {
+				openai.Tool{
+					Type:     openai.ToolTypeFunction,
+					Function: NewBrowser().Function,
+				},
+			},
+			"development": {
+				openai.Tool{
+					Type:     openai.ToolTypeFunction,
+					Function: NewEnvironment().Function,
+				},
 			},
 		},
 		Function: &openai.FunctionDefinition{
