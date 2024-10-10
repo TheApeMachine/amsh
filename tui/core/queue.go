@@ -1,3 +1,5 @@
+// File: core/queue.go
+
 package core
 
 import (
@@ -7,11 +9,7 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
-/*
-Queue is the method to send and receive messages between types.
-It uses a map to manage topic-based subscriptions and a mutex for thread safety.
-The message type is data.Artifact.
-*/
+// Queue is the method to send and receive messages between types.
 type Queue struct {
 	topicChans map[string][]chan *data.Artifact
 	mutex      sync.RWMutex
@@ -19,14 +17,16 @@ type Queue struct {
 
 // NewQueue initializes a new Queue.
 func NewQueue() *Queue {
+	errnie.Trace()
 	return &Queue{
 		topicChans: make(map[string][]chan *data.Artifact),
 	}
 }
 
 // Subscribe allows a subscriber to listen to a specific topic.
-// It returns a channel to receive artifacts related to the topic.
 func (q *Queue) Subscribe(topic string) <-chan *data.Artifact {
+	errnie.Trace()
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -37,6 +37,7 @@ func (q *Queue) Subscribe(topic string) <-chan *data.Artifact {
 
 // Unsubscribe removes a subscriber's channel from a specific topic.
 func (q *Queue) Unsubscribe(topic string, ch <-chan *data.Artifact) {
+	errnie.Trace()
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -62,10 +63,19 @@ func (q *Queue) Unsubscribe(topic string, ch <-chan *data.Artifact) {
 
 // Publish sends an artifact to all subscribers of the given topic.
 func (q *Queue) Publish(topic string, artifact *data.Artifact) {
+	errnie.Trace()
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, ch := range q.topicChans[topic] {
+	errnie.Raw(artifact)
+
+	subscribers, ok := q.topicChans[topic]
+	if !ok {
+		errnie.Warn("No subscribers for topic: %s", topic)
+		return
+	}
+
+	for _, ch := range subscribers {
 		select {
 		case ch <- artifact:
 		default:
@@ -77,6 +87,7 @@ func (q *Queue) Publish(topic string, artifact *data.Artifact) {
 
 // Close gracefully closes all subscriber channels.
 func (q *Queue) Close() {
+	errnie.Trace()
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

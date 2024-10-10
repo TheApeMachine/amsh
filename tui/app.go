@@ -1,36 +1,36 @@
+// File: tui/app.go
+
 package tui
 
 import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
-	"time"
 
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/core"
 	"golang.org/x/term"
 )
 
-/*
-App is the main application structure.
-*/
 type App struct {
 	width    int
 	height   int
 	oldState *term.State
 	context  *core.Context
 	running  bool
+	wg       *sync.WaitGroup
 }
 
 // New creates a new application.
 func New() *App {
-	return &App{}
+	return &App{
+		wg: &sync.WaitGroup{},
+	}
 }
 
-/*
-Initialize sets up the application.
-*/
+// Initialize sets up the application.
 func (app *App) Initialize() *App {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
@@ -45,7 +45,7 @@ func (app *App) Initialize() *App {
 
 	app.running = true
 
-	// Get terminal size
+	Render() // Get terminal size
 	app.width, app.height, _ = term.GetSize(int(os.Stdout.Fd()))
 	app.context = core.NewContext(
 		core.NewQueue(),
@@ -59,42 +59,31 @@ func (app *App) Initialize() *App {
 	return app
 }
 
-/*
-Run starts the main event loop.
-*/
+// Run starts the main event loop.
 func (app *App) Run() {
-	defer app.flipMode() // Ensure terminal is restored when exiting
-
-	// Start reading input
+	errnie.Trace()
+	app.wg.Add(1)
 	go app.readLoop()
-
-	// Keep the main goroutine alive until app is not running
-	for app.running {
-		time.Sleep(100 * time.Millisecond)
-	}
+	app.wg.Wait()
 }
 
-/*
-handleAppEvents listens for events on the 'app' topic.
-*/
+// handleAppEvents listens for events on the 'app_event' topic.
 func (app *App) handleAppEvents() {
+	errnie.Trace()
 	appSub := app.context.Queue.Subscribe("app_event")
 	for artifact := range appSub {
-		role, err := artifact.Role()
-		if err != nil {
-			errnie.Error(err)
-			continue
-		}
-		switch role {
-		case "quit":
+		switch artifact.Peek("scope") {
+		case "Quit":
 			app.cleanupAndExit()
 		default:
-			errnie.Warn("Unknown app event role: %s", role)
+			errnie.Warn("Unknown app event scope: %s", artifact.Peek("scope"))
 		}
 	}
 }
 
+// readLoop continuously reads input from the user.
 func (app *App) readLoop() {
+	errnie.Trace()
 	for app.running {
 		b := readByte()
 		if b != 0 {
@@ -103,22 +92,25 @@ func (app *App) readLoop() {
 	}
 }
 
-/*
-flipMode toggles the terminal between raw and cooked mode.
-*/
+// flipMode toggles the terminal between raw and cooked mode.
 func (app *App) flipMode() {
+	errnie.Trace()
 	var err error
 	if app.oldState == nil {
-		if app.oldState, err = term.MakeRaw(int(os.Stdin.Fd())); err != nil {
-			fmt.Println("Error entering raw mode:", err)
+		if app.oldState, err = term.GetState(int(os.Stdin.Fd())); err != nil {
+			fmt.Println("Error getting terminal state:", err)
 			os.Exit(1)
 		}
-		// Ensure echo is disabled
-		newState := *app.oldState
-		term.Restore(int(os.Stdin.Fd()), &newState)
 
-		// Hide cursor in raw mode if desired
-		fmt.Print("\033[?25l") // Hide cursor
+		// Make a copy of the old state to modify
+		rawState := *app.oldState
+
+		// Apply the raw mode attributes
+		if err = term.Restore(int(os.Stdin.Fd()), &rawState); err != nil {
+			fmt.Println("Error setting raw mode:", err)
+			os.Exit(1)
+		}
+
 		return
 	}
 
@@ -129,26 +121,25 @@ func (app *App) flipMode() {
 	fmt.Println("\nTerminal restored")
 }
 
-/*
-cleanupAndExit gracefully exits the application.
-*/
+// cleanupAndExit gracefully exits the application.
 func (app *App) cleanupAndExit() {
+	errnie.Trace()
 	app.running = false
 	app.flipMode()
 	fmt.Println("Exiting...")
-	os.Exit(0)
+	app.wg.Done()
 }
 
-/*
-clearScreen clears the terminal screen using ANSI escape codes.
-*/
+// clearScreen clears the terminal screen using ANSI escape codes.
 func (app *App) clearScreen() {
+	errnie.Trace()
 	fmt.Print("\033[H\033[2J")
 	os.Stdout.Sync() // Flush output
 }
 
 // readByte reads a single byte from standard input.
 func readByte() byte {
+	errnie.Trace()
 	var buf [1]byte
 	n, err := os.Stdin.Read(buf[:])
 	if err != nil {

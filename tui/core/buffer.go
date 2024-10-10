@@ -1,3 +1,5 @@
+// File: core/buffer.go
+
 package core
 
 import (
@@ -5,22 +7,20 @@ import (
 	"os"
 	"sync"
 
-	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 )
 
 type Buffer struct {
-	mode      Mode
-	Data      [][]rune
-	Cursor    *Cursor
-	height    int
-	Filename  string
-	StatusMsg string
-	queue     *Queue
-	mutex     sync.RWMutex // Mutex to synchronize buffer access
+	Data     [][]rune
+	Cursor   *Cursor
+	height   int
+	Filename string
+	queue    *Queue
+	mutex    sync.RWMutex // Mutex to synchronize buffer access
 }
 
 func NewBuffer(height int, cursor *Cursor, queue *Queue) *Buffer {
+	errnie.Trace()
 	buffer := &Buffer{
 		Data:   [][]rune{{}}, // Initialize with one empty line
 		Cursor: cursor,
@@ -35,16 +35,17 @@ func NewBuffer(height int, cursor *Cursor, queue *Queue) *Buffer {
 	return buffer
 }
 
-// run listens to 'buffer' topic and handles events
+// run listens to 'buffer_event' topic and handles events
 func (buffer *Buffer) run() {
-	bufferSub := buffer.queue.Subscribe("buffer")
+	errnie.Trace()
+	bufferSub := buffer.queue.Subscribe("buffer_event")
 	for artifact := range bufferSub {
-		role, err := artifact.Role()
+		scope, err := artifact.Scope()
 		if err != nil {
 			errnie.Error(err)
 			continue
 		}
-		switch role {
+		switch scope {
 		case "InsertChar":
 			payload, _ := artifact.Payload()
 			if len(payload) > 0 {
@@ -52,18 +53,17 @@ func (buffer *Buffer) run() {
 			}
 		case "DeleteChar":
 			buffer.DeleteRune()
-		case "Backspace":
-			buffer.DeleteRune()
 		case "Enter":
 			buffer.InsertRune('\n')
 		default:
-			errnie.Warn("Unknown buffer event role: %s", role)
+			errnie.Warn("Unknown buffer event scope: %s", scope)
 		}
 	}
 }
 
 // InsertRune inserts a rune at the current cursor position
 func (buffer *Buffer) InsertRune(r rune) {
+	errnie.Trace()
 	buffer.mutex.Lock()
 	defer buffer.mutex.Unlock()
 
@@ -110,6 +110,7 @@ func (buffer *Buffer) InsertRune(r rune) {
 
 // DeleteRune deletes a rune before the current cursor position
 func (buffer *Buffer) DeleteRune() {
+	errnie.Trace()
 	buffer.mutex.Lock()
 	defer buffer.mutex.Unlock()
 
@@ -150,6 +151,7 @@ func (buffer *Buffer) DeleteRune() {
 }
 
 func (buffer *Buffer) Render() {
+	errnie.Trace()
 	buffer.mutex.RLock()
 	defer buffer.mutex.RUnlock()
 
@@ -174,51 +176,9 @@ func (buffer *Buffer) Render() {
 	buffer.flushStdout()
 }
 
-// Method to publish buffer events using Artifact
-func (buffer *Buffer) publishBufferEvent(eventType string, content string) {
-	artifact := data.New("buffer_event", eventType, content, nil)
-	buffer.queue.Publish("buffer_event", artifact)
-}
-
-func (buffer *Buffer) renderLineFromCol(lineIdx int, colIdx int) {
-	buffer.mutex.RLock()
-	defer buffer.mutex.RUnlock()
-
-	if lineIdx >= len(buffer.Data) {
-		return
-	}
-	line := buffer.Data[lineIdx]
-	fmt.Printf("\033[%d;%dH", lineIdx+1, colIdx+1)
-	fmt.Print("\033[K") // Clear from cursor to end of line
-	if colIdx < len(line) {
-		fmt.Print(string(line[colIdx:]))
-	}
-	// Move cursor back to position after the change
-	buffer.Cursor.Move(colIdx+1, lineIdx+1)
-	buffer.flushStdout()
-
-	// Publish an event for rendering a line
-	buffer.publishBufferEvent("render_line", fmt.Sprintf("Rendered line %d from column %d", lineIdx+1, colIdx+1))
-}
-
-func (buffer *Buffer) renderFromLine(startLine int) {
-	buffer.mutex.RLock()
-	defer buffer.mutex.RUnlock()
-
-	for i := startLine; i < len(buffer.Data) && i < buffer.height-1; i++ {
-		fmt.Printf("\033[%d;1H", i+1)
-		fmt.Print("\033[K") // Clear the line
-		fmt.Print(string(buffer.Data[i]))
-	}
-	// Move cursor back to current position
-	buffer.Cursor.Move(buffer.Cursor.X, buffer.Cursor.Y)
-	buffer.flushStdout()
-
-	// Publish an event for rendering from a specific line
-	buffer.publishBufferEvent("render_from_line", fmt.Sprintf("Rendered from line %d", startLine+1))
-}
-
+// ShowStatus displays a status message at the bottom of the buffer
 func (buffer *Buffer) ShowStatus(message string) {
+	errnie.Trace()
 	// Save current cursor position
 	fmt.Print("\033[s")
 	// Move cursor to status line and display message
@@ -229,36 +189,11 @@ func (buffer *Buffer) ShowStatus(message string) {
 }
 
 func (buffer *Buffer) getStatusMessage() string {
+	errnie.Trace()
 	return fmt.Sprintf("Buffer: %s", buffer.Filename)
 }
 
 func (buffer *Buffer) flushStdout() {
+	errnie.Trace()
 	os.Stdout.Sync()
-}
-
-// Update updates the content of the buffer at a specific line and column.
-func (buffer *Buffer) Update(line, col int, content []rune) {
-	buffer.mutex.Lock()
-	defer buffer.mutex.Unlock()
-
-	if line < 0 || line >= len(buffer.Data) {
-		fmt.Println("Line index out of range")
-		return
-	}
-
-	if col < 0 || col > len(buffer.Data[line]) {
-		fmt.Println("Column index out of range")
-		return
-	}
-
-	// Insert the content at the specified position.
-	lineData := buffer.Data[line]
-	newLine := append(lineData[:col], append(content, lineData[col:]...)...)
-	buffer.Data[line] = newLine
-
-	buffer.renderFromLine(line) // Re-render the buffer from the modified line
-
-	// Publish an event to the queue indicating that the buffer has been updated.
-	artifact := data.New("buffer_event", "buffer_update", fmt.Sprintf("Buffer updated at line %d, col %d", line+1, col+1), nil)
-	buffer.queue.Publish("buffer_event", artifact)
 }

@@ -1,4 +1,8 @@
+// File: core/context.go
+
 package core
+
+import "github.com/theapemachine/amsh/errnie"
 
 type Context struct {
 	Queue    *Queue
@@ -9,7 +13,9 @@ type Context struct {
 	Width    int
 }
 
+// NewContext initializes the application context.
 func NewContext(queue *Queue, width, height int) *Context {
+	errnie.Trace()
 	context := &Context{
 		Queue:  queue,
 		Width:  width,
@@ -33,11 +39,18 @@ func NewContext(queue *Queue, width, height int) *Context {
 	return context
 }
 
-// SetMode sets the current mode and ensures all components are updated
+// SetMode sets the current mode and ensures all components are updated.
 func (ctx *Context) SetMode(mode Mode) {
+	errnie.Trace()
 	if ctx.Keyboard.mode != nil {
 		ctx.Keyboard.mode.Exit()
 	}
 	ctx.Keyboard.mode = mode
 	mode.Enter(ctx)
+}
+
+// Run can be used to trigger rendering or other periodic tasks.
+func (ctx *Context) Run() {
+	errnie.Trace()
+	// Currently unused since rendering is event-driven.
 }

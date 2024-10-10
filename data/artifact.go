@@ -64,6 +64,8 @@ func (artifact *Artifact) Poke(key string, value string) {
 		err = artifact.SetRole(value)
 	case "scope":
 		err = artifact.SetScope(value)
+	case "payload":
+		err = artifact.SetPayload([]byte(value))
 	default:
 		// If the key is not a top-level field, add it as an attribute.
 		err = artifact.addAttribute(key, value)
@@ -79,6 +81,7 @@ and falling back to searching the attribute list.
 func (artifact *Artifact) Peek(key string) string {
 	var (
 		value string
+		data  []byte
 		err   error
 	)
 
@@ -96,6 +99,9 @@ func (artifact *Artifact) Peek(key string) string {
 		value, err = artifact.Role()
 	case "scope":
 		value, err = artifact.Scope()
+	case "payload":
+		data, err = artifact.Payload()
+		value = string(data)
 	default:
 		// If the key is not a top-level field, look in the attributes list.
 		value, err = artifact.getAttributeValue(key)
