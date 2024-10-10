@@ -24,8 +24,20 @@ func NewCompletion(ctx context.Context) *Completion {
 	}
 }
 
-func (completion *Completion) Execute(system, user, toolset string, format format.Response) openai.ChatCompletionResponse {
+func (completion *Completion) Execute(system, user, toolset string, format *format.Response) openai.ChatCompletionResponse {
 	errnie.Trace()
+
+	var schema *openai.ChatCompletionResponseFormat
+
+	if format != nil {
+		schema = &openai.ChatCompletionResponseFormat{
+			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
+			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
+				Name:   format.Name,
+				Schema: format.Schema(),
+			},
+		}
+	}
 
 	if completion.response, completion.err = completion.conn.Request(completion.ctx, openai.ChatCompletionRequest{
 		Model: openai.GPT4oMini,
@@ -39,14 +51,8 @@ func (completion *Completion) Execute(system, user, toolset string, format forma
 				Content: user,
 			},
 		},
-		Tools: NewToolSet(completion.ctx).Tools(toolset),
-		ResponseFormat: &openai.ChatCompletionResponseFormat{
-			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-				Name:   format.Name(),
-				Schema: format.Schema(),
-			},
-		},
+		Tools:          NewToolSet(completion.ctx).Tools(toolset),
+		ResponseFormat: schema,
 	}); errnie.Error(completion.err) != nil {
 		fmt.Println("Error initializing stream:", completion.err)
 		return openai.ChatCompletionResponse{}

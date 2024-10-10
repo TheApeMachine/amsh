@@ -4,11 +4,11 @@ import { html } from "@/lib/template"
 import { match } from "@/lib/match"
 import { switchLayer } from "@/lib/layer"
 import { gsap } from "gsap"
-import "../components/layers/manager"
-import "../components/dashboard/editor"
-import "../components/slides/component"
-import "../components/datatable/table"
-import "../components/nodegraph/editor"
+import "@/components/layers/manager"
+import "@/components/dashboard/editor"
+import "@/components/slides/component"
+import "@/components/datatable/table"
+import "@/components/nodegraph/editor"
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
@@ -53,9 +53,7 @@ export const effect = async () => {
 
 export const render = async () => {
 
-    return Transition(match(await loader({
-        users: {url: "https://fakestoreapi.com/products", method: "GET", params: {active: true}}
-    }), {
+    return Transition(match(await loader({}), {
         loading: () => {
             return html`<div>Loading...</div>`
         },

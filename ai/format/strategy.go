@@ -1,71 +1,45 @@
 package format
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
 	"github.com/theapemachine/amsh/errnie"
 )
 
-type Strategy string
-
-const (
-	StrategyChainOfThought  Strategy = "chain_of_thought"
-	StrategyTreeOfThought   Strategy = "tree_of_thought"
-	StrategyFirstPrinciples Strategy = "first_principles"
-)
-
 type ReasoningStrategy struct {
-	Label      string                 `json:"name"`
-	Definition *jsonschema.Definition `json:"schema"`
-	Template   struct {
-		Steps []struct {
-			Thought   string `json:"thought"`
-			Reasoning string `json:"reasoning"`
-			Strategy  string `json:"strategy"`
-		} `json:"steps"`
-		OrderedStrategies []string `json:"ordered_strategies"`
-	}
+	Steps []struct {
+		Thought       string `json:"thought"`
+		Strategy      string `json:"strategy"`
+		Clarification string `json:"clarification"`
+	} `json:"steps"`
+	OrderedStrategies []string `json:"ordered_strategies"`
 }
 
 func NewReasoningStrategy() *ReasoningStrategy {
 	errnie.Trace()
-
-	definition, err := jsonschema.GenerateSchemaForType(
-		ReasoningStrategy{}.Template,
-	)
-
-	if errnie.Error(err) != nil {
-		return nil
-	}
-
-	return &ReasoningStrategy{
-		Label:      "reasoning_strategy",
-		Definition: definition,
-	}
+	return &ReasoningStrategy{}
 }
 
-func (format *ReasoningStrategy) Name() string {
-	errnie.Trace()
-	return format.Label
+func (strategy *ReasoningStrategy) FinalAnswer() string {
+	return strings.Join(strategy.OrderedStrategies, ",")
 }
 
-func (format *ReasoningStrategy) Schema() *jsonschema.Definition {
-	errnie.Trace()
-	return format.Definition
+func (strategy *ReasoningStrategy) Schema() (*jsonschema.Definition, error) {
+	return jsonschema.GenerateSchemaForType(strategy)
 }
 
-func (format *ReasoningStrategy) ToString() string {
-	builder := strings.Builder{}
-	builder.WriteString("[REASONING STRATEGY]\n")
-	for _, step := range format.Template.Steps { // Changed 'Strategies' to 'Steps'
-		builder.WriteString("  [STEP]")
-		builder.WriteString(fmt.Sprintf("      Thought: %s\n", step.Thought))
-		builder.WriteString(fmt.Sprintf("    Reasoning: %s\n", step.Reasoning))
-		builder.WriteString(fmt.Sprintf("     Strategy: %s\n", step.Strategy))
-		builder.WriteString("  [STEP]")
+func (strategy *ReasoningStrategy) ToString() string {
+	out := []string{}
+	out = append(out, dark("  [REASONING STRATEGY]"))
+	for _, step := range strategy.Steps {
+		out = append(out, muted("    [STEP]"))
+		out = append(out, red("            Thought: ")+highlight(step.Thought))
+		out = append(out, yellow("           Strategy: ")+highlight(step.Strategy))
+		out = append(out, green("      Clarification: ")+highlight(step.Clarification))
+		out = append(out, muted("    [/STEP]"))
 	}
-	builder.WriteString("[/REASONING STRATEGY]")
-	return builder.String()
+	out = append(out, blue("    OrderedStrategies: ")+highlight(strings.Join(strategy.OrderedStrategies, ", ")))
+	out = append(out, dark("  [/REASONING STRATEGY]"))
+	return strings.Join(out, "\n")
 }

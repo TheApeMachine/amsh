@@ -1,7 +1,6 @@
 package format
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
@@ -9,77 +8,60 @@ import (
 )
 
 type TreeOfThought struct {
-	Label      string                 `json:"name"`
-	Definition *jsonschema.Definition `json:"schema"`
-	Template   struct {
-		RootThought string `json:"root_thought"`
-		Branches    []struct {
-			Thought   string `json:"thought"`
-			Reasoning string `json:"reasoning"`
-			Branches  []struct {
-				SubThought   string `json:"sub_thought"`
-				Reasoning    string `json:"reasoning"`
-				Outcome      string `json:"outcome"`
-				NextBranches []struct {
-					SubThought string `json:"sub_thought"`
-					Reasoning  string `json:"reasoning"`
-					Outcome    string `json:"outcome"`
-				}
+	RootThought string `json:"root_thought"`
+	Branches    []struct {
+		Thought   string `json:"thought"`
+		Reasoning string `json:"reasoning"`
+		Branches  []struct {
+			SubThought   string `json:"sub_thought"`
+			Reasoning    string `json:"reasoning"`
+			Outcome      string `json:"outcome"`
+			NextBranches []struct {
+				SubThought string `json:"sub_thought"`
+				Reasoning  string `json:"reasoning"`
+				Outcome    string `json:"outcome"`
 			}
 		}
-		FinalConclusion string `json:"final_conclusion"`
 	}
+	FinalConclusion string `json:"final_conclusion"`
 }
 
 func NewTreeOfThought() *TreeOfThought {
 	errnie.Trace()
-
-	definition, err := jsonschema.GenerateSchemaForType(
-		TreeOfThought{}.Template,
-	)
-
-	if errnie.Error(err) != nil {
-		return nil
-	}
-
-	return &TreeOfThought{
-		Label:      "tree_of_thought",
-		Definition: definition,
-	}
+	return &TreeOfThought{}
 }
 
-func (format *TreeOfThought) Name() string {
+func (tot *TreeOfThought) FinalAnswer() string {
+	return tot.FinalConclusion
+}
+
+func (tot *TreeOfThought) Schema() (*jsonschema.Definition, error) {
 	errnie.Trace()
-	return format.Label
+	return jsonschema.GenerateSchemaForType(tot)
 }
 
-func (format *TreeOfThought) Schema() *jsonschema.Definition {
-	errnie.Trace()
-	return format.Definition
-}
-
-func (tree TreeOfThought) ToString() string {
-	builder := strings.Builder{}
-	builder.WriteString("[TREE OF THOUGHT]\n")
-	builder.WriteString(fmt.Sprintf("  Root Thought: %s\n", tree.Template.RootThought))
+func (tot *TreeOfThought) ToString() string {
+	out := []string{}
+	out = append(out, dark("  [TREE OF THOUGHT]"))
+	out = append(out, red("    Root Thought: ")+highlight(tot.RootThought))
 
 	// Follow all branches.
-	for _, branch := range tree.Template.Branches {
-		builder.WriteString(fmt.Sprintf("    Thought: %s\n", branch.Thought))
-		builder.WriteString(fmt.Sprintf("    Reasoning: %s\n", branch.Reasoning))
+	for _, branch := range tot.Branches {
+		out = append(out, yellow("    Thought: ")+highlight(branch.Thought))
+		out = append(out, green("    Reasoning: ")+highlight(branch.Reasoning))
 		for _, subBranch := range branch.Branches {
-			builder.WriteString(fmt.Sprintf("      Sub Thought: %s\n", subBranch.SubThought))
-			builder.WriteString(fmt.Sprintf("        Reasoning: %s\n", subBranch.Reasoning))
-			builder.WriteString(fmt.Sprintf("          Outcome: %s\n", subBranch.Outcome))
+			out = append(out, red("      Sub Thought: ")+highlight(subBranch.SubThought))
+			out = append(out, yellow("      Reasoning: ")+highlight(subBranch.Reasoning))
+			out = append(out, green("      Outcome: ")+highlight(subBranch.Outcome))
 			for _, nextBranch := range subBranch.NextBranches {
-				builder.WriteString(fmt.Sprintf("        Sub Thought: %s\n", nextBranch.SubThought))
-				builder.WriteString(fmt.Sprintf("          Reasoning: %s\n", nextBranch.Reasoning))
-				builder.WriteString(fmt.Sprintf("            Outcome: %s\n", nextBranch.Outcome))
+				out = append(out, red("      Sub Thought: ")+highlight(nextBranch.SubThought))
+				out = append(out, yellow("      Reasoning: ")+highlight(nextBranch.Reasoning))
+				out = append(out, green("      Outcome: ")+highlight(nextBranch.Outcome))
 			}
 		}
 	}
 
-	builder.WriteString(fmt.Sprintf("  Final Conclusion: %s\n", tree.Template.FinalConclusion))
-	builder.WriteString("[/TREE OF THOUGHT]")
-	return builder.String()
+	out = append(out, blue("    Final Conclusion: ")+highlight(tot.FinalConclusion))
+	out = append(out, dark("  [/TREE OF THOUGHT]"))
+	return strings.Join(out, "\n")
 }

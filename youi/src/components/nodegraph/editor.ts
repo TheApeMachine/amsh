@@ -4,7 +4,7 @@ import edgehandles from 'cytoscape-edgehandles';
 cytoscape.use(edgehandles);
 
 class NodegraphEditor extends HTMLElement {
-    private cy: cytoscape.Core = null;
+    private cy: cytoscape.Core | null = null;
     private template: HTMLTemplateElement;
 
 
@@ -170,7 +170,6 @@ class NodegraphEditor extends HTMLElement {
 
         this.cy.on('tap', 'node', function () {
             var nodes = this;
-            var tapped = nodes;
             var food = [];
 
             nodes.addClass('eater');
@@ -217,12 +216,13 @@ class NodegraphEditor extends HTMLElement {
 
                     delay += duration;
                 })();
-            } // for
-
-        }); // on tap
+            }
+        });
     }
 
     private setupEventListeners() {
+        if (!this.cy) return;
+        
         this.shadowRoot?.querySelector('#addCompound')?.addEventListener('click', () => this.addNode('compound'));
         this.shadowRoot?.querySelector('#addController')?.addEventListener('click', () => this.addNode('controller'));
         this.shadowRoot?.querySelector('#addWorker')?.addEventListener('click', () => this.addNode('worker'));
@@ -235,6 +235,8 @@ class NodegraphEditor extends HTMLElement {
     }
 
     private addNode(type: string) {
+        if (!this.cy) return;
+
         const id = `${type}${this.cy.nodes().length + 1}`;
         const node = this.cy.add({ data: { id }, classes: type });
 
@@ -249,6 +251,8 @@ class NodegraphEditor extends HTMLElement {
     }
 
     private addPortsToCompound(compound) {
+        if (!this.cy) return;
+
         const inputPort = this.cy.add({
             data: { id: `${compound.id()}-input`, parent: compound.id(), type: 'port' },
             position: { x: compound.position('x') - 10, y: compound.position('y') }
@@ -264,6 +268,8 @@ class NodegraphEditor extends HTMLElement {
     }
 
     private addPortVisual(portNode, position) {
+        if (!this.cy) return;
+
         const popper = portNode.popper({
             content: () => {
                 const div = document.createElement('div');
@@ -288,6 +294,8 @@ class NodegraphEditor extends HTMLElement {
     }
 
     private centerOnNode(node) {
+        if (!this.cy) return;
+        
         const neighborhood = node.neighborhood().add(node);
         this.cy.animate({
             fit: {
@@ -300,6 +308,8 @@ class NodegraphEditor extends HTMLElement {
     }
 
     public updateGraph(networkData: { nodes: any[], edges: any[] }) {
+        if (!this.cy) return;
+        
         this.cy.elements().remove();
         this.cy.add(networkData.nodes);
         this.cy.add(networkData.edges);

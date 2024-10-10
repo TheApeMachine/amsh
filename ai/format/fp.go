@@ -1,7 +1,6 @@
 package format
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
@@ -9,54 +8,36 @@ import (
 )
 
 type FirstPrinciplesReasoning struct {
-	Label      string                 `json:"name"`
-	Definition *jsonschema.Definition `json:"schema"`
-	Template   struct {
-		Principle string `json:"principle"`
-		Breakdown []struct {
-			KeyConcept  string `json:"key_concept"`
-			Explanation string `json:"explanation"`
-		}
-		DerivedSolution string `json:"derived_solution"`
+	Principle string `json:"principle"`
+	Breakdown []struct {
+		KeyConcept  string `json:"key_concept"`
+		Explanation string `json:"explanation"`
 	}
+	DerivedSolution string `json:"derived_solution"`
 }
 
 func NewFirstPrinciplesReasoning() *FirstPrinciplesReasoning {
 	errnie.Trace()
-
-	definition, err := jsonschema.GenerateSchemaForType(
-		FirstPrinciplesReasoning{}.Template,
-	)
-
-	if errnie.Error(err) != nil {
-		return nil
-	}
-
-	return &FirstPrinciplesReasoning{
-		Label:      "first_principles_reasoning",
-		Definition: definition,
-	}
+	return &FirstPrinciplesReasoning{}
 }
 
-func (format *FirstPrinciplesReasoning) Name() string {
-	errnie.Trace()
-	return format.Label
+func (firstPrinciples *FirstPrinciplesReasoning) FinalAnswer() string {
+	return firstPrinciples.DerivedSolution
 }
 
-func (format *FirstPrinciplesReasoning) Schema() *jsonschema.Definition {
-	errnie.Trace()
-	return format.Definition
+func (firstPrinciples *FirstPrinciplesReasoning) Schema() (*jsonschema.Definition, error) {
+	return jsonschema.GenerateSchemaForType(firstPrinciples)
 }
 
-func (firstPrinciples FirstPrinciplesReasoning) ToString() string {
-	builder := strings.Builder{}
-	builder.WriteString("[FIRST PRINCIPLES REASONING]\n")
-	builder.WriteString(fmt.Sprintf("  Principle: %s\n", firstPrinciples.Template.Principle))
-	for _, breakdown := range firstPrinciples.Template.Breakdown {
-		builder.WriteString(fmt.Sprintf("    Key Concept: %s\n", breakdown.KeyConcept))
-		builder.WriteString(fmt.Sprintf("    Explanation: %s\n", breakdown.Explanation))
+func (firstPrinciples *FirstPrinciplesReasoning) ToString() string {
+	out := []string{}
+	out = append(out, dark("  [FIRST PRINCIPLES REASONING]"))
+	out = append(out, red("    Principle: ")+highlight(firstPrinciples.Principle))
+	for _, breakdown := range firstPrinciples.Breakdown {
+		out = append(out, yellow("      Key Concept: ")+highlight(breakdown.KeyConcept))
+		out = append(out, green("      Explanation: ")+highlight(breakdown.Explanation))
 	}
-	builder.WriteString(fmt.Sprintf("  Derived Solution: %s\n", firstPrinciples.Template.DerivedSolution))
-	builder.WriteString("[/FIRST PRINCIPLES REASONING]")
-	return builder.String()
+	out = append(out, blue("    Derived Solution: ")+highlight(firstPrinciples.DerivedSolution))
+	out = append(out, dark("  [/FIRST PRINCIPLES REASONING]"))
+	return strings.Join(out, "\n")
 }

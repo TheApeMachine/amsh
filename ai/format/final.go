@@ -1,7 +1,6 @@
 package format
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/sashabaranov/go-openai/jsonschema"
@@ -9,54 +8,39 @@ import (
 )
 
 type Final struct {
-	Label      string                 `json:"name"`
-	Definition *jsonschema.Definition `json:"schema"`
-	Template   struct {
-		Verify []struct {
-			Thought      string `json:"thought"`
-			Reasoning    string `json:"reasoning"`
-			Verification string `json:"verification"`
-		}
-		FinalAnswer string `json:"final_answer"`
+	Verify []struct {
+		Thought      string `json:"thought"`
+		Reasoning    string `json:"reasoning"`
+		Verification string `json:"verification"`
 	}
+	FinalConclusion string `json:"final_conclusion"`
 }
 
 func NewFinal() *Final {
 	errnie.Trace()
 
-	definition, err := jsonschema.GenerateSchemaForType(
-		ChainOfThought{}.Template,
-	)
-
-	if errnie.Error(err) != nil {
-		return nil
-	}
-
-	return &Final{
-		Label:      "strategy",
-		Definition: definition,
-	}
+	return &Final{}
 }
 
-func (format *Final) Name() string {
-	errnie.Trace()
-	return format.Label
+func (final *Final) FinalAnswer() string {
+	return final.FinalConclusion
 }
 
-func (format *Final) Schema() *jsonschema.Definition {
-	errnie.Trace()
-	return format.Definition
+func (final *Final) Schema() (*jsonschema.Definition, error) {
+	return jsonschema.GenerateSchemaForType(final)
 }
 
 func (format *Final) ToString() string {
-	builder := strings.Builder{}
-	builder.WriteString("[FINAL]\n")
-	for _, step := range format.Template.Verify {
-		builder.WriteString(fmt.Sprintf("       Thought: %s\n", step.Thought))
-		builder.WriteString(fmt.Sprintf("     Reasoning: %s\n", step.Reasoning))
-		builder.WriteString(fmt.Sprintf("  Verification: %s\n", step.Verification))
+	out := []string{}
+	out = append(out, dark("  [FINAL CONCLUSION]"))
+	for _, step := range format.Verify {
+		out = append(out, muted("    [VERIFICATION]"))
+		out = append(out, red("      Thought: ")+highlight(step.Thought))
+		out = append(out, yellow("      Reasoning: ")+highlight(step.Reasoning))
+		out = append(out, green("      Verification: ")+highlight(step.Verification))
+		out = append(out, muted("    [/VERIFICATION]"))
 	}
-	builder.WriteString(fmt.Sprintf("  Final Answer: %s\n", format.Template.FinalAnswer))
-	builder.WriteString("[/FINAL]")
-	return builder.String()
+	out = append(out, blue("    Final Conclusion: ")+highlight(format.FinalConclusion))
+	out = append(out, dark("  [/FINAL CONCLUSION]"))
+	return strings.Join(out, "\n")
 }
