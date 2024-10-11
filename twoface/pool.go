@@ -2,56 +2,45 @@ package twoface
 
 import (
 	"context"
-	"io"
 	"sync"
-
-	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/errnie"
 )
 
-/*
-Pool is a set of Worker types, each running their own (pre-warmed) goroutine.
-Any object that implements the Job interface is able to schedule work on the
-worker pool, which keeps the amount of goroutines in check, while still being
-able to benefit from high concurrency in all kinds of scenarios.
-*/
+var (
+	globalPool *Pool
+	once       sync.Once
+)
+
+func SetGlobalPool(pool *Pool) {
+	once.Do(func() {
+		globalPool = pool
+	})
+}
+
+func GetGlobalPool() *Pool {
+	return globalPool
+}
+
 type Pool struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
-	buffer     map[string]*data.Artifact
-	err        error
-	workerPool chan chan Job
-	jobQueue   chan Job
+	JobQueue   chan Job
+	WorkerPool chan chan Job
 	workers    []*Worker
-	wg         *sync.WaitGroup
-	pr         *io.PipeReader
-	pw         *io.PipeWriter
+	mu         sync.Mutex
 }
 
-/*
-NewPool instantiates a worker pool with a given number of workers, taking in a
-context for cleanly canceling all of the sub-processes it starts.
-*/
-func NewPool(ctx context.Context, numWorkers int) *Pool {
+func NewPool(ctx context.Context, initialWorkers int) *Pool {
 	ctx, cancel := context.WithCancel(ctx)
-	wg := &sync.WaitGroup{}
-	pr, pw := io.Pipe()
-
 	pool := &Pool{
 		ctx:        ctx,
 		cancel:     cancel,
-		buffer:     make(map[string]*data.Artifact),
-		workerPool: make(chan chan Job, numWorkers),
-		jobQueue:   make(chan Job),
-		workers:    make([]*Worker, 0, numWorkers),
-		wg:         wg,
-		pr:         pr,
-		pw:         pw,
+		JobQueue:   make(chan Job),
+		WorkerPool: make(chan chan Job),
+		workers:    make([]*Worker, 0),
 	}
 
-	for i := 0; i < numWorkers; i++ {
-		worker := NewWorker(i, pool.workerPool, ctx)
-		pool.workers = append(pool.workers, worker)
+	for i := 0; i < initialWorkers; i++ {
+		pool.addWorker()
 	}
 
 	go pool.dispatch()
@@ -59,69 +48,58 @@ func NewPool(ctx context.Context, numWorkers int) *Pool {
 	return pool
 }
 
-/*
-Error implements the error interface for the pool.
-*/
-func (pool *Pool) Error() string {
-	return errnie.Error(pool.err).Error()
+func (p *Pool) addWorker() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	worker := NewWorker(len(p.workers), p.WorkerPool)
+	worker.Start()
+	p.workers = append(p.workers, worker)
 }
 
-/*
-Size returns the current size of the pool by counting the currently active workers.
-*/
-func (pool *Pool) Size() int {
-	return len(pool.workers)
-}
+func (p *Pool) removeWorker() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-/*
-Read is the entry point for new jobs that want to be scheduled onto the worker pool.
-*/
-func (pool *Pool) Read(p []byte) (n int, err error) {
-	return 0, nil
-}
-
-/*
-Write is the entry point for new jobs that want to be scheduled onto the worker pool.
-*/
-func (pool *Pool) Write(p []byte) (n int, err error) {
-	artifact := data.Empty
-
-	if n, err = artifact.Write(p); err != nil {
-		return 0, err
+	if len(p.workers) == 0 {
+		return
 	}
 
-	pool.wg.Add(1)
-	pool.jobQueue <- artifact
-
-	return
+	worker := p.workers[len(p.workers)-1]
+	worker.Stop()
+	p.workers = p.workers[:len(p.workers)-1]
 }
 
-/*
-Shutdown gracefully shuts down the pool and waits for all workers to complete.
-*/
-func (pool *Pool) Close() (err error) {
-	pool.cancel()
-	pool.wg.Wait()
-	close(pool.jobQueue)
-	close(pool.workerPool)
-
-	for _, worker := range pool.workers {
-		worker.Close()
-	}
-
-	return
-}
-
-func (pool *Pool) dispatch() {
+func (p *Pool) dispatch() {
 	for {
 		select {
-		case job := <-pool.jobQueue:
-			// A new job was received from the jobs queue, get the first available worker from the pool once ready.
-			jobChannel := <-pool.workerPool
-			// Send the job to the worker for processing.
-			jobChannel <- job
-		case <-pool.ctx.Done():
+		case job := <-p.JobQueue:
+			go func(job Job) {
+				// Obtain an available worker's job channel.
+				jobChannel := <-p.WorkerPool
+				// Send the job to the worker.
+				jobChannel <- job
+			}(job)
+		case <-p.ctx.Done():
 			return
 		}
 	}
+}
+
+func (p *Pool) Submit(job Job) {
+	select {
+	case p.JobQueue <- job:
+	case <-p.ctx.Done():
+		// Pool is shutting down.
+	}
+}
+
+func (p *Pool) Shutdown() {
+	p.cancel()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, worker := range p.workers {
+		worker.Stop()
+	}
+	p.workers = nil
 }

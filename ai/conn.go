@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/generative-ai-go/genai"
 	"github.com/sashabaranov/go-openai"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 	"golang.org/x/exp/rand"
 	"google.golang.org/api/iterator"
@@ -51,6 +52,8 @@ func (conn *Conn) Request(
 ) (openai.ChatCompletionResponse, error) {
 	errnie.Trace()
 
+	errnie.Raw(req)
+
 	var (
 		response openai.ChatCompletionResponse
 		err      error
@@ -69,10 +72,10 @@ It randomly selects an active service and processes the request through that ser
 The selected service is determined by the availability of the service and the presence of a valid API key.
 The function returns a channel that emits Chunk objects, each containing a response from the AI service.
 */
-func (conn *Conn) Next(ctx context.Context, prompt *Prompt, chunk Chunk) chan Chunk {
+func (conn *Conn) Next(ctx context.Context, prompt *Prompt) <-chan data.Artifact {
 	errnie.Trace()
 
-	out := make(chan Chunk, 128)
+	out := make(chan data.Artifact, 128)
 	active := make([]string, 0)
 
 	if conn.client != nil {
@@ -102,11 +105,11 @@ func (conn *Conn) Next(ctx context.Context, prompt *Prompt, chunk Chunk) chan Ch
 
 		switch selectedService {
 		case "openai":
-			conn.nextOpenAI(ctx, out, prompt, chunk)
+			conn.nextOpenAI(ctx, out, prompt)
 		case "gemini":
-			conn.nextGemini(ctx, out, prompt, chunk)
+			conn.nextGemini(ctx, out, prompt)
 		case "local":
-			conn.nextLocal(ctx, out, prompt, chunk)
+			conn.nextLocal(ctx, out, prompt)
 		}
 	}()
 
@@ -118,7 +121,7 @@ nextOpenAI is a helper function that handles the generation of responses using t
 It constructs a ChatCompletionRequest with the provided prompt and sends it to the OpenAI API.
 The response is then formatted and sent to the output channel.
 */
-func (conn *Conn) nextOpenAI(ctx context.Context, out chan Chunk, prompt *Prompt, chunk Chunk) {
+func (conn *Conn) nextOpenAI(ctx context.Context, out chan data.Artifact, prompt *Prompt) {
 	errnie.Trace()
 
 	req := openai.ChatCompletionRequest{
@@ -155,8 +158,8 @@ func (conn *Conn) nextOpenAI(ctx context.Context, out chan Chunk, prompt *Prompt
 			return
 		}
 
-		chunk.Response = response.Choices[0].Delta.Content
-		out <- chunk
+		artifact := data.New("ai", "response", "next", []byte(response.Choices[0].Delta.Content))
+		out <- artifact
 	}
 }
 
@@ -165,7 +168,7 @@ nextGemini is a helper function that handles the generation of responses using t
 It constructs a GenerativeModel with the specified model name and sends the prompt to the Gemini API.
 The response is then formatted and sent to the output channel.
 */
-func (conn *Conn) nextGemini(ctx context.Context, out chan Chunk, prompt *Prompt, chunk Chunk) {
+func (conn *Conn) nextGemini(ctx context.Context, out chan data.Artifact, prompt *Prompt) {
 	errnie.Trace()
 
 	model := conn.gemini.GenerativeModel("gemini-1.5-flash")
@@ -189,8 +192,8 @@ func (conn *Conn) nextGemini(ctx context.Context, out chan Chunk, prompt *Prompt
 		for _, candidate := range resp.Candidates {
 			for _, part := range candidate.Content.Parts {
 				if formatted := fmt.Sprintf("%s", part); formatted != "" {
-					chunk.Response = formatted
-					out <- chunk
+					artifact := data.New("ai", "response", "next", []byte(formatted))
+					out <- artifact
 				}
 			}
 		}
@@ -202,7 +205,7 @@ nextLocal is a helper function that handles the generation of responses using a 
 It constructs a ChatCompletionRequest with the provided prompt and sends it to the local LLM API.
 The response is then formatted and sent to the output channel.
 */
-func (conn *Conn) nextLocal(ctx context.Context, out chan Chunk, prompt *Prompt, chunk Chunk) {
+func (conn *Conn) nextLocal(ctx context.Context, out chan data.Artifact, prompt *Prompt) {
 	errnie.Trace()
 
 	var (
@@ -226,8 +229,8 @@ func (conn *Conn) nextLocal(ctx context.Context, out chan Chunk, prompt *Prompt,
 		return
 	}
 
-	chunk.Response = response.Choices[0].Message.Content
-	out <- chunk
+	artifact := data.New("ai", "response", "next", []byte(response.Choices[0].Message.Content))
+	out <- artifact
 }
 
 /*

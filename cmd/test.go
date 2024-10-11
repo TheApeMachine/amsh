@@ -49,11 +49,11 @@ var testCmd = &cobra.Command{
 		prompt.Poke("user", buf.String())
 
 		systems := []*mastercomputer.Worker{
-			mastercomputer.NewWorker().Initialize(cmd.Context(), prompt),
+			mastercomputer.NewWorker(cmd.Context(), prompt),
 		}
 
 		for _, system := range systems {
-			system.Run(context.Background())
+			system.Process(context.Background())
 		}
 
 		return nil

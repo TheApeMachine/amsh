@@ -2,18 +2,55 @@ package mastercomputer
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/invopop/jsonschema"
+	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/format"
 	"github.com/theapemachine/amsh/errnie"
 )
 
+func GenerateSchema[T any]() interface{} {
+	// Structured Outputs uses a subset of JSON schema
+	// These flags are necessary to comply with the subset
+	reflector := jsonschema.Reflector{
+		AllowAdditionalProperties: false,
+		DoNotReference:            true,
+	}
+	var v T
+	schema := reflector.Reflect(v)
+	return schema
+}
+
+func GetParams(system, user string, toolset openai.ChatCompletionToolParam) openai.ChatCompletionNewParams {
+	return openai.ChatCompletionNewParams{
+		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(system),
+			openai.UserMessage(user),
+		}),
+		ResponseFormat: openai.F[openai.ChatCompletionNewParamsResponseFormatUnion](
+			openai.ResponseFormatJSONSchemaParam{
+				Type: openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
+				JSONSchema: openai.F(openai.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:        openai.F("reasoning"),
+					Description: openai.F("Available reasoning strategies"),
+					Schema:      openai.F(GenerateSchema[format.Reasoning]()),
+					Strict:      openai.Bool(false),
+				}),
+			},
+		),
+		Tools: openai.F([]openai.ChatCompletionToolParam{
+			toolset,
+		}),
+		Seed:  openai.Int(0),
+		Model: openai.F(openai.ChatModelGPT4oMini),
+	}
+}
+
 type Completion struct {
 	ctx      context.Context
 	conn     *ai.Conn
-	response openai.ChatCompletionResponse
+	response openai.ChatCompletion
 	err      error
 }
 
@@ -24,39 +61,14 @@ func NewCompletion(ctx context.Context) *Completion {
 	}
 }
 
-func (completion *Completion) Execute(system, user, toolset string, format *format.Response) openai.ChatCompletionResponse {
+func (completion *Completion) Execute(ctx context.Context, params openai.ChatCompletionNewParams) openai.ChatCompletion {
 	errnie.Trace()
+	client := openai.NewClient()
+	var response *openai.ChatCompletion
 
-	var schema *openai.ChatCompletionResponseFormat
-
-	if format != nil {
-		schema = &openai.ChatCompletionResponseFormat{
-			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-				Name:   format.Name,
-				Schema: format.Schema(),
-			},
-		}
+	if response, completion.err = client.Chat.Completions.New(ctx, params); completion.err != nil {
+		errnie.Error(completion.err)
 	}
 
-	if completion.response, completion.err = completion.conn.Request(completion.ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT4oMini,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: system,
-			},
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: user,
-			},
-		},
-		Tools:          NewToolSet(completion.ctx).Tools(toolset),
-		ResponseFormat: schema,
-	}); errnie.Error(completion.err) != nil {
-		fmt.Println("Error initializing stream:", completion.err)
-		return openai.ChatCompletionResponse{}
-	}
-
-	return completion.response
+	return *response
 }

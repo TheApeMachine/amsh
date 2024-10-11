@@ -90,7 +90,7 @@ func (keyboard *Keyboard) HandleInput(b byte) {
 }
 
 // handleModeChange processes mode_change events to switch modes.
-func (keyboard *Keyboard) handleModeChange(modeSub <-chan *data.Artifact) {
+func (keyboard *Keyboard) handleModeChange(modeSub <-chan data.Artifact) {
 	errnie.Trace()
 	for artifact := range modeSub {
 		scope, err := artifact.Scope()

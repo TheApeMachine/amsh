@@ -12,7 +12,7 @@ import (
 // Command mode implementation
 type Command struct {
 	context     *Context
-	commandSub  <-chan *data.Artifact
+	commandSub  <-chan data.Artifact
 	cancel      chan struct{}
 	commandLine string
 }

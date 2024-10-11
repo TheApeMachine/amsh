@@ -3,9 +3,7 @@ package mastercomputer
 import (
 	"context"
 
-	"github.com/sashabaranov/go-openai"
-	"github.com/sashabaranov/go-openai/jsonschema"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/openai/openai-go"
 )
 
 type Feature interface {
@@ -13,78 +11,34 @@ type Feature interface {
 	Run(ctx context.Context, parentID string, args map[string]any) (string, error)
 }
 
-type Toolset struct {
-	tools    map[string][]openai.Tool
-	Function *openai.FunctionDefinition
+type WorkerTool struct {
+	System  string `json:"system" jsonschema_description:"The system prompt"`
+	User    string `json:"user" jsonschema_description:"The user prompt"`
+	Toolset string `json:"toolset" jsonschema:"enum=core,enum=extended,enum=full" jsonschema_description:"The toolset the worker should use"`
 }
 
-func NewToolSet(ctx context.Context) *Toolset {
-	errnie.Trace()
-
-	return &Toolset{
-		tools: map[string][]openai.Tool{
-			"system": {
-				openai.Tool{
-					Type:     openai.ToolTypeFunction,
-					Function: NewLink().Function,
-				},
-				openai.Tool{
-					Type:     openai.ToolTypeFunction,
-					Function: NewWorker().Function,
-				},
-				openai.Tool{
-					Type:     openai.ToolTypeFunction,
-					Function: NewCommand().Function,
-				},
-				openai.Tool{
-					Type:     openai.ToolTypeFunction,
-					Function: NewLogicCircuit().Function,
-				},
-				openai.Tool{
-					Type:     openai.ToolTypeFunction,
-					Function: NewBrowser().Function,
-				},
-				openai.Tool{
-					Type:     openai.ToolTypeFunction,
-					Function: NewEnvironment().Function,
-				},
-			},
-			"research": {
-				openai.Tool{
-					Type:     openai.ToolTypeFunction,
-					Function: NewBrowser().Function,
-				},
-			},
-			"development": {
-				openai.Tool{
-					Type:     openai.ToolTypeFunction,
-					Function: NewEnvironment().Function,
-				},
-			},
-		},
-		Function: &openai.FunctionDefinition{
-			Name:        "toolset",
-			Description: "Use to create a toolset, which is a collection of tools that can be assigned to workers.",
-			Strict:      true,
-			Parameters: jsonschema.Definition{
-				Type:                 jsonschema.Object,
-				AdditionalProperties: false,
-				Description:          "Use to create a toolset, which is a collection of tools that can be assigned to workers.",
-				Properties: map[string]jsonschema.Definition{
-					"tools": {
-						Type:        jsonschema.Array,
-						Description: "The list of tools to use",
-						Enum:        []string{"worker", "command", "link", "logic_circuit"},
+func NewWorkerTool() openai.ChatCompletionToolParam {
+	return openai.ChatCompletionToolParam{
+		Type: openai.F(openai.ChatCompletionToolTypeFunction),
+		Function: openai.F(openai.FunctionDefinitionParam{
+			Name:        openai.String("worker"),
+			Description: openai.String("Create any type of worker, by providing a system prompt, a user prompt, and a toolset"),
+			Parameters: openai.F(openai.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"system": map[string]string{
+						"type": "string",
+					},
+					"user": map[string]string{
+						"type": "string",
+					},
+					"toolset": map[string]any{
+						"type": "string",
+						"enum": []string{"core", "extended", "full"},
 					},
 				},
-				Required: []string{"tools"},
-			},
-		},
+				"required": []string{"system", "user", "toolset"},
+			}),
+		}),
 	}
-}
-
-func (toolset *Toolset) Tools(key string) []openai.Tool {
-	errnie.Trace()
-
-	return toolset.tools[key]
 }

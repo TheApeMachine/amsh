@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"io"
+	"os"
 
-	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/mastercomputer"
 	"github.com/theapemachine/amsh/sockpuppet"
 )
 
@@ -55,21 +56,14 @@ func NewWebSocketHandler() func(c *sockpuppet.WebsocketConn) {
 
 		// Processor
 		for promptIn := range inChan {
-			pipeline := ai.NewPipeline(context.Background()).Initialize()
-			var (
-				buf []byte
-				err error
-			)
+			io.Copy(os.Stdout, mastercomputer.NewWorker(context.Background(), data.New(
+				"websocket",
+				"prompt",
+				"task",
+				[]byte(promptIn),
+			)))
 
-			for chunk := range pipeline.Generate(promptIn, 3) {
-				if buf, err = json.Marshal(chunk); err != nil {
-					errnie.Error(err)
-					break
-				}
-
-				writeChan <- buf
-				fmt.Print(chunk.Response)
-			}
+			//writeChan <- buf
 
 			errnie.Info("Run complete")
 		}

@@ -1,147 +1,146 @@
 package twoface
 
 import (
-	"context"
+	"errors"
 	"sync"
 
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 )
 
-type Subscriber struct {
-	ID     string
-	O      chan data.Artifact
-	topics map[string]chan data.Artifact
-}
-
 var queueCache *Queue
 
+type Message struct {
+	Topic string
+	Data  data.Artifact
+}
+
+type Subscriber struct {
+	ID       string
+	Channels map[string]chan data.Artifact
+}
+
 type Queue struct {
-	mu            sync.Mutex
-	subscriptions []Subscriber
-	I             chan data.Artifact
+	mu           sync.RWMutex
+	subscribers  map[string]*Subscriber
+	globalTopics map[string][]*Subscriber
 }
 
 func NewQueue() *Queue {
 	if queueCache == nil {
 		queueCache = &Queue{
-			subscriptions: make([]Subscriber, 0),
-			I:             make(chan data.Artifact, 128),
+			subscribers:  make(map[string]*Subscriber),
+			globalTopics: make(map[string][]*Subscriber),
 		}
 	}
 
 	return queueCache
 }
 
-func (q *Queue) Run(ctx context.Context) {
-	go func() {
-		defer close(q.I)
+// Register a new subscriber
+func (q *Queue) Register(ID string) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 
-		for {
+	if _, exists := q.subscribers[ID]; !exists {
+		q.subscribers[ID] = &Subscriber{
+			ID:       ID,
+			Channels: make(map[string]chan data.Artifact),
+		}
+	}
+}
+
+// Subscribe to a topic
+func (q *Queue) Subscribe(ID, topic string) (chan data.Artifact, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	subscriber, exists := q.subscribers[ID]
+	if !exists {
+		return nil, errnie.Error(errors.New("Subscriber does not exist"))
+	}
+
+	ch := make(chan data.Artifact, 100) // Buffered channel
+	subscriber.Channels[topic] = ch
+
+	q.globalTopics[topic] = append(q.globalTopics[topic], subscriber)
+
+	return ch, nil
+}
+
+// Publish a message to a topic
+func (q *Queue) Publish(topic string, message data.Artifact) {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	subscribers, exists := q.globalTopics[topic]
+	if !exists {
+		return
+	}
+
+	for _, subscriber := range subscribers {
+		ch, ok := subscriber.Channels[topic]
+		if ok {
 			select {
-			case message := <-q.I:
-				q.Publish(message)
-			case <-ctx.Done():
-				return
+			case ch <- message:
+				// Message sent
 			default:
-				// noop
+				errnie.Warn("Dropping message for subscriber %s on topic %s: channel full", subscriber.ID, topic)
 			}
 		}
-	}()
+	}
 }
 
-func (q *Queue) Register(ID string) chan data.Artifact {
+// Unsubscribe from a topic
+func (q *Queue) Unsubscribe(ID, topic string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	q.subscriptions = append(q.subscriptions, Subscriber{
-		ID:     ID,
-		O:      make(chan data.Artifact, 100), // Buffered channel to prevent blocking
-		topics: make(map[string]chan data.Artifact),
-	})
+	subscriber, exists := q.subscribers[ID]
+	if !exists {
+		return
+	}
 
-	return q.subscriptions[len(q.subscriptions)-1].O
-}
+	if ch, ok := subscriber.Channels[topic]; ok {
+		close(ch)
+		delete(subscriber.Channels, topic)
+	}
 
-func (q *Queue) Subscribe(ID, topic string) chan data.Artifact {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	ch := make(chan data.Artifact, 100) // Buffered channel for topic subscriptions
-
-	for i, subscriber := range q.subscriptions {
-		if subscriber.ID == ID {
-			q.subscriptions[i].topics[topic] = ch
+	// Remove subscriber from globalTopics
+	subscribers := q.globalTopics[topic]
+	for i, sub := range subscribers {
+		if sub.ID == ID {
+			q.globalTopics[topic] = append(subscribers[:i], subscribers[i+1:]...)
 			break
 		}
 	}
-
-	return ch
 }
 
-func (q *Queue) Publish(message data.Artifact) {
+// Unregister a subscriber
+func (q *Queue) Unregister(ID string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	var (
-		role  string
-		scope string
-		err   error
-	)
-
-	if role, err = message.Role(); errnie.Error(err) != nil {
+	subscriber, exists := q.subscribers[ID]
+	if !exists {
 		return
 	}
 
-	if scope, err = message.Scope(); errnie.Error(err) != nil {
-		return
+	// Close all channels
+	for _, ch := range subscriber.Channels {
+		close(ch)
 	}
 
-	if scope == "broadcast" {
-		for _, subscriber := range q.subscriptions {
-			select {
-			case subscriber.O <- message:
-				// Message sent successfully
-			default:
-				errnie.Warn("Dropping message for subscriber %s: channel full", subscriber.ID)
+	// Remove from global topics
+	for topic := range subscriber.Channels {
+		subscribers := q.globalTopics[topic]
+		for i, sub := range subscribers {
+			if sub.ID == ID {
+				q.globalTopics[topic] = append(subscribers[:i], subscribers[i+1:]...)
+				break
 			}
 		}
 	}
 
-	if role == "topic" {
-		for _, subscriber := range q.subscriptions {
-			if ch, ok := subscriber.topics[scope]; ok {
-				select {
-				case ch <- message:
-					// Message sent successfully
-				default:
-					errnie.Warn("Dropping message for subscriber %s on topic %s: channel full", subscriber.ID, scope)
-				}
-			}
-		}
-	}
-
-	if role == "report" || role == "ACK" {
-		for _, subscriber := range q.subscriptions {
-			if subscriber.ID == scope {
-				select {
-				case subscriber.O <- message:
-					// Message sent successfully
-				default:
-					errnie.Warn("Dropping message for subscriber %s: channel full", subscriber.ID)
-				}
-			}
-		}
-	}
-}
-
-func (q *Queue) Close(topic string) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	for _, subscriber := range q.subscriptions {
-		if ch, ok := subscriber.topics[topic]; ok {
-			close(ch)
-		}
-	}
+	delete(q.subscribers, ID)
 }

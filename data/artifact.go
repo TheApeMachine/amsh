@@ -13,12 +13,12 @@ const version = "0.0.1"
 /*
 Empty is an empty artifact.
 */
-var Empty = &Artifact{}
+var Empty = Artifact{}
 
 /*
 New creates a new artifact with the given origin, role, scope, and data.
 */
-func New(origin, role, scope string, data []byte) *Artifact {
+func New(origin, role, scope string, data []byte) Artifact {
 	var (
 		seg      *capnp.Segment
 		err      error
@@ -26,11 +26,11 @@ func New(origin, role, scope string, data []byte) *Artifact {
 	)
 
 	if _, seg, err = capnp.NewMessage(capnp.SingleSegment(nil)); err != nil {
-		return nil
+		return Empty
 	}
 
 	if artifact, err = NewArtifact(seg); err != nil {
-		return nil
+		return Empty
 	}
 
 	errnie.Error(artifact.SetOrigin(origin))
@@ -41,14 +41,14 @@ func New(origin, role, scope string, data []byte) *Artifact {
 	artifact.SetTimestamp(uint64(time.Now().UnixNano()))
 	artifact.SetVersion(version)
 
-	return &artifact
+	return artifact
 }
 
 /*
 Poke sets a value on the artifact, starting by looking for an existing field,
 and falling back to using the attribute list.
 */
-func (artifact *Artifact) Poke(key string, value string) {
+func (artifact Artifact) Poke(key string, value string) {
 	var err error
 
 	switch key {
@@ -78,7 +78,7 @@ func (artifact *Artifact) Poke(key string, value string) {
 Peek retrieves a value from the artifact, starting by looking for an existing field,
 and falling back to searching the attribute list.
 */
-func (artifact *Artifact) Peek(key string) string {
+func (artifact Artifact) Peek(key string) string {
 	var (
 		value string
 		data  []byte
@@ -112,7 +112,7 @@ func (artifact *Artifact) Peek(key string) string {
 }
 
 // getAttributeValue searches the attribute list for the given key.
-func (artifact *Artifact) getAttributeValue(key string) (string, error) {
+func (artifact Artifact) getAttributeValue(key string) (string, error) {
 	attrs, err := artifact.Attributes()
 	if errnie.Error(err) != nil {
 		return "", err
@@ -137,7 +137,7 @@ func (artifact *Artifact) getAttributeValue(key string) (string, error) {
 /*
 addAttribute adds a new attribute to the artifact.
 */
-func (artifact *Artifact) addAttribute(key, value string) error {
+func (artifact Artifact) addAttribute(key, value string) error {
 	// Retrieve the existing attributes.
 	attrs, err := artifact.Attributes()
 	if err != nil {

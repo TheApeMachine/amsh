@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -15,17 +16,20 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
-type Environment struct {
+type EnvironmentJob struct {
+	ctx          context.Context
+	shell        string
 	Function     *openai.FunctionDefinition
 	docker       *client.Client
 	containerID  string
 	stdin        io.WriteCloser
 	stdout       io.ReadCloser
+	stdinChan    chan string
 	outputBuffer *bytes.Buffer
 	mu           sync.Mutex
 }
 
-func NewEnvironment() *Environment {
+func NewEnvironmentJob(ctx context.Context, shell string) *EnvironmentJob {
 	errnie.Trace()
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
@@ -34,7 +38,11 @@ func NewEnvironment() *Environment {
 		return nil
 	}
 
-	return &Environment{
+	return &EnvironmentJob{
+		ctx:          ctx,
+		shell:        shell,
+		docker:       cli,
+		outputBuffer: &bytes.Buffer{},
 		Function: &openai.FunctionDefinition{
 			Name:        "environment",
 			Description: "Use a fully functional Linux environment. You will be directly connected to stdin and stdout, so from the moment you use this, you will need to only respond with valid commands until you exit.",
@@ -52,18 +60,22 @@ func NewEnvironment() *Environment {
 				Required: []string{"shell"},
 			},
 		},
-		docker:       cli,
-		outputBuffer: &bytes.Buffer{},
 	}
 }
 
-func (env *Environment) Start(ctx context.Context, shell string) error {
+// Implement the Job interface
+func (ej *EnvironmentJob) Process(ctx context.Context) error {
+	errnie.Trace()
+	return ej.Start()
+}
+
+func (ej *EnvironmentJob) Start() error {
 	errnie.Trace()
 
 	// Create and start the container
-	resp, err := env.docker.ContainerCreate(ctx, &container.Config{
+	resp, err := ej.docker.ContainerCreate(ej.ctx, &container.Config{
 		Image:     "ubuntu:latest",
-		Cmd:       []string{shell},
+		Cmd:       []string{ej.shell},
 		Tty:       true,
 		OpenStdin: true,
 	}, nil, nil, nil, "")
@@ -71,13 +83,13 @@ func (env *Environment) Start(ctx context.Context, shell string) error {
 		return err
 	}
 
-	env.containerID = resp.ID
+	ej.containerID = resp.ID
 
-	if err := env.docker.ContainerStart(ctx, env.containerID, container.StartOptions{}); err != nil {
+	if err := ej.docker.ContainerStart(ej.ctx, ej.containerID, container.StartOptions{}); err != nil {
 		return errnie.Error(err)
 	}
 
-	waiter, err := env.docker.ContainerAttach(ctx, resp.ID, container.AttachOptions{
+	waiter, err := ej.docker.ContainerAttach(ej.ctx, resp.ID, container.AttachOptions{
 		Stderr: true,
 		Stdout: true,
 		Stdin:  true,
@@ -87,46 +99,70 @@ func (env *Environment) Start(ctx context.Context, shell string) error {
 		return errnie.Error(err)
 	}
 
-	env.stdin = waiter.Conn
-	go env.handleOutput(ctx, waiter.Reader)
+	ej.stdin = waiter.Conn
+	go ej.handleInput(ej.ctx)
+	go ej.handleOutput(ej.ctx, waiter.Reader)
 
-	return nil
+	// Keep the environment running
+	<-ej.ctx.Done()
+	return ej.Close()
 }
 
-func (env *Environment) handleOutput(ctx context.Context, reader io.Reader) {
+func (ej *EnvironmentJob) handleInput(ctx context.Context) {
+	for {
+		select {
+		case input, ok := <-ej.stdinChan:
+			if !ok {
+				return
+			}
+			_, err := fmt.Fprintln(ej.stdin, input)
+			if err != nil {
+				errnie.Error(err)
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (ej *EnvironmentJob) handleOutput(ctx context.Context, reader io.Reader) {
 	scanner := bufio.NewScanner(reader)
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		fmt.Println("Container output:", line)
-		env.mu.Lock()
-		env.outputBuffer.WriteString(line + "\n")
-		env.mu.Unlock()
+		ej.mu.Lock()
+		ej.outputBuffer.WriteString(line + "\n")
+		ej.mu.Unlock()
 	}
 }
 
-// WriteToStdin writes input to the container's stdin.
-func (env *Environment) WriteToStdin(input string) error {
-	_, err := fmt.Fprintln(env.stdin, input)
-	return err
+func (ej *EnvironmentJob) WriteToStdin(input string) error {
+	select {
+	case ej.stdinChan <- input:
+		return nil
+	default:
+		return errnie.Error(errors.New("stdin channel is full"))
+	}
 }
 
 // ReadOutputBuffer reads output accumulated in the buffer.
-func (env *Environment) ReadOutputBuffer() string {
-	env.mu.Lock()
-	defer env.mu.Unlock()
-	output := env.outputBuffer.String()
-	env.outputBuffer.Reset()
+func (ej *EnvironmentJob) ReadOutputBuffer() string {
+	ej.mu.Lock()
+	defer ej.mu.Unlock()
+	output := ej.outputBuffer.String()
+	ej.outputBuffer.Reset()
 	return output
 }
 
 // Close gracefully stops and removes the container
-func (env *Environment) Close() error {
-	if env.stdin != nil {
-		env.stdin.Close()
+func (ej *EnvironmentJob) Close() error {
+	if ej.stdin != nil {
+		ej.stdin.Close()
 	}
-	if env.containerID != "" {
-		return env.docker.ContainerRemove(context.Background(), env.containerID, container.RemoveOptions{Force: true})
+	if ej.containerID != "" {
+		return ej.docker.ContainerStop(context.Background(), ej.containerID, container.StopOptions{})
 	}
 	return nil
 }

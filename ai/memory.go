@@ -1,25 +1,29 @@
 package ai
 
-import "strings"
+import (
+	"github.com/smallnest/ringbuffer"
+	"github.com/theapemachine/amsh/errnie"
+)
 
 type Memory struct {
-	ShortTerm []string
+	err       error
+	ShortTerm *ringbuffer.RingBuffer
 }
 
 func NewMemory() *Memory {
 	return &Memory{
-		ShortTerm: make([]string, 0),
+		ShortTerm: ringbuffer.New(10),
 	}
 }
 
-func (m *Memory) String() string {
-	return strings.Join([]string{
-		"[CURRENT CONTEXT]",
-		strings.Join(m.ShortTerm, "\n\n"),
-		"[/CURRENT CONTEXT]",
-	}, "\n\n")
+func (memory *Memory) Read(p []byte) (n int, err error) {
+	return memory.ShortTerm.Read(p)
 }
 
-func (m *Memory) Add(item string) {
-	m.ShortTerm = append(m.ShortTerm, item)
+func (memory *Memory) Write(p []byte) (n int, err error) {
+	if _, memory.err = memory.ShortTerm.Write(p); memory.err != nil {
+		errnie.Error(memory.err)
+	}
+
+	return len(p), nil
 }
