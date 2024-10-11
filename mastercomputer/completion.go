@@ -5,7 +5,6 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
-	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/format"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -22,7 +21,7 @@ func GenerateSchema[T any]() interface{} {
 	return schema
 }
 
-func GetParams(system, user string, toolset openai.ChatCompletionToolParam) openai.ChatCompletionNewParams {
+func GetParams(system, user string, toolset []openai.ChatCompletionToolParam) openai.ChatCompletionNewParams {
 	return openai.ChatCompletionNewParams{
 		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(system),
@@ -34,39 +33,35 @@ func GetParams(system, user string, toolset openai.ChatCompletionToolParam) open
 				JSONSchema: openai.F(openai.ResponseFormatJSONSchemaJSONSchemaParam{
 					Name:        openai.F("reasoning"),
 					Description: openai.F("Available reasoning strategies"),
-					Schema:      openai.F(GenerateSchema[format.Reasoning]()),
+					Schema:      openai.F(GenerateSchema[format.Strategy]()),
 					Strict:      openai.Bool(false),
 				}),
 			},
 		),
-		Tools: openai.F([]openai.ChatCompletionToolParam{
-			toolset,
-		}),
+		Tools: openai.F(toolset),
 		Seed:  openai.Int(0),
 		Model: openai.F(openai.ChatModelGPT4oMini),
 	}
 }
 
 type Completion struct {
-	ctx      context.Context
-	conn     *ai.Conn
-	response openai.ChatCompletion
-	err      error
+	ctx    context.Context
+	client *openai.Client
+	err    error
 }
 
 func NewCompletion(ctx context.Context) *Completion {
 	return &Completion{
-		ctx:  ctx,
-		conn: ai.NewConn(),
+		ctx:    ctx,
+		client: openai.NewClient(),
 	}
 }
 
 func (completion *Completion) Execute(ctx context.Context, params openai.ChatCompletionNewParams) openai.ChatCompletion {
 	errnie.Trace()
-	client := openai.NewClient()
 	var response *openai.ChatCompletion
 
-	if response, completion.err = client.Chat.Completions.New(ctx, params); completion.err != nil {
+	if response, completion.err = completion.client.Chat.Completions.New(ctx, params); completion.err != nil {
 		errnie.Error(completion.err)
 	}
 

@@ -1,7 +1,7 @@
 package twoface
 
-import "context"
+import "io"
 
 type Job interface {
-	Process(ctx context.Context) error
+	io.ReadWriteCloser
 }

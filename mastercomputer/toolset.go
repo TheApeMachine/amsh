@@ -1,44 +1,31 @@
 package mastercomputer
 
-import (
-	"context"
-
-	"github.com/openai/openai-go"
-)
-
-type Feature interface {
-	Initialize() error
-	Run(ctx context.Context, parentID string, args map[string]any) (string, error)
-}
+import "github.com/openai/openai-go"
 
 type WorkerTool struct {
-	System  string `json:"system" jsonschema_description:"The system prompt"`
-	User    string `json:"user" jsonschema_description:"The user prompt"`
-	Toolset string `json:"toolset" jsonschema:"enum=core,enum=extended,enum=full" jsonschema_description:"The toolset the worker should use"`
+	System  string `json:"system" jsonschema_description:"The system prompt" jsonschema:"required"`
+	User    string `json:"user" jsonschema_description:"The user prompt" jsonschema:"required"`
+	Toolset string `json:"toolset" jsonschema:"enum=core,enum=extended,enum=full" jsonschema_description:"The toolset the worker should use" jsonschema_required:"true"`
 }
 
-func NewWorkerTool() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: openai.F(openai.ChatCompletionToolTypeFunction),
-		Function: openai.F(openai.FunctionDefinitionParam{
-			Name:        openai.String("worker"),
-			Description: openai.String("Create any type of worker, by providing a system prompt, a user prompt, and a toolset"),
-			Parameters: openai.F(openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]any{
-					"system": map[string]string{
-						"type": "string",
-					},
-					"user": map[string]string{
-						"type": "string",
-					},
-					"toolset": map[string]any{
-						"type": "string",
-						"enum": []string{"core", "extended", "full"},
-					},
-				},
-				"required": []string{"system", "user", "toolset"},
-			}),
-		}),
+func WorkerToolSchema() openai.FunctionParameters {
+	return openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"system": map[string]string{
+				"type":        "string",
+				"description": "The system prompt",
+			},
+			"user": map[string]string{
+				"type":        "string",
+				"description": "The user prompt",
+			},
+			"toolset": map[string]any{
+				"type":        "string",
+				"enum":        []string{"core", "extended", "full"},
+				"description": "The toolset the worker should use",
+			},
+		},
+		"required": []string{"system", "user", "toolset"},
 	}
 }

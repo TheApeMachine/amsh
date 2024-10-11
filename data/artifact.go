@@ -1,7 +1,7 @@
 package data
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	"capnproto.org/go/capnp/v3"
@@ -45,36 +45,6 @@ func New(origin, role, scope string, data []byte) Artifact {
 }
 
 /*
-Poke sets a value on the artifact, starting by looking for an existing field,
-and falling back to using the attribute list.
-*/
-func (artifact Artifact) Poke(key string, value string) {
-	var err error
-
-	switch key {
-	case "id":
-		err = artifact.SetId(value)
-	case "version":
-		err = artifact.SetVersion(value)
-	case "type":
-		err = artifact.SetType(value)
-	case "origin":
-		err = artifact.SetOrigin(value)
-	case "role":
-		err = artifact.SetRole(value)
-	case "scope":
-		err = artifact.SetScope(value)
-	case "payload":
-		err = artifact.SetPayload([]byte(value))
-	default:
-		// If the key is not a top-level field, add it as an attribute.
-		err = artifact.addAttribute(key, value)
-	}
-
-	errnie.Error(err)
-}
-
-/*
 Peek retrieves a value from the artifact, starting by looking for an existing field,
 and falling back to searching the attribute list.
 */
@@ -111,6 +81,37 @@ func (artifact Artifact) Peek(key string) string {
 	return value
 }
 
+/*
+Poke sets a value on the artifact, starting by looking for an existing field,
+and falling back to using the attribute list.
+*/
+func (artifact Artifact) Poke(key string, value string) Artifact {
+	var err error
+
+	switch key {
+	case "id":
+		err = artifact.SetId(value)
+	case "version":
+		err = artifact.SetVersion(value)
+	case "type":
+		err = artifact.SetType(value)
+	case "origin":
+		err = artifact.SetOrigin(value)
+	case "role":
+		err = artifact.SetRole(value)
+	case "scope":
+		err = artifact.SetScope(value)
+	case "payload":
+		err = artifact.SetPayload([]byte(value))
+	default:
+		// If the key is not a top-level field, add it as an attribute.
+		err = artifact.addAttribute(key, value)
+	}
+
+	errnie.Error(err)
+	return artifact
+}
+
 // getAttributeValue searches the attribute list for the given key.
 func (artifact Artifact) getAttributeValue(key string) (string, error) {
 	attrs, err := artifact.Attributes()
@@ -131,7 +132,12 @@ func (artifact Artifact) getAttributeValue(key string) (string, error) {
 		}
 	}
 
-	return "", errors.New("key not found")
+	return "", fmt.Errorf(
+		"key: '%s' not found in attributes [%s, %s, %s]",
+		key, artifact.Peek("origin"),
+		artifact.Peek("role"),
+		artifact.Peek("scope"),
+	)
 }
 
 /*

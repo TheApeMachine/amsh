@@ -2,6 +2,7 @@ package twoface
 
 import (
 	"context"
+	"io"
 	"sync"
 )
 
@@ -27,16 +28,22 @@ type Pool struct {
 	WorkerPool chan chan Job
 	workers    []*Worker
 	mu         sync.Mutex
+	pr         *io.PipeReader
+	pw         *io.PipeWriter
 }
 
 func NewPool(ctx context.Context, initialWorkers int) *Pool {
 	ctx, cancel := context.WithCancel(ctx)
+	pr, pw := io.Pipe()
+
 	pool := &Pool{
 		ctx:        ctx,
 		cancel:     cancel,
 		JobQueue:   make(chan Job),
 		WorkerPool: make(chan chan Job),
 		workers:    make([]*Worker, 0),
+		pr:         pr,
+		pw:         pw,
 	}
 
 	for i := 0; i < initialWorkers; i++ {
@@ -53,7 +60,6 @@ func (p *Pool) addWorker() {
 	defer p.mu.Unlock()
 
 	worker := NewWorker(len(p.workers), p.WorkerPool)
-	worker.Start()
 	p.workers = append(p.workers, worker)
 }
 
@@ -66,7 +72,7 @@ func (p *Pool) removeWorker() {
 	}
 
 	worker := p.workers[len(p.workers)-1]
-	worker.Stop()
+	worker.Close()
 	p.workers = p.workers[:len(p.workers)-1]
 }
 
@@ -99,7 +105,7 @@ func (p *Pool) Shutdown() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, worker := range p.workers {
-		worker.Stop()
+		worker.Close()
 	}
 	p.workers = nil
 }

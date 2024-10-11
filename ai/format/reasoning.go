@@ -1,104 +1,49 @@
 package format
 
+type Strategy struct {
+	Reasoning []Reasoning `json:"reasoning" jsonschema_description:"Dynamic composition of reasoning types you want to use" jsonschema:"anyof_ref=#/$defs/thought;#/$defs/reflection;#/$defs/challenge;#/$defs/review;#/$defs/chain_of_thought;#/$defs/tree_of_thought;#/$defs/self_reflection;#/$defs/verification"`
+}
+
+type Thought string
+
+type Reflection string
+
+type Challenge string
+
+type Review string
+
+type Step struct {
+	Description string `json:"description" jsonschema_description:"Description of the step"`
+	Action      string `json:"action" jsonschema_description:"Action taken in this step"`
+	Result      string `json:"result" jsonschema_description:"Result of the action"`
+}
+
 type Reasoning struct {
-	Type       string `json:"type"`
-	Properties struct {
-		Reasoning struct {
-			AnyOf []struct {
-				Ref string `json:"$ref"`
-			} `json:"anyOf"`
-		} `json:"reasoning"`
-	} `json:"properties"`
-	Required []string `json:"required"`
-	Defs     struct {
-		Thought struct {
-			Type        string `json:"type"`
-			Description string `json:"description"`
-		} `json:"thought"`
-		Reflection struct {
-			Type        string `json:"type"`
-			Description string `json:"description"`
-		} `json:"reflection"`
-		Step struct {
-			Type       string `json:"type"`
-			Properties struct {
-				Description struct {
-					Type string `json:"type"`
-				} `json:"description"`
-				Action struct {
-					Type string `json:"type"`
-				} `json:"action"`
-				Result struct {
-					Type string `json:"type"`
-				} `json:"result"`
-			} `json:"properties"`
-			Required []string `json:"required"`
-		} `json:"step"`
-		ChainOfThought struct {
-			Type       string `json:"type"`
-			Properties struct {
-				Type struct {
-					Const string `json:"const"`
-				} `json:"type"`
-				Steps struct {
-					Type  string `json:"type"`
-					Items struct {
-						Ref string `json:"$ref"`
-					} `json:"items"`
-				} `json:"steps"`
-				FinalAnswer struct {
-					Type string `json:"type"`
-				} `json:"final_answer"`
-			} `json:"properties"`
-			Required []string `json:"required"`
-		} `json:"chain_of_thought"`
-		TreeOfThought struct {
-			Type       string `json:"type"`
-			Properties struct {
-				Type struct {
-					Const string `json:"const"`
-				} `json:"type"`
-				Nodes struct {
-					Type  string `json:"type"`
-					Items struct {
-						Type       string `json:"type"`
-						Properties struct {
-							Thought struct {
-								Ref string `json:"$ref"`
-							} `json:"thought"`
-							Children struct {
-								Type  string `json:"type"`
-								Items struct {
-									Ref string `json:"$ref"`
-								} `json:"items"`
-							} `json:"children"`
-						} `json:"properties"`
-						Required []string `json:"required"`
-					} `json:"items"`
-				} `json:"nodes"`
-				FinalAnswer struct {
-					Type string `json:"type"`
-				} `json:"final_answer"`
-			} `json:"properties"`
-			Required []string `json:"required"`
-		} `json:"tree_of_thought"`
-		SelfReflection struct {
-			Type       string `json:"type"`
-			Properties struct {
-				Type struct {
-					Const string `json:"const"`
-				} `json:"type"`
-				Reflections struct {
-					Type  string `json:"type"`
-					Items struct {
-						Ref string `json:"$ref"`
-					} `json:"items"`
-				} `json:"reflections"`
-				FinalAnswer struct {
-					Type string `json:"type"`
-				} `json:"final_answer"`
-			} `json:"properties"`
-			Required []string `json:"required"`
-		} `json:"self_reflection"`
-	} `json:"$defs"`
+	ChainOfThought ChainOfThought `json:"chain_of_thought" jsonschema_description:"A chain of thoughts"`
+	TreeOfThought  TreeOfThought  `json:"tree_of_thought" jsonschema_description:"A tree of thoughts"`
+	SelfReflection SelfReflection `json:"self_reflection" jsonschema_description:"A self reflection"`
+	Verification   Verification   `json:"verification" jsonschema_description:"A verification"`
+}
+
+type ChainOfThought struct {
+	Steps       []Step `json:"steps" jsonschema_description:"Sequence of steps in the chain of thought"`
+	FinalAnswer string `json:"final_answer" jsonschema_description:"The final conclusion or answer"`
+}
+
+type TreeOfThought struct {
+	RootThought Thought    `json:"root_thought" jsonschema_description:"The root thought of the tree"`
+	Branches    []*Thought `json:"branches" jsonschema_description:"Branches in the tree of thought" jsonschema:"anyof_ref=#/$defs/thought"`
+	FinalAnswer string     `json:"final_answer" jsonschema_description:"The final conclusion or answer"`
+}
+
+type SelfReflection struct {
+	Reflections []Reflection `json:"reflections" jsonschema_description:"Series of reflections"`
+	FinalAnswer string       `json:"final_answer" jsonschema_description:"The final conclusion or answer"`
+}
+
+type Verification struct {
+	Target     string      `json:"target" jsonschema_description:"A previous conclusion, hypothesis, prediction, etc. to be verified"`
+	Challenges []Challenge `json:"challenges" jsonschema_description:"Challenges posed against the current belief or conclusion"`
+	Review     []Review    `json:"review" jsonschema_description:"Review of the challenges to reach a final decision"`
+	Result     string      `json:"result" jsonschema_description:"Result of the verification process"`
 }

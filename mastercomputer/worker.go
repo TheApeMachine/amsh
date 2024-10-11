@@ -9,16 +9,17 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
-	"github.com/theapemachine/amsh/ai/format"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/twoface"
+	"github.com/theapemachine/amsh/utils"
 )
 
 type WorkerState uint
 
 const (
-	WorkerStateInitializing WorkerState = iota
+	WorkerStateCreating WorkerState = iota
+	WorkerStateInitializing
 	WorkerStateReady
 	WorkerStateRunning
 	WorkerStateFinished
@@ -30,7 +31,6 @@ type Worker struct {
 	err       error
 	buffer    data.Artifact
 	memory    *ai.Memory
-	status    string
 	state     WorkerState
 	queue     *twoface.Queue
 	inbox     chan data.Artifact
@@ -44,12 +44,7 @@ func NewWorker(ctx context.Context, buffer data.Artifact) *Worker {
 	return &Worker{
 		ctx:    ctx,
 		buffer: buffer,
-		status: "creating",
-		Function: WorkerTool{
-			System:  "",
-			User:    "",
-			Toolset: "",
-		},
+		state:  WorkerStateCreating,
 	}
 }
 
@@ -91,7 +86,16 @@ func (worker *Worker) Process(ctx context.Context) error {
 	params := GetParams(
 		worker.buffer.Peek("system"),
 		worker.buffer.Peek("user"),
-		NewWorkerTool(),
+		[]openai.ChatCompletionToolParam{
+			{
+				Type: openai.F(openai.ChatCompletionToolTypeFunction),
+				Function: openai.F(openai.FunctionDefinitionParam{
+					Name:        openai.String("worker"),
+					Description: openai.String("Create any type of worker, by providing a system prompt, a user prompt, and a toolset"),
+					Parameters:  openai.F(WorkerToolSchema()),
+				}),
+			},
+		},
 	)
 
 	for {
@@ -106,13 +110,14 @@ func (worker *Worker) Process(ctx context.Context) error {
 func (worker *Worker) printResponse(response openai.ChatCompletion) openai.ChatCompletionMessage {
 	errnie.Trace()
 
-	reasoning := format.Reasoning{}
+	reasoning := map[string]any{}
 
 	if worker.err = json.Unmarshal([]byte(response.Choices[0].Message.Content), &reasoning); worker.err != nil {
 		errnie.Error(worker.err)
 		return response.Choices[0].Message
 	}
 
+	utils.PrettyJSON(reasoning)
 	return response.Choices[0].Message
 }
 
@@ -128,15 +133,28 @@ func (worker *Worker) handleToolCalls(
 		out  string
 	)
 
+	params.Messages.Value = append(params.Messages.Value, message)
 	for _, toolCall := range message.ToolCalls {
+		errnie.Raw(toolCall)
+
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); errnie.Error(err) != nil {
+			out = "error unmarshalling arguments"
+		}
+
 		switch toolCall.Function.Name {
 		case "worker":
-			wrkr := NewWorker(worker.ctx, data.New(
-				worker.ID,
-				"prompt",
-				"task",
-				[]byte(toolCall.Function.Arguments),
-			))
+			wrkr := NewWorker(
+				worker.ctx,
+				data.New(
+					worker.ID, "prompt", "task", nil,
+				).Poke(
+					"system", args["system"].(string),
+				).Poke(
+					"user", args["user"].(string),
+				).Poke(
+					"toolset", args["toolset"].(string),
+				),
+			)
 
 			out = fmt.Sprintf(
 				"[%s @ %s]\nSYSTEM: %s\nUSER: %s\nSTATUS: %d\n",
@@ -146,18 +164,20 @@ func (worker *Worker) handleToolCalls(
 				wrkr.buffer.Peek("user"),
 				wrkr.state,
 			)
+
+			utils.PrettyJSON(args)
+			errnie.Debug("ToolCall: %s %s", toolCall.ID, out)
+			params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
 		case "environment":
 			out = "not implemented"
 		default:
-			errnie.Warn("unknown tool call: %s", toolCall.Function.Name)
-			out = "not implemented"
+			out = fmt.Sprintf("unknown tool call: %s", toolCall.Function.Name)
+			errnie.Warn(out)
 		}
 
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); errnie.Error(err) != nil {
-			out = "error unmarshalling arguments"
+			errnie.Error(err)
 		}
-
-		params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, weatherData))
 	}
 
 	return params
