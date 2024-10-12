@@ -19,8 +19,9 @@ Subscriber describes a Worker or Agent that is connected to the queue
 and listening to specific channels.
 */
 type Subscriber struct {
-	ID       string
-	Channels map[string]chan data.Artifact
+	ID     string
+	inbox  chan data.Artifact
+	topics []string
 }
 
 /*
@@ -29,9 +30,8 @@ broadcast channels, which are public, topics, which are meant for
 specific groups, or private channels, which are for specific agents.
 */
 type Queue struct {
-	mu           sync.RWMutex
-	subscribers  map[string]*Subscriber
-	globalTopics map[string][]*Subscriber
+	mu          sync.RWMutex
+	subscribers map[string]*Subscriber
 }
 
 /*
@@ -39,10 +39,11 @@ NewQueue instantiates the queue, or returns the queue from the cache
 if it was previously created.
 */
 func NewQueue() *Queue {
+	errnie.Trace()
+
 	if queueCache == nil {
 		queueCache = &Queue{
-			subscribers:  make(map[string]*Subscriber),
-			globalTopics: make(map[string][]*Subscriber),
+			subscribers: make(map[string]*Subscriber),
 		}
 	}
 
@@ -53,114 +54,160 @@ func NewQueue() *Queue {
 Register should be called by all newly created agents to patch them into
 the communication network.
 */
-func (q *Queue) Register(ID string) {
+func (q *Queue) Register(ID string) (chan data.Artifact, error) {
+	errnie.Trace()
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
 	if _, exists := q.subscribers[ID]; !exists {
+		inbox := make(chan data.Artifact, 128)
 		q.subscribers[ID] = &Subscriber{
-			ID:       ID,
-			Channels: make(map[string]chan data.Artifact),
+			ID:     ID,
+			inbox:  inbox,
+			topics: make([]string, 0),
 		}
 	}
+
+	return q.subscribers[ID].inbox, nil
 }
 
 // Subscribe to a topic
-func (q *Queue) Subscribe(ID, topic string) (chan data.Artifact, error) {
+func (q *Queue) Subscribe(ID, topic string) (err error) {
+	errnie.Trace()
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
+	// Check if the subscriber exists.
 	subscriber, exists := q.subscribers[ID]
 	if !exists {
-		return nil, errnie.Error(errors.New("Subscriber does not exist"))
+		return errnie.Error(errors.New("Subscriber does not exist"))
 	}
 
-	ch := make(chan data.Artifact, 100) // Buffered channel
-	subscriber.Channels[topic] = ch
+	// Check if the subscriber is already subscribed to the topic.
+	for _, t := range subscriber.topics {
+		if t == topic {
+			return errnie.Error(errors.New("subscriber is already subscribed to topic"))
+		}
+	}
 
-	q.globalTopics[topic] = append(q.globalTopics[topic], subscriber)
-
-	return ch, nil
+	// Add the topic to the subscriber.
+	subscriber.topics = append(subscriber.topics, topic)
+	return nil
 }
 
-// Publish a message to a topic
-func (q *Queue) Publish(topic string, message data.Artifact) {
+/*
+Publish a message onto the queue, provided all the necessary conditions are met.
+*/
+func (q *Queue) Publish(message data.Artifact) (err error) {
+	errnie.Trace()
+
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
-	subscribers, exists := q.globalTopics[topic]
-	if !exists {
-		return
+	// Check the origin of the message to see if the subscriber
+	// exists, and is subscribed to the topic.
+	publisher := message.Peek("origin")
+	topic := message.Peek("scope")
+
+	// Check if the message has an origin and a scope, or we cannot proceed.
+	if publisher == "" || topic == "" {
+		return errnie.Error(errors.New("message is missing origin or topic"))
 	}
 
-	for _, subscriber := range subscribers {
-		ch, ok := subscriber.Channels[topic]
-		if ok {
-			select {
-			case ch <- message:
-				// Message sent
-			default:
-				errnie.Warn("Dropping message for subscriber %s on topic %s: channel full", subscriber.ID, topic)
+	// Check if the publisher is registered
+	if _, exists := q.subscribers[publisher]; !exists {
+		return errnie.Error(errors.New("publisher is not registered"))
+	}
+
+	// Check if the scope is broadcast, in which case we send to all subscribers.
+	if topic == "broadcast" {
+		for _, subscriber := range q.subscribers {
+			subscriber.inbox <- message
+		}
+
+		return nil
+	}
+
+	// Check if the scope matches a subscriber ID, in which case
+	// we are dealing with a private message.
+	if _, exists := q.subscribers[topic]; exists {
+		q.subscribers[topic].inbox <- message
+		return nil
+	}
+
+	// Check if the publisher is subscribed to the topic.
+	subscribed := false
+
+	for _, t := range q.subscribers[publisher].topics {
+		if t == topic {
+			subscribed = true
+			break
+		}
+	}
+
+	if !subscribed {
+		return errnie.Error(errors.New("publisher is not subscribed to topic"))
+	}
+
+	// Otherwise, we send to all subscribers of the topic.
+	for _, subscriber := range q.subscribers {
+		for _, t := range subscriber.topics {
+			if t == topic {
+				subscriber.inbox <- message
 			}
 		}
 	}
+
+	return nil
 }
 
 /*
 Unsubscribe from a topic if an agent no longer needs to respond to updates on
 the channel.
 */
-func (q *Queue) Unsubscribe(ID, topic string) {
+func (q *Queue) Unsubscribe(ID, topic string) (err error) {
+	errnie.Trace()
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
 	subscriber, exists := q.subscribers[ID]
 	if !exists {
-		return
+		return errnie.Error(errors.New("subscriber does not exist"))
 	}
 
-	if ch, ok := subscriber.Channels[topic]; ok {
-		close(ch)
-		delete(subscriber.Channels, topic)
-	}
-
-	// Remove subscriber from globalTopics
-	subscribers := q.globalTopics[topic]
-	for i, sub := range subscribers {
-		if sub.ID == ID {
-			q.globalTopics[topic] = append(subscribers[:i], subscribers[i+1:]...)
+	for i, t := range subscriber.topics {
+		if t == topic {
+			// Remove the topic from the subscriber.
+			subscriber.topics = append(subscriber.topics[:i], subscriber.topics[i+1:]...)
 			break
 		}
 	}
+
+	return nil
 }
 
 /*
 Unregister from the queue, which should be called in an agent's life-cycle exit stage.
 */
-func (q *Queue) Unregister(ID string) {
+func (q *Queue) Unregister(ID string) (err error) {
+	errnie.Trace()
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
 	subscriber, exists := q.subscribers[ID]
 	if !exists {
-		return
+		return errnie.Error(errors.New("subscriber does not exist"))
 	}
 
-	// Close all channels
-	for _, ch := range subscriber.Channels {
-		close(ch)
-	}
+	// Close the subscriber's inbox.
+	close(subscriber.inbox)
 
-	// Remove from global topics
-	for topic := range subscriber.Channels {
-		subscribers := q.globalTopics[topic]
-		for i, sub := range subscribers {
-			if sub.ID == ID {
-				q.globalTopics[topic] = append(subscribers[:i], subscribers[i+1:]...)
-				break
-			}
-		}
-	}
-
+	// Delete the subscriber from the queue.
 	delete(q.subscribers, ID)
+
+	return nil
 }

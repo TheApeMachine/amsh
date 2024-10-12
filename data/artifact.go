@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"capnproto.org/go/capnp/v3"
+	"github.com/google/uuid"
 	"github.com/theapemachine/amsh/errnie"
 )
 
@@ -19,6 +20,7 @@ var Empty = Artifact{}
 New creates a new artifact with the given origin, role, scope, and data.
 */
 func New(origin, role, scope string, data []byte) Artifact {
+	errnie.Trace()
 	var (
 		seg      *capnp.Segment
 		err      error
@@ -33,13 +35,14 @@ func New(origin, role, scope string, data []byte) Artifact {
 		return Empty
 	}
 
+	artifact.SetTimestamp(uint64(time.Now().UnixNano()))
+	artifact.SetVersion(version)
+	artifact.SetId(uuid.New().String())
+
 	errnie.Error(artifact.SetOrigin(origin))
 	errnie.Error(artifact.SetRole(role))
 	errnie.Error(artifact.SetScope(scope))
 	errnie.Error(artifact.SetPayload(data))
-
-	artifact.SetTimestamp(uint64(time.Now().UnixNano()))
-	artifact.SetVersion(version)
 
 	return artifact
 }
@@ -49,6 +52,7 @@ Peek retrieves a value from the artifact, starting by looking for an existing fi
 and falling back to searching the attribute list.
 */
 func (artifact Artifact) Peek(key string) string {
+	errnie.Trace()
 	var (
 		value string
 		data  []byte
@@ -86,6 +90,7 @@ Poke sets a value on the artifact, starting by looking for an existing field,
 and falling back to using the attribute list.
 */
 func (artifact Artifact) Poke(key string, value string) Artifact {
+	errnie.Trace()
 	var err error
 
 	switch key {
@@ -114,6 +119,7 @@ func (artifact Artifact) Poke(key string, value string) Artifact {
 
 // getAttributeValue searches the attribute list for the given key.
 func (artifact Artifact) getAttributeValue(key string) (string, error) {
+	errnie.Trace()
 	attrs, err := artifact.Attributes()
 	if errnie.Error(err) != nil {
 		return "", err

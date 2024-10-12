@@ -6,11 +6,12 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
-	"github.com/theapemachine/amsh/ai/format"
 	"github.com/theapemachine/amsh/errnie"
 )
 
 func GenerateSchema[T any]() interface{} {
+	errnie.Trace()
+
 	// Structured Outputs uses a subset of JSON schema
 	// These flags are necessary to comply with the subset
 	reflector := jsonschema.Reflector{
@@ -22,7 +23,13 @@ func GenerateSchema[T any]() interface{} {
 	return schema
 }
 
-func GetParams(system, user string, toolset []openai.ChatCompletionToolParam) openai.ChatCompletionNewParams {
+func GetParams(
+	system, user string,
+	schema openai.ResponseFormatJSONSchemaJSONSchemaParam,
+	toolset []openai.ChatCompletionToolParam,
+) openai.ChatCompletionNewParams {
+	errnie.Trace()
+
 	return openai.ChatCompletionNewParams{
 		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(system),
@@ -30,13 +37,8 @@ func GetParams(system, user string, toolset []openai.ChatCompletionToolParam) op
 		}),
 		ResponseFormat: openai.F[openai.ChatCompletionNewParamsResponseFormatUnion](
 			openai.ResponseFormatJSONSchemaParam{
-				Type: openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
-				JSONSchema: openai.F(openai.ResponseFormatJSONSchemaJSONSchemaParam{
-					Name:        openai.F("reasoning"),
-					Description: openai.F("Available reasoning strategies"),
-					Schema:      openai.F(GenerateSchema[format.Strategy]()),
-					Strict:      openai.Bool(false),
-				}),
+				Type:       openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
+				JSONSchema: openai.F(schema),
 			},
 		),
 		Tools: openai.F(toolset),
@@ -52,6 +54,8 @@ type Completion struct {
 }
 
 func NewCompletion(ctx context.Context) *Completion {
+	errnie.Trace()
+
 	return &Completion{
 		ctx:    ctx,
 		client: openai.NewClient(),

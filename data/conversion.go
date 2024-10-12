@@ -6,6 +6,7 @@ import (
 )
 
 func (artifact Artifact) Marshal() []byte {
+	errnie.Trace()
 	var (
 		buf []byte
 		err error
@@ -19,6 +20,7 @@ func (artifact Artifact) Marshal() []byte {
 }
 
 func (artifact Artifact) Unmarshal(buf []byte) Artifact {
+	errnie.Trace()
 	var (
 		msg *capnp.Message
 		err error

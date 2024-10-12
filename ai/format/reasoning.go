@@ -1,7 +1,7 @@
 package format
 
 type Strategy struct {
-	Reasoning []Reasoning `json:"reasoning" jsonschema_description:"Dynamic composition of reasoning types you want to use" jsonschema:"anyof_ref=#/$defs/thought;#/$defs/reflection;#/$defs/challenge;#/$defs/review;#/$defs/chain_of_thought;#/$defs/tree_of_thought;#/$defs/self_reflection;#/$defs/verification"`
+	Reasoning []Reasoning `json:"reasoning" jsonschema_description:"Dynamic composition of reasoning types you want to use" jsonschema:"anyof_ref=#/$defs/chain_of_thought;#/$defs/tree_of_thought;#/$defs/self_reflection;#/$defs/verification;#/$defs/sprintplan"`
 }
 
 type Thought string
@@ -13,9 +13,33 @@ type Challenge string
 type Review string
 
 type Step struct {
-	Description string `json:"description" jsonschema_description:"Description of the step"`
-	Action      string `json:"action" jsonschema_description:"Action taken in this step"`
-	Result      string `json:"result" jsonschema_description:"Result of the action"`
+	Thought    string `json:"thought" jsonschema_description:"Thought or idea at the current step in the chain"`
+	Effect     string `json:"effect" jsonschema_description:"Effect of the current thought on the previous conclusions"`
+	Conclusion string `json:"conclusion" jsonschema_description:"Conclusion after the current step in the chain, combined with the previous steps"`
+}
+
+type Task struct {
+	Title   string `json:"title" jsonschema_description:"Title of the task"`
+	Summary string `json:"summary" jsonschema_description:"Description of the task"`
+	Actions []Step `json:"actions" jsonschema_description:"Sequence of actions in the task"`
+}
+
+type Story struct {
+	Title   string `json:"title" jsonschema_description:"Title of the story"`
+	Summary string `json:"summary" jsonschema_description:"Gherkin summary of the story"`
+	Tasks   []Task `json:"tasks" jsonschema_description:"Sequence of tasks to be completed"`
+}
+
+type Epic struct {
+	Title   string  `json:"title" jsonschema_description:"Title of the epic"`
+	Summary string  `json:"summary" jsonschema_description:"Gherkin summary of the epic"`
+	Stories []Story `json:"stories" jsonschema_description:"Sequence of stories to be completed"`
+}
+
+type Sprint struct {
+	Goal    string `json:"goal" jsonschema_description:"Goal of the sprint"`
+	Summary string `json:"summary" jsonschema_description:"Description of the sprint"`
+	Epics   []Epic `json:"epics" jsonschema_description:"Sequence of epics to be completed"`
 }
 
 type Reasoning struct {

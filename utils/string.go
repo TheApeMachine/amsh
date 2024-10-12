@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -9,8 +10,15 @@ import (
 	"github.com/goombaio/namegenerator"
 	"github.com/sashabaranov/go-openai"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
 )
+
+func JSONtoMap(jsonString string) (map[string]any, error) {
+	var result map[string]any
+	if err := json.Unmarshal([]byte(jsonString), &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
 
 func JoinWith(delim string, args ...string) string {
 	return strings.Join(args, delim)
@@ -20,7 +28,7 @@ func StrategyInstructions(name string) string {
 	prompt := viper.GetViper().GetString("ai.prompt.strategy." + name + ".instructions")
 
 	if prompt == "" {
-		return errnie.Error(fmt.Errorf("no instructions for %s", name)).Error()
+		return fmt.Errorf("no instructions for %s", name).Error()
 	}
 
 	return prompt

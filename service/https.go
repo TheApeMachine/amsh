@@ -58,7 +58,7 @@ func (https *HTTPS) Up() error {
 	})
 
 	https.app.Get("/ws", sockpuppet.NewWebsocket(NewWebSocketHandler()))
-
+	https.app.Post("/webhook", NewWebhook())
 	https.app.Use("/", static.New("./frontend"))
 
 	return https.app.Listen(":8567", fiber.ListenConfig{EnablePrefork: true})

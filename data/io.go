@@ -1,6 +1,7 @@
 package data
 
 import (
+	"io"
 	"sync"
 
 	"github.com/theapemachine/amsh/errnie"
@@ -20,6 +21,7 @@ Read implements the io.Reader interface for the Artifact.
 It marshals the entire artifact into the provided byte slice.
 */
 func (artifact Artifact) Read(p []byte) (n int, err error) {
+	errnie.Trace()
 	var buf []byte
 
 	// Marshal the artifact into bytes.
@@ -34,7 +36,7 @@ func (artifact Artifact) Read(p []byte) (n int, err error) {
 	}
 
 	// Copy the marshaled bytes into the provided byte slice.
-	return copy(p, buf), nil
+	return copy(p, buf), io.EOF
 }
 
 /*
@@ -42,9 +44,9 @@ Write implements the io.Writer interface for the Artifact.
 It writes the entire artifact to the provided stream.
 */
 func (artifact Artifact) Write(p []byte) (n int, err error) {
+	errnie.Trace()
 	// Get a buffer from the pool.
-	buf := bufpool.Get().([]byte)
-	defer bufpool.Put(&buf)
+	buf := []byte{}
 
 	if buf, err = artifact.Payload(); err != nil {
 		err = errnie.Error(err)
@@ -59,6 +61,7 @@ func (artifact Artifact) Write(p []byte) (n int, err error) {
 Close implements the io.Closer interface for the Artifact.
 */
 func (artifact Artifact) Close() error {
+	errnie.Trace()
 	// No-op for this example, but could be extended to manage resources.
 	return nil
 }
