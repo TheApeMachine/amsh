@@ -6,8 +6,6 @@ interface LifecycleHandler {
 const lifecycleHandlers: WeakMap<Node, LifecycleHandler> = new WeakMap();
 
 export const onMount = (element: HTMLElement, handler: () => void) => {
-    console.debug("lifecycle", "onMount", element)
-
     const wrappedHandler = () => {
         handler();
         // If this element has a shadow root, observe it too
@@ -24,13 +22,10 @@ export const onMount = (element: HTMLElement, handler: () => void) => {
 };
 
 export const onUnmount = (element: HTMLElement, handler: () => void) => {
-    console.debug("lifecycle", "onUnmount", element)
     element.addEventListener('disconnected', handler, { once: true });
 };
 
 const observeShadowRoot = (shadowRoot: ShadowRoot) => {
-    console.debug("lifecycle", "observeShadowRoot", shadowRoot)
-
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
             mutation.addedNodes.forEach((node) => {
@@ -50,8 +45,6 @@ const observeShadowRoot = (shadowRoot: ShadowRoot) => {
 
 // Function to trigger the "onMount" lifecycle when a node is added to the DOM
 const triggerMount = (node: Node) => {
-    console.debug("lifecycle", "triggerMount", node)
-
     const handlers = lifecycleHandlers.get(node);
     if (handlers?.onMount) {
         handlers.onMount();
@@ -60,8 +53,6 @@ const triggerMount = (node: Node) => {
 
 // Function to trigger the "onUnmount" lifecycle when a node is removed from the DOM
 const triggerUnmount = (node: Node) => {
-    console.debug("lifecycle", "triggerUnmount", node)
-
     const handlers = lifecycleHandlers.get(node);
     if (handlers?.onUnmount) {
         handlers.onUnmount();
@@ -70,7 +61,6 @@ const triggerUnmount = (node: Node) => {
 
 const observer = new MutationObserver((mutationsList) => {
     mutationsList.forEach((mutation) => {
-        console.debug("lifecycle", "mutation", mutation)
         mutation.addedNodes.forEach((node) => triggerMount(node));
         mutation.removedNodes.forEach((node) => triggerUnmount(node));
     });

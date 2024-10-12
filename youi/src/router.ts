@@ -23,6 +23,15 @@ const routes: Route[] = [{
         const module = await import("@/routes/home");
         return await module.effect();
     }
+}, {
+    path: "/product",
+    view: async () => {
+        const module = await import("@/routes/product");
+        return await module.render();
+    },
+    effect: async () => {
+        return null;
+    }
 }];
 
 let currentPath = '';

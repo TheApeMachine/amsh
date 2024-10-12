@@ -12,7 +12,7 @@ type Listener struct {
 }
 
 func NewListener(ctx context.Context, generator chan data.Artifact) *Listener {
-	return &Listener{generator: generator}
+	return &Listener{ctx: ctx, generator: generator}
 }
 
 func (listener *Listener) Messages(handlerFunc func(data.Artifact)) {

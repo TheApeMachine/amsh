@@ -13,7 +13,6 @@ export const StateManager = () => {
     const worker = getWorker();
 
     worker.onmessage = (event: MessageEvent) => {
-        console.log("lib.StateManager.onmessage", event);
         const { topic, effect } = event.data;
         if (topic === "state" && effect) {
             const fn = getState(effect)
@@ -41,7 +40,6 @@ export const StateManager = () => {
     };
 
     const register = (key: string, value: any) => {
-        console.log("lib.StateManager.register", key, value);
         registry[key] = value;
     };
 
@@ -55,7 +53,6 @@ export const StateManager = () => {
             if (value) {
                 Object.assign(state, value);
             }
-            console.log("lib.StateManager.init", state);
             setState({ ready: true });
         } catch (error) {
             console.error("Error initializing StateManager:", error);

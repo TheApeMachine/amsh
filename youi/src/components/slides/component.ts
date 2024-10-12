@@ -1,5 +1,7 @@
 import Reveal from 'reveal.js';
 import '@/components/ui/layout';
+import '@/components/sanddance/component';
+import '@/components/amsh/components';
 
 class SlidesComponent extends HTMLElement {
     private revealInstance: Reveal.Api | undefined;
@@ -72,9 +74,6 @@ class SlidesComponent extends HTMLElement {
             </style>
             <div class="reveal">
                 <div class="slides">
-                    <section>
-                        <layout-component></layout-component>
-                    </section>
                     <section>
                         <h2>Slide 2</h2>
                         <p>This is the second slide.</p>

@@ -8,24 +8,36 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
+/*
+queueCache ensures that the queue is an ambient context and everybody
+is connected on the same channels.
+*/
 var queueCache *Queue
 
-type Message struct {
-	Topic string
-	Data  data.Artifact
-}
-
+/*
+Subscriber describes a Worker or Agent that is connected to the queue
+and listening to specific channels.
+*/
 type Subscriber struct {
 	ID       string
 	Channels map[string]chan data.Artifact
 }
 
+/*
+Queue connects subscribers via channels. These channels can be either
+broadcast channels, which are public, topics, which are meant for
+specific groups, or private channels, which are for specific agents.
+*/
 type Queue struct {
 	mu           sync.RWMutex
 	subscribers  map[string]*Subscriber
 	globalTopics map[string][]*Subscriber
 }
 
+/*
+NewQueue instantiates the queue, or returns the queue from the cache
+if it was previously created.
+*/
 func NewQueue() *Queue {
 	if queueCache == nil {
 		queueCache = &Queue{
@@ -37,7 +49,10 @@ func NewQueue() *Queue {
 	return queueCache
 }
 
-// Register a new subscriber
+/*
+Register should be called by all newly created agents to patch them into
+the communication network.
+*/
 func (q *Queue) Register(ID string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -91,7 +106,10 @@ func (q *Queue) Publish(topic string, message data.Artifact) {
 	}
 }
 
-// Unsubscribe from a topic
+/*
+Unsubscribe from a topic if an agent no longer needs to respond to updates on
+the channel.
+*/
 func (q *Queue) Unsubscribe(ID, topic string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -116,7 +134,9 @@ func (q *Queue) Unsubscribe(ID, topic string) {
 	}
 }
 
-// Unregister a subscriber
+/*
+Unregister from the queue, which should be called in an agent's life-cycle exit stage.
+*/
 func (q *Queue) Unregister(ID string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()

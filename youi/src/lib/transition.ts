@@ -13,7 +13,6 @@ export const Transition = (
     { enter, exit }: { enter: (el: HTMLElement) => void, exit: (el: HTMLElement) => void }
 ): DocumentFragment => {
     const targetElement = element.firstElementChild as HTMLElement;
-    console.debug("transition", "targetElement", targetElement)
 
     // Trigger the enter animation when the element is added to the DOM
     onMount(targetElement, () => {
@@ -31,7 +30,6 @@ export const Transition = (
 };
 
 export const sequence = (...animations: Array<(el: HTMLElement) => gsap.core.Timeline | gsap.core.Tween>): ((el: HTMLElement) => gsap.core.Timeline) => {
-    console.debug("transition", "sequence", animations)
     return (el: HTMLElement) => {
         const tl = gsap.timeline();
         animations.forEach(anim => tl.add(anim(el)));
@@ -40,7 +38,6 @@ export const sequence = (...animations: Array<(el: HTMLElement) => gsap.core.Tim
 };
 
 export const parallel = (...animations: Array<(el: HTMLElement) => gsap.core.Timeline | gsap.core.Tween>): ((el: HTMLElement) => gsap.core.Timeline) => {
-    console.debug("transition", "parallel", animations)
     return (el: HTMLElement) => {
         const tl = gsap.timeline();
         animations.forEach(anim => tl.add(anim(el), 0)); // Start all animations at time 0

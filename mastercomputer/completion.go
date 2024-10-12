@@ -2,6 +2,7 @@ package mastercomputer
 
 import (
 	"context"
+	"errors"
 
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
@@ -57,13 +58,20 @@ func NewCompletion(ctx context.Context) *Completion {
 	}
 }
 
-func (completion *Completion) Execute(ctx context.Context, params openai.ChatCompletionNewParams) openai.ChatCompletion {
+func (completion *Completion) Execute(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	errnie.Trace()
-	var response *openai.ChatCompletion
 
-	if response, completion.err = completion.client.Chat.Completions.New(ctx, params); completion.err != nil {
-		errnie.Error(completion.err)
+	response, err := completion.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		errnie.Error(err)
+		return nil, err
 	}
 
-	return *response
+	if response == nil {
+		err = errors.New("no response from OpenAI")
+		errnie.Error(err)
+		return nil, err
+	}
+
+	return response, nil
 }

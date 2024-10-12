@@ -22,7 +22,7 @@ class ToastContainer extends HTMLElement {
             @mouseenter="${() => this.handleMouseEnter()}"
             @mouseleave="${() => this.handleMouseLeave()}"
         >
-            ${this.toasts.map((toast, index) => `
+            ${this.toasts?.map((toast, index) => `
                 <toast-message
                     message="${toast.message}"
                     type="${toast.type}"

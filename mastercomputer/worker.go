@@ -3,6 +3,7 @@ package mastercomputer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -22,12 +23,15 @@ const (
 	WorkerStateInitializing
 	WorkerStateReady
 	WorkerStateRunning
+	WorkerStateWorking
 	WorkerStateFinished
+	WorkerStateZombie
 )
 
 type Worker struct {
 	parentCtx context.Context
 	ctx       context.Context
+	cancel    context.CancelFunc
 	err       error
 	buffer    data.Artifact
 	memory    *ai.Memory
@@ -35,27 +39,51 @@ type Worker struct {
 	queue     *twoface.Queue
 	inbox     chan data.Artifact
 	ID        string
-	Function  WorkerTool
+	OK        bool
 }
 
+/*
+NewWorker provides a minimal, uninitialized Worker object. We pass in a
+context for cancellation purposes, and an Artifact so we can transfer
+data over if we need to.
+*/
 func NewWorker(ctx context.Context, buffer data.Artifact) *Worker {
 	errnie.Trace()
 
 	return &Worker{
-		ctx:    ctx,
-		buffer: buffer,
-		state:  WorkerStateCreating,
+		parentCtx: ctx,
+		buffer:    buffer,
+		state:     WorkerStateCreating,
+		OK:        false,
 	}
 }
 
-func (worker *Worker) Initialize(ctx context.Context) {
+func (worker *Worker) Initialize(ctx context.Context) *Worker {
+	errnie.Trace()
+
+	worker.ctx, worker.cancel = context.WithCancel(ctx)
+
 	worker.state = WorkerStateInitializing
 	worker.queue = twoface.NewQueue()
 	worker.queue.Register(worker.ID)
-	worker.inbox, _ = worker.queue.Subscribe(worker.ID, worker.ID)
+
+	if worker.inbox, worker.err = worker.queue.Subscribe(
+		worker.ID, worker.ID,
+	); errnie.Error(worker.err) != nil {
+		worker.state = WorkerStateZombie
+	}
+
+	if worker.state == WorkerStateZombie {
+		errnie.Error(errors.New("worker went zombie"))
+		return worker
+	}
 
 	listener := twoface.NewListener(worker.ctx, worker.inbox)
 	listener.Messages(worker.inboxCallback)
+
+	worker.state = WorkerStateReady
+	worker.OK = true
+	return worker
 }
 
 func (worker *Worker) Read(p []byte) (n int, err error) {
@@ -81,6 +109,11 @@ func (worker *Worker) inboxCallback(msg data.Artifact) {
 // Implement the Job interface
 func (worker *Worker) Process(ctx context.Context) error {
 	errnie.Trace()
+
+	if worker.state != WorkerStateReady {
+		return errors.New("worker not ready")
+	}
+
 	worker.state = WorkerStateRunning
 
 	params := GetParams(
@@ -99,6 +132,10 @@ func (worker *Worker) Process(ctx context.Context) error {
 	)
 
 	for {
+		if worker.state == WorkerStateFinished {
+			break
+		}
+
 		params = worker.handleToolCalls(worker.printResponse(
 			NewCompletion(worker.ctx).Execute(worker.ctx, params),
 		), params)
@@ -107,8 +144,13 @@ func (worker *Worker) Process(ctx context.Context) error {
 	return nil
 }
 
-func (worker *Worker) printResponse(response openai.ChatCompletion) openai.ChatCompletionMessage {
+func (worker *Worker) printResponse(response *openai.ChatCompletion, err error) openai.ChatCompletionMessage {
 	errnie.Trace()
+
+	if errnie.Error(err) != nil {
+		worker.state = WorkerStateFinished
+		return openai.ChatCompletionMessage{}
+	}
 
 	reasoning := map[string]any{}
 
@@ -135,8 +177,6 @@ func (worker *Worker) handleToolCalls(
 
 	params.Messages.Value = append(params.Messages.Value, message)
 	for _, toolCall := range message.ToolCalls {
-		errnie.Raw(toolCall)
-
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); errnie.Error(err) != nil {
 			out = "error unmarshalling arguments"
 		}

@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/mastercomputer"
 )
 
@@ -43,16 +45,22 @@ var testCmd = &cobra.Command{
 			return err
 		}
 
-		prompt.Poke("system", "You are part of an advanced AI system, called The Ape Machine. When you are presented with code, analyze it deeply then provide an improved version of it.")
-		prompt.Poke("guidelines", "If at some point you do not know what to do, you should just say so and ask for help. Never make up an answer, or try to guess at an answer.")
-		prompt.Poke("toolset", "system")
-		prompt.Poke("user", buf.String())
+		v := viper.GetViper()
+
+		prompt.Poke("system", v.GetString("ai.prompt.system"))
+		prompt.Poke("guidelines", v.GetString("ai.prompt.guidelines"))
+		prompt.Poke("toolset", v.GetString("system"))
+		prompt.Poke("user", "Have a look at the following code, and make it better.\n\n"+buf.String())
 
 		systems := []*mastercomputer.Worker{
-			mastercomputer.NewWorker(cmd.Context(), prompt),
+			mastercomputer.NewWorker(cmd.Context(), prompt).Initialize(cmd.Context()),
 		}
 
 		for _, system := range systems {
+			if !system.OK {
+				errnie.Warn("skipping system")
+				continue
+			}
 			system.Process(context.Background())
 		}
 

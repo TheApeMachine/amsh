@@ -7,6 +7,5 @@ If no match is found, an empty DocumentFragment is returned.
 */
 export const match = (stateObj: { state: "loading" | "error" | "success", results: any }, handlers: Record<string, Function>) => {
     const { state, results } = stateObj;
-    console.debug("matcher", "match", stateObj, handlers)
     return handlers[state](results);
 };
