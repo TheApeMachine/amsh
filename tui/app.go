@@ -1,109 +1,153 @@
+// File: tui/app.go
+
 package tui
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
-	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/core"
-	"github.com/theapemachine/amsh/twoface"
 	"golang.org/x/term"
 )
 
-/*
-App wraps the entire application to ensure the terminal is restored to cooked mode upon exit.
-*/
 type App struct {
-	pool     *twoface.Pool
-	oldState *term.State
-	keyboard *core.Keyboard
-	err      chan error
 	width    int
 	height   int
+	oldState *term.State
+	context  *core.Context
+	running  bool
+	wg       *sync.WaitGroup
 }
 
-/*
-New creates a new App.
-*/
+// New creates a new application.
 func New() *App {
 	return &App{
-		pool:     twoface.NewPool(context.Background(), 10),
-		keyboard: core.NewKeyboard(),
-		err:      make(chan error),
+		wg: &sync.WaitGroup{},
 	}
 }
 
-/*
-Initialize sets up the application and recovery mechanisms.
-*/
+// Initialize sets up the application.
 func (app *App) Initialize() *App {
-	fmt.Println("Viper Configurations:")
-	fmt.Println(viper.AllSettings())
-
-	// Handle OS signals to ensure terminal restoration.
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
 		<-sigChan
-		app.flipMode()
-		os.Exit(0)
+		app.cleanupAndExit()
 	}()
 
-	// Flip to raw mode at initialization.
-	app.flipMode()
+	app.flipMode() // Switch to raw mode.
+	app.clearScreen()
+
+	app.running = true
+
+	Render() // Get terminal size
 	app.width, app.height, _ = term.GetSize(int(os.Stdout.Fd()))
+	app.context = core.NewContext(
+		core.NewQueue(),
+		app.width,
+		app.height,
+	)
+
+	// Subscribe to app events
+	go app.handleAppEvents()
 
 	return app
 }
 
-/*
-Run starts the main loop, which includes panic recovery.
-*/
-func (app *App) Run() *App {
-	// Recover from panics and restore the terminal.
-	defer func() {
-		if r := recover(); r != nil {
-			app.flipMode()
-			os.Exit(1)
+// Run starts the main event loop.
+func (app *App) Run() {
+	errnie.Trace()
+	app.wg.Add(1)
+	go app.readLoop()
+	app.wg.Wait()
+}
+
+// handleAppEvents listens for events on the 'app_event' topic.
+func (app *App) handleAppEvents() {
+	errnie.Trace()
+	appSub := app.context.Queue.Subscribe("app_event")
+	for artifact := range appSub {
+		switch artifact.Peek("scope") {
+		case "Quit":
+			app.cleanupAndExit()
+		default:
+			errnie.Warn("Unknown app event scope: %s", artifact.Peek("scope"))
 		}
-	}()
-
-	var err error
-
-	if _, err = io.Copy(app.pool, app.keyboard); err != nil {
-		app.err <- err
-		os.Exit(1)
 	}
-
-	return app
 }
 
-func (app *App) Error() string {
-	err := <-app.err
-	return err.Error()
+// readLoop continuously reads input from the user.
+func (app *App) readLoop() {
+	errnie.Trace()
+	for app.running {
+		b := readByte()
+		if b != 0 {
+			app.context.Keyboard.HandleInput(b)
+		}
+	}
 }
 
-/*
-flipMode toggles the terminal between raw and cooked mode.
-*/
-func (app *App) flipMode() (err error) {
+// flipMode toggles the terminal between raw and cooked mode.
+func (app *App) flipMode() {
+	errnie.Trace()
+	var err error
 	if app.oldState == nil {
-		// Switch to raw mode
-		if app.oldState, err = term.MakeRaw(int(os.Stdin.Fd())); err != nil {
-			app.err <- err
+		if app.oldState, err = term.GetState(int(os.Stdin.Fd())); err != nil {
+			fmt.Println("Error getting terminal state:", err)
 			os.Exit(1)
 		}
+
+		// Make a copy of the old state to modify
+		rawState := *app.oldState
+
+		// Apply the raw mode attributes
+		if err = term.Restore(int(os.Stdin.Fd()), &rawState); err != nil {
+			fmt.Println("Error setting raw mode:", err)
+			os.Exit(1)
+		}
+
 		return
 	}
 
-	// Restore terminal to cooked mode
 	term.Restore(int(os.Stdin.Fd()), app.oldState)
 	app.oldState = nil
-	fmt.Fprintln(os.Stdout, "terminal restored")
-	return
+	// Show cursor upon exit
+	fmt.Print("\033[?25h")
+	fmt.Println("\nTerminal restored")
+}
+
+// cleanupAndExit gracefully exits the application.
+func (app *App) cleanupAndExit() {
+	errnie.Trace()
+	app.running = false
+	app.flipMode()
+	fmt.Println("Exiting...")
+	app.wg.Done()
+}
+
+// clearScreen clears the terminal screen using ANSI escape codes.
+func (app *App) clearScreen() {
+	errnie.Trace()
+	fmt.Print("\033[H\033[2J")
+	os.Stdout.Sync() // Flush output
+}
+
+// readByte reads a single byte from standard input.
+func readByte() byte {
+	errnie.Trace()
+	var buf [1]byte
+	n, err := os.Stdin.Read(buf[:])
+	if err != nil {
+		errnie.Error(err)
+		return 0
+	}
+	if n == 0 {
+		return 0
+	}
+	return buf[0]
 }

@@ -23,10 +23,18 @@ RUN go mod tidy && go mod download
 
 # Development stage
 FROM base AS dev
-RUN go install github.com/air-verse/air@latest
+
+ENV DBUS_SESSION_BUS_ADDRESS autolaunch:
+
+RUN install_packages wget gnupg \
+	&& go install github.com/air-verse/air@latest
+
 COPY . .
+
 ENV PATH="/root/go/bin:${PATH}"
+
 EXPOSE 8080
+
 CMD ["air"]
 
 # Production stage

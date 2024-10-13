@@ -1,40 +1,41 @@
 package ai
 
+import (
+	"github.com/google/uuid"
+	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/errnie"
+)
+
 /*
-Prompt uses composable template fragments, optionally with dynamic variables to
-craft a new instruction to send to a Large Language Model so it understands a
-given task, and is provided with any relevant context. Prompt fragments are
-defined in the config file embedded in the binary, which is written to the
-home directory of the user. It can be interacted with using Viper.
+Prompt represents a prompt for an AI agent.
 */
 type Prompt struct {
-	systems  []string
-	contexts []*Context
+	SessionID string   `json:"session_id"`
+	System    []string `json:"system"`
+	Assistant []string `json:"assistant"`
+	Tool      []string `json:"tool"`
+	Function  []string `json:"function"`
+	User      []string `json:"user"`
 }
 
 /*
-NewPrompt creates an empty prompt that can be used to dynamically build sophisticated
-instructions that represent a request for an AI to produce a specific response.
+NewPrompt creates a new Prompt for a given agent type.
 */
-func NewPrompt(steps ...string) *Prompt {
+func NewPrompt(agentType string) *Prompt {
+	errnie.Debug("Creating new prompt for agent type: %s", agentType)
+	system := viper.GetViper().GetString(`ai.`+agentType+`.system`) + "\n\n"
+	user := viper.GetViper().GetString(`ai.`+agentType+`.user`) + "\n\n"
+
+	errnie.Debug("[SYSTEM PROMPT]\n%s\n\n", system)
+	errnie.Debug("[USER PROMPT]\n%s\n\n", user)
+
 	return &Prompt{
-		systems:  make([]string, 0),
-		contexts: make([]*Context, 0),
+		SessionID: uuid.New().String(),
+		System: []string{
+			system,
+		},
+		User: []string{
+			user,
+		},
 	}
-}
-
-/*
-AddSystem adds a system to the prompt.
-*/
-func (p *Prompt) AddSystem(system string) *Prompt {
-	p.systems = append(p.systems, system)
-	return p
-}
-
-/*
-AddContext adds a context to the prompt.
-*/
-func (p *Prompt) AddContext(context *Context) *Prompt {
-	p.contexts = append(p.contexts, context)
-	return p
 }

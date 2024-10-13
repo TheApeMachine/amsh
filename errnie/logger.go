@@ -1,210 +1,271 @@
 package errnie
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
+	"sync"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/invopop/jsonschema"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/berrt"
 )
+
+var fixing = false
+
+func GenerateSchema[T any]() interface{} {
+	// Structured Outputs uses a subset of JSON schema
+	// These flags are necessary to comply with the subset
+	reflector := jsonschema.Reflector{
+		AllowAdditionalProperties: false,
+		DoNotReference:            true,
+	}
+	var v T
+	schema := reflector.Reflect(v)
+	return schema
+}
+
+var dark = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#666666")).Render
+var muted = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#999999")).Render
+var highlight = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#EEEEEE")).Render
+var blue = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#6E95F7")).Render
+var red = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#F7746D")).Render
+var yellow = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#F7B96D")).Render
+var green = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#06C26F")).Render
 
 var (
-	logger      *log.Logger
-	fileLogger  *log.Logger
-	file        *os.File
-	tickID      int
-	indentLevel int
-	debug       bool
+	logFile     *os.File
+	logFileMu   sync.Mutex
+	logFilePath string
 )
 
+func JSONtoMap(jsonString string) (map[string]any, error) {
+	var result map[string]any
+	if err := json.Unmarshal([]byte(jsonString), &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func init() {
-	debug = viper.GetViper().GetString("loglevel") == "debug"
+	initLogFile()
+	// sync.OnceFunc(func() {
+	// 	// Periodically print the number of active goroutines.
+	// 	go func() {
+	// 		for range time.Tick(time.Second * 5) {
+	// 			fmt.Printf("Active goroutines: %d\n", runtime.NumGoroutine())
+	// 		}
+	// 	}()
+	// })()
 }
 
-// Init initializes two loggers: one for the file and one for in-memory (TUI)
-func Init(filename string) error {
+func initLogFile() {
+	logDir := "./logs"
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Printf("Failed to create log directory: %v\n", err)
+		return
+	}
+
+	timestamp := time.Now().UnixNano()
+	logFilePath = filepath.Join(logDir, fmt.Sprintf("amsh-%d.log", timestamp))
+
 	var err error
-	file, err = os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	logFile, err = os.Create(logFilePath)
 	if err != nil {
-		return fmt.Errorf("error opening log file: %w", err)
-	}
-
-	// Create file logger without colors
-	fileLogger = log.NewWithOptions(file, log.Options{
-		ReportCaller: true,
-		CallerOffset: 2,
-	})
-
-	// Create in-memory logger (use io.Discard for TUI output as you manage separately)
-	logger = log.NewWithOptions(io.Discard, log.Options{
-		ReportCaller: true,
-		CallerOffset: 2,
-	})
-
-	return nil
-}
-
-func SetIndentLevel(level int) {
-	indent := strings.Repeat("    ", level)
-
-	styles := log.DefaultStyles()
-	styles.Levels[log.InfoLevel] = lipgloss.NewStyle().
-		SetString(indent).
-		Background(lipgloss.Color("204")).
-		Foreground(lipgloss.Color("0"))
-
-	fileLogger.SetStyles(styles)
-	logger.SetStyles(styles)
-}
-
-// Close closes the log file
-func Close() {
-	if file != nil {
-		file.Close()
+		fmt.Printf("Failed to create log file: %v\n", err)
 	}
 }
 
-// StartTick marks the beginning of a "tick" cycle
-func StartTick() {
-	if fileLogger == nil {
+/*
+Trace logs a trace message with the appropriate symbol
+*/
+func Trace() {
+	if viper.GetViper().GetString("loglevel") != "trace" {
 		return
 	}
 
-	indentLevel = 0
-	SetIndentLevel(indentLevel)
-	tickID++
-
-	symbol := "🟢"
-
-	fileLogger.Info(fmt.Sprintf("\n\n%s [%d] %s", symbol, tickID, "START TICK"))
-	logger.Info(fmt.Sprintf("\n\n%s [%d] %s", symbol, tickID, "START TICK"))
+	pc := make([]uintptr, 10)
+	runtime.Callers(2, pc)
+	f := runtime.FuncForPC(pc[0])
+	_, line := f.FileLine(pc[0])
+	formatted := fmt.Sprintf("%d", line)
+	message := fmt.Sprintf("▫️  %s %s", muted(f.Name()), blue(formatted))
+	if !fixing {
+		fmt.Println(message)
+	}
+	writeToLog(message)
 }
 
-// EndTick marks the end of a "tick" cycle
-func EndTick() {
-	if fileLogger == nil {
-		return
-	}
-	symbol := "🔴"
+// Raw logs a raw message with the appropriate symbol
+func Raw(obj any) {
+	level := viper.GetViper().GetString("loglevel")
 
-	fileLogger.Info(fmt.Sprintf("\n%s [%d] %s", symbol, tickID, "END TICK"))
-	logger.Info(fmt.Sprintf("\n%s [%d] %s", symbol, tickID, "END TICK"))
-}
-
-// StartSection starts a new section in the log and returns a function to end the section
-func StartSection(name, sectionType string) func() {
-	if fileLogger == nil {
-		return func() {}
-	}
-
-	indentLevel++
-	SetIndentLevel(indentLevel)
-
-	symbol := "🟩"
-
-	indent := strings.Repeat("    ", indentLevel)
-	fileLogger.Info(fmt.Sprintf("\n%s [%d] %s", indent+symbol, tickID, name))
-	logger.Info(fmt.Sprintf("\n%s [%d] %s", indent+symbol, tickID, name))
-
-	// Return a function to end the section
-	return func() {
-		EndSection(name)
-	}
-}
-
-// EndSection ends the current section in the log
-func EndSection(name string) {
-	if fileLogger == nil {
+	if level != "trace" && level != "debug" {
 		return
 	}
 
-	symbol := "🟥"
-
-	indent := strings.Repeat("    ", indentLevel)
-	fileLogger.Info(fmt.Sprintf("\n%s [%d] %s", indent+symbol, tickID, name))
-	logger.Info(fmt.Sprintf("\n%s [%d] %s", indent+symbol, tickID, name))
-
-	indentLevel--
-	SetIndentLevel(indentLevel)
-}
-
-// LogWithGroup logs a message under a specific functional group (e.g., BUFFER, EDITOR)
-func LogWithGroup(group, format string, v ...interface{}) {
-	if fileLogger == nil || logger == nil {
-		return
+	if !fixing {
+		spew.Dump(obj)
 	}
-
-	_, file, line, _ := runtime.Caller(1)
-	caller := fmt.Sprintf("%s:%d", filepath.Base(file), line)
-
-	message := fmt.Sprintf(format, v...)
-	fileLogger.Info(fmt.Sprintf("[%s] %s", group, message), "caller", caller)
-	logger.Info(fmt.Sprintf("[%s] %s", group, message), "caller", caller)
-}
-
-// IndentedLog logs messages with indentation to show nesting levels
-func IndentedLog(indentLevel int, format string, v ...interface{}) {
-	if fileLogger == nil || logger == nil {
-		return
-	}
-
-	indent := strings.Repeat("    ", indentLevel)
-	message := fmt.Sprintf(format, v...)
-	fileLogger.Info(indent + message)
-	logger.Info(indent + message)
-}
-
-func LogWithSymbol(symbol, format string, v ...interface{}) {
-	if fileLogger == nil || logger == nil {
-		return
-	}
-
-	// The log message will automatically get indented based on the global indentLevel
-	message := fmt.Sprintf(format, v...)
-	fileLogger.Info(fmt.Sprintf("%s %s", symbol, message))
-	logger.Info(fmt.Sprintf("%s %s", symbol, message))
-}
-
-// Print logs a message with the appropriate symbol
-func Print(format string, v ...interface{}) {
-	logger.Printf(format, v...)
-}
-
-// Log logs a message with the appropriate symbol
-func Log(format string, v ...interface{}) {
-	LogWithSymbol("🔷", format, v...)
+	writeToLog(spew.Sdump(obj))
 }
 
 // Debug logs a debug message with the appropriate symbol
 func Debug(format string, v ...interface{}) {
-	fmt.Println("🐛", fmt.Sprintf(format, v...))
+	level := viper.GetViper().GetString("loglevel")
+	if level != "trace" && level != "debug" {
+		return
+	}
+
+	message := fmt.Sprintf("🐛 %s", fmt.Sprintf(format, v...))
+	if !fixing {
+		fmt.Println(message)
+	}
+	writeToLog(message)
 }
 
 // Info logs an info message with the appropriate symbol
 func Info(format string, v ...interface{}) {
-	LogWithSymbol("🔷", format, v...)
+	message := fmt.Sprintf("🔷 %s", fmt.Sprintf(format, v...))
+	if !fixing {
+		fmt.Println(message)
+	}
+	writeToLog(message)
 }
 
 // Warn logs a warning message with the appropriate symbol
 func Warn(format string, v ...interface{}) {
-	LogWithSymbol("⚠️", format, v...)
+	message := fmt.Sprintf("⚠️ %s", fmt.Sprintf(format, v...))
+	if !fixing {
+		fmt.Println(message)
+	}
+	writeToLog(message)
 }
 
-// Error logs an error message with the appropriate symbol
-func Error(format string, v ...interface{}) {
-	if len(v) == 0 || v[0] == nil {
-		return
+var initOnce sync.Once
+var errorHandler *berrt.ErrorAI
+
+// Error logs an error message with the appropriate symbol, a code snippet, and a stack trace
+func Error(err error) error {
+	if err == nil {
+		return nil
 	}
 
-	fmt.Println("❗", fmt.Sprintf(format, v...))
+	// Capture the caller's file and line number
+	var pc [10]uintptr
+	n := runtime.Callers(2, pc[:])
+	if n == 0 {
+		message := fmt.Sprintf("❗ %v", err)
+		if !fixing {
+			fmt.Println(message)
+		}
+		writeToLog(message)
+		return fmt.Errorf(message)
+	}
+
+	frames := runtime.CallersFrames(pc[:n])
+	var relevantFrame runtime.Frame
+	for i := 0; i < 3; i++ {
+		frame, more := frames.Next()
+		if !more {
+			break
+		}
+		relevantFrame = frame
+	}
+	file := relevantFrame.File
+	line := relevantFrame.Line
+
+	// Format the error message with the function name, file, and line number
+	message := fmt.Sprintf("❗ %s:%d %v", file, line, err)
+	if !fixing {
+		fmt.Println(message)
+	}
+	writeToLog(message)
+
+	// Display a code snippet from the file (e.g., 2 lines before and after the error line)
+	const snippetRadius = 2
+	codeSnippet := getCodeSnippet(file, line, snippetRadius)
+	if codeSnippet != "" {
+		snippetMessage := fmt.Sprintf("📄 Code snippet (around %s:%d):\n%s", file, line, codeSnippet)
+		if !fixing {
+			fmt.Println(snippetMessage)
+		}
+		writeToLog(snippetMessage)
+	}
+
+	// Capture and print the stack trace
+	stackTrace := getStackTrace()
+
+	if !fixing {
+		fmt.Println("📊 Stack trace:")
+		fmt.Println(stackTrace)
+	}
+	writeToLog(stackTrace)
+
+	if !fixing {
+		initOnce.Do(func() {
+			errorHandler = berrt.NewErrorAI(message, stackTrace, codeSnippet)
+			fixing = true
+			go func() {
+				defer func() {
+					fixing = false
+				}()
+
+				errorHandler.Execute()
+				os.Exit(1)
+			}()
+		})
+	}
+
+	return fmt.Errorf(message)
 }
 
-// GetLogger returns the logger instance (for external usage if needed)
-func GetLogger() *log.Logger {
-	return logger
+func writeToLog(message string) {
+	logFileMu.Lock()
+	defer logFileMu.Unlock()
+	_, err := logFile.WriteString(message + "\n")
+	if err != nil {
+		fmt.Printf("Failed to write to log file: %v\n", err)
+	}
+}
+
+func getStackTrace() string {
+	buf := make([]byte, 1024)
+	n := runtime.Stack(buf, false)
+	return string(buf[:n])
+}
+
+func getCodeSnippet(file string, line, radius int) string {
+	fileHandle, err := os.Open(file)
+	if err != nil {
+		return ""
+	}
+	defer fileHandle.Close()
+
+	scanner := bufio.NewScanner(fileHandle)
+	currentLine := 1
+	var snippet string
+
+	for scanner.Scan() {
+		if currentLine >= line-radius && currentLine <= line+radius {
+			prefix := "  "
+			if currentLine == line {
+				prefix = "> "
+			}
+			snippet += fmt.Sprintf("%s%d: %s\n", prefix, currentLine, scanner.Text())
+		}
+		currentLine++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return ""
+	}
+
+	return snippet
 }

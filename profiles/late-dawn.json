@@ -1,1 +1,13 @@
-{"id":"late-dawn","history":"","profile":{"name":"","description":"","skills":[],"experiences":[],"memories":[],"relationships":[]},"color":"\u001b[32m"}
+{
+    "id": "late-dawn",
+    "history": "",
+    "profile": {
+        "name": "",
+        "description": "",
+        "skills": [],
+        "experiences": [],
+        "memories": [],
+        "relationships": []
+    },
+    "color": "\u001b[32m"
+}

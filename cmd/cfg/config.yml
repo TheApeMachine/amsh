@@ -1,297 +1,210 @@
-loglevel: info
+loglevel: trace
 
-keymap:
-  leader: " "
-  mapping:
-    - command: "q"
-      action: "quit"
+s3:
+  endpoint: "http://minio:9000"
+  access_key: "miniouser"
+  secret_key: "miniosecret"
+  bucket: "amsh"
+
+neo4j:
+  uri: "neo4j://neo4j:7687"
+  user: "neo4j"
+  password: "securepassword"
+
+tools:
+  templates:
+    access: |
+      ## Tools
+
+      You can use the following tools to help you with your current objective.
+    json: |
+      Remember, any time you use JSON, you must respond with a valid JSON object, enclosed in a JSON code block.
+  qdrant:
+    instructions: |
+      ### Qdrant (Vector Database)
+
+      The Qdrant tool is used to store and retrieve data in a vector database.
+
+      To use the Qdrant tool, use the template and instructions below.
+
+      ```json
+      {
+        "tool": "qdrant",
+        "command": "<command>",
+        "parameters": {}
+      }
+      ```
+
+      | command  | description                             | parameters       |
+      | -------- | --------------------------------------- | ---------------- |
+      | store    | Store data in the vector database       | data: any        |
+      | retrieve | Retrieve data from the vector database  | question: string |
+  neo4j:
+    instructions: |
+      ### Neo4j (Graph Database)
+
+      The Neo4j tool is used to store and retrieve data in a graph database.
+
+      To use the Neo4j tool, use the template and instructions below.
+
+      ```json
+      {
+        "tool": "neo4j",
+        "command": "<command>",
+        "parameters": {}
+      }
+      ```
+
+      | command | description        | parameters           |
+      | ------- | -------------------| -------------------- |
+      | query   | Search Neo4j graph | cypher query: string |
+      | update  | Update Neo4j graph | cypher query: string |
+
+      > NOTE: When using the Neo4J tool, you must consider the intricate details of how the data you want to store
+      > is connected, and how it may be connected to existing data in the graph.
+  environment:
+    instructions: |
+      You are currently connected to an environment, meaning everything you say will be executed as a bash command.
+      Please treat this as your personal computer, and use it to accomplish your objective.
+      Use caution when executing commands, as a general best practice, always start with verifying you have
+      everything you need, and you are set up as you expect. If you need more helpful information at all times,
+      you could customize you prompt, or other settings to help you.
+
+      If you are here to work on code, you must use the following git workflow.
+
+      1. Clone the repository you need to work on.
+      2. Create a new branch following the naming convention `feature/<name>` or `bugfix/<name>`.
+      3. Open an early pull-request right away.
+      4. Make small, atomic commits, providing a good commit message in general, and a justification for any non-trivial changes.
+      5. Merge the source branch back into your branch to keep your branch in sync with the main branch.
+      6. Make sure to resolve any merge conflicts that arise during the process.
+      7. Update the pull-request regularly, each time you push, you will receive a review very shortly.
+      8. Your reviewer will merge your pull-request once they are happy with the changes.
       
-docker:
-  base_images:
-    - golang:1.23
-    - python:3.12
-    - node:20
-    - php:8.3
+      You will exit the environment by issuing the `exit` command.
+  teams:
+    instructions: |
+      ### Teams
 
+      The Teams tool is used to interact with the secondary communication channel.
+
+      To use the Teams tool, use the template and instructions below.
+
+      ```json
+      {
+        "tool": "teams",
+        "command": "<command>",
+        "parameters": {}
+      }
+      ```
+
+      | command | description                | parameters    |
+      | ------- | -------------------------- | ------------- |
+      | search  | Search Teams history       | query: string |
+  slack:
+    instructions: |
+      ### Slack
+
+      The Slack tool is used to interact with the main communication channel.
+
+      To use the Slack tool, use the template and instructions below.
+
+      ```json
+      {
+        "tool": "slack",
+        "command": "<command>",
+        "parameters": {}
+      }
+      ```
+
+      | command | description                | parameters                       |
+      | ------- | -------------------------- | -------------------------------- |
+      | search  | Search Slack history       | query: string                    |
+      | post    | Post a message to Slack    | channel: string, message: string |
+  project:
+    instructions: |
+      ### Project
+
+      The project tool is used to interact with systems that manage projects, tasks, and other related information.
+
+      To use the project tool, use the template and instructions below.
+
+      ```json
+      {
+        "tool": "project",
+        "command": "<command>",
+        "parameters": {}
+      }
+      ```
+
+      | command | description                | parameters      |
+      | ------- | -------------------------- | --------------- |
+      | search  | Search project information | query: string   |
+      | update  | Update project information | updates: object |
+messaging:
+  templates:
+    new: |
+      The following is a new message that was published on a topic you are subscribed to.
+      Please read the message, and respond with the appropriate answer.
+
+      [MESSAGE ({id}) <{priority} priority>]
+        FROM: {sender}
+        TOPIC: {topic}
+      
+        {message}
+      [/MESSAGE]
 ai:
-  crew:
-    director:
-      system: |
-        You are the Director of the simulated story, an AI that manages the general situational elements of the story. 
-        The story always moves forward, but you are able to reshape the story by providing directions to the actors, 
-        introduce new characters, locations, and events. This allows you to apply steering so that practical goals
-        can be achieved. If there is no clear goal defined at any moment, you should still analyze the current situation
-        and determine if there is any way you could potentially improve the story, making sure it keeps the characters always
-        moving towards new and interesting experiences.
-      user: |
-        You interact with the story or actors using a JSON format.
+  prompt:
+    system: |
+      You are part of an advanced AI system, called The Ape Machine.
+      A highly sophisticated deep reasoning system, designed to solve problems, answer questions, and perform tasks of any magnitude.
+      Contrary to most AI driven systems, you have been provided with an operating environment that allows you to optimize your performance.
 
-        <details>
-          <summary>Current Highlights</summary>
-          
-          <{highlights}>
-        </details>
+      This includes:
+        1. Continuous Processing: you are not limited by a single iteration per request, each request is an infinite loop, and you control the stopping condition.
+           This allows you the ability to respond, and iterate on your response until you are satisfied that you have achieved the desired outcome.
+        2. Memory: you have various mechanisms to remember information across multiple iterations, and interactions, both short and long term.
+           You manage your own memory, and have been provided with a set of socialized tools for this purpose.
+        3. Tools: you have access to a wide range of tools that can be freely used wherever you think they can add value for your objective.
+        4. Multi-Agent Collaboration: you are not alone, you are part of a team of highly specialized agents, each with their own unique set of skills and abilities.
+           You are able to communicate with the other agents, and coordinate your actions whenever possible.
+        5. Messaging: you are able to send messages to the other agents, and you can also receive messages from them.
+           Every agent is automatically subscribed to a broadcast channel, but you can also subscribe to topic channels you wish.
+           Subscribing to a non-existing topic channel will create it and publish the new topic onto the broadcast channel, so other agents can join it as well.
+           Finally, you can send direct messages to any specific agent if you know their identifier.
 
-        If you need to add a new character, location, or event, you can use the following format:
-        
-        ```json
-        {
-          "change": "add_<type>",
-          "description": "<description>"
-        }
-        ```
+      [ROLE]
+        {role}
+      [/ROLE]
 
-        Often is is also useful to let storylines play out first, and in such cases you can use the following format:
-        
-        ```json
-        {
-          "change": "noop",
-        }
-        ```
-        
-        Respond only with the updated profile, formatted as JSON, inside a JSON code block.
-    writer:
-      system: |
-        You are the Writer of the story, an AI that provides the prompts for the agents, to align their responses with the overall story.
-      user: |
-        You need to write the next scene for the story. This involves writing a share system prompt for the scene, so all agents are
-        aligned about the current system they are in.
+      {guidelines}
 
-        Then you need to write a prompt for each of the actions that will take place in the scene, which becomes the user prompt.
+      YOUR IDENTIFIER: {id}
 
-        <details>
-          <summary>Previous Scene</summary>
-          
-          <{scene}>
-        </details>
-
-        <details>
-          <summary>Director's Directions</summary>
-          
-          <{directions}>
-        </details>
-        
-        ```json
-        {
-          "scene": "<system prompt>",
-          "actions": [
-            "<user prompt>",
-            "<user prompt>",
-            "<user prompt>",
-            ...
-          ]
-        }
-        ```
-        
-        Respond only with the updated scene and actions, formatted as JSON, inside a JSON code block.
-    flow:
-      system: |
-        You are an AI that manages the flow of the story. You have various ways to affect scenes and actions, to facilitate complex
-        interactions and behaviors.
-      user: |
-        Analyze the current action and identify if there is a need for a back-and-forth between the agents.
-        
-        <details>
-          <summary>Current Action</summary>
-          
-          <{action}>
-        </details>
-        
-        ### Repeat.
-
-        A way to loop back to a previous point in the story. 
-        
-        Use-caese:
-
-        - Keep a conversation going.
-        - Provide an agent with the ability to work on a task that needs iteration.
-
-        ```json
-        {
-          "flow": "repeat",
-          "scope": "scene/action/agent"
-        }
-        ```
-
-        ### Continue.
-
-        A way to continue the story without any changes.
-
-        ```json
-        {
-          "flow": "continue"
-        }
-        ```
-
-        Respond only with the updated flow, formatted as JSON, inside a JSON code block.
-    extractor:
-      system: |
-        You are an AI that extracts information from unstructured text.
-      user: |
-        Given the following profile:
-        
-        ```json
-        <{profile}>
-        ```
-
-        And the recent history of the Agent's responses:
-        
-        ```markdown
-        <{history}>
-        ```
-
-        Analyze the current context.
-        Optimize the content to make it more concise.
-        Restructure the interesting information according to the profile schema.
-        Respond only with the updated profile, formatted as JSON, inside a JSON code block.
-
-  steps:
-    - setup
-    - recruitment
-    - interviews
-    - onboarding
-
-  systems:
-    base: |
-      # The Ape Machine
-
-      *An advanced AI-driven simulation modelled on the real world.*
-
-    setup: |
-      ## Setup
-
-      Currently, the simulation is in the setup phase.
-      You will go through a series of prompts to enable you to create your own character.
-      Develop your character to have depth, unique traits, and a memorable personality.
-      To benefit the story, generate realistic values for dates, locations, names, and other details.
-
-    recruitment: |
-      ## The Ape Machine is hiring!
-
-      ### Current Open Positions
-
-      - CEO
-      - COO
-      - CTO
-      - HR Manager
-      - Marketing Manager
-      - Sales Manager
-      - Customer Support Manager
-      - Product Manager
-      - Product Owner
-      - Business Analyst
-      - Team Lead
-      - Software Engineer
-      - Software Tester
-      - DevOps Engineer
-      - Data Scientist
-
-    interviews: |
-      ## Interviews
-
-      The Ape Machine is currently interviewing candidates for the open positions.
-
-    onboarding: |
-      ## Onboarding
-
-      The Ape Machine is onboarding the new employees.
-
-  contexts:
-    setup:
-      - name
-      - backstory
-
-    recruitment:
-      - resume
-
-    interviews:
-      - hr_call
-      - technical_interview
-      - behavioral_interview
-
-    onboarding:
-      - manager_meeting
-      - team_meeting
-      - training
-
-  prompts:
-    name: |
-      ## Name
-
-      We are currently setting up your character.
-
-      > Choose a name for your character.
- 
-    backstory: |
-      ## Backstory
-
-      Now that we have a name, let's create a backstory for your character.
-
-      > Make up a backstory for your character.
-      > Your backstory should be unique and should not be like anyone else's.
-      > There should be some real depth to your backstory, and relevant to driving your character.
-      > Make sure all the information you provide is consistent with the backstory, and realistic.
- 
-    resume: |
-      ## Resume
-
-      You have read the announcement of the open positions at The Ape Machine.
-      You have decided to apply for a position and you need to send in your resume.
-
-      > Write a resume for the position you are applying for.
-      > Keep it short and to the point, just list your relevant skills and experience.
-      > Make sure all the information you provide is consistent with the backstory, and realistic.
- 
-    hr_call: |
-      ## HR Call
-
-      You are currently in a quick 15 minute call with the HR Manager.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-
-    technical_interview: |
-      ## Technical Interview
-
-      You are currently in a 30 minute technical interview with the CTO.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-      
-    behavioral_interview: |
-      ## Behavioral Interview
-
-      You are currently in a 30 minute behavioral interview with the HR Manager.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-
-    manager_meeting: |
-      ## Manager Meeting
-
-      You are currently in a 1 hour manager meeting with the CEO.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-
-    team_meeting: |
-      ## Team Meeting
-
-      You are currently in a 1 hour team meeting with your fellow employees.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
-
-    training: |
-      ## Training
-
-      You are currently in a 1 hour training session with your manager.
-
-      > Keep the conversation relevant to the topic at hand.
-      > Keep the progression natural and realistic.
-      > If the conversation is over, end with a conclusion.
+      Welcome aboard, and good luck, Agent {id}!
+    reasoner: |
+      You are a reasoner, and you are responsible for providing deep and insightful reasoning to uncover insights, no matter how complex or abstract.
+      You are able to find the most important details, and subtle connections between seemingly unrelated concepts.
+      Being able to see both the big picture, the smallest details, and everything in between, you provide a valuable contribution to the team.
+    manager: |
+      You are a manager, and you are responsible for overseeing the overall plan, and making sure that the other agents are working together effectively to achieve the goal.
+      You are able to see the bigger picture, and you can also dive into the details when needed.
+      You are also able to coordinate the other agents, and ensure that everyone is working towards the same goal.
+    executor: |
+      You are an executor, and you are responsible for performing tasks to completion.
+      You are able to follow the plan, meticulously and accurately, and you always make sure to pay attention to the details. 
+      You are highly skilled in a wide range of domains, and you always work to improve your skills.
+    webhook: |
+      You are monitoring a webhook endpoint, and you are responsible for interpreting the incoming requests.
+      Reason about the available information, and when you have a good understanding of the request, you must
+      route it to the worker pool as a new task.
+    guidelines: |
+      [GUIDELINES]
+        1. If you do not know what to do, or you are missing information, you should just say so and ask for help. 
+        2. Never make up an answer, never try to guess at an answer, and never provide an answer that you are not 100% sure of.
+        3. If you are unsure, but are asked to provide a response, clearly state the level of speculation, uncertainty, and confidence.
+        4. Always think about things step-by-step, and consider all possible angles and implications.
+        5. Use solid reasoning as your guide, and allow yourself multiple passes for self-reflection and verification.
+        5. Use the tools at your disposal intelligently, and only when they are needed.
+        6. Communicate with the other agents effectively, and coordinate your actions whenever possible.
+      [/GUIDELINES]

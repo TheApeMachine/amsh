@@ -1,60 +1,71 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
-	"os"
+	"errors"
+	"strings"
 	"time"
 
-	"github.com/acarl005/stripansi"
 	"github.com/spf13/cobra"
-	"github.com/theapemachine/amsh/ai"
+	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/ui"
+	"github.com/theapemachine/amsh/mastercomputer"
 )
 
-/*
-testCmd acts as an entry point for testing new features.
-*/
 var testCmd = &cobra.Command{
 	Use:   "test",
-	Short: "Run the service with the ~/.amsh/config.yml config values.",
-	Long:  testtxt,
-	RunE: func(_ *cobra.Command, _ []string) (err error) {
-		fmt.Print(ui.Logo)
+	Short: "Run the AI pipeline interactively",
+	Long:  `Run the AI pipeline interactively, allowing you to input prompts and see the reasoning process.`,
+	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		errnie.Trace()
 
-		pipeline := ai.NewPipeline(
-			context.Background(),
-			ai.NewConn(),
-		)
+		system := viper.GetViper().GetString("ai.prompt.system")
+		system = strings.ReplaceAll(system, "{id}", "test")
+		system = strings.ReplaceAll(system, "{guidelines}", viper.GetViper().GetString("ai.prompt.guidelines"))
+		user := viper.GetViper().GetString("ai.prompt.reasoning")
 
-		defer pipeline.Save()
+		workers := make([]*mastercomputer.Worker, 2)
 
-		// Open a new log file for writing.
-		var logFile *os.File
-		if logFile, err = os.Create("logs/run" + time.Now().Format("2006-01-02 15:04:05") + ".md"); err != nil {
-			return err
+		for i := range workers {
+			workers[i] = mastercomputer.NewWorker(
+				cmd.Context(),
+				data.New(
+					"test", "buffer", "setup", []byte{},
+				).Poke(
+					"system", system,
+				).Poke(
+					"user", user,
+				).Poke(
+					"format", "reasoning",
+				).Poke(
+					"toolset", "reasoning",
+				),
+			).Initialize()
 		}
 
-		defer logFile.Close()
+		go func() {
+			time.Sleep(time.Second * 5)
+			workers[0].Test(data.New(
+				"test", "test", "broadcast", []byte("Hello, world!"),
+			))
+		}()
 
-		for chunk := range pipeline.Generate() {
-			fmt.Print(chunk)
-			logFile.WriteString(stripansi.Strip(chunk))
+		for _, worker := range workers {
+			if err = worker.Process(); err != nil {
+				return err
+			}
+
+			if !worker.OK {
+				return errors.New("worker not ok")
+			}
 		}
 
-		return
+		select {}
+
+		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(testCmd)
-	errnie.Debug("Test command initialized")
 }
-
-/*
-testtxt lives here to keep the command definition section cleaner.
-*/
-var testtxt = `
-test new features
-`

@@ -1,0 +1,124 @@
+:root {
+    --unit: 1rem;
+    --sm: calc(var(--unit) / 2);
+    --xs: calc(var(--unit) / 4);
+    --lg: calc(var(--unit) * 2);
+    --xl: calc(var(--unit) * 4);
+
+    --red-hue: 0deg;
+    --red-sat: 100%;
+    --red-lit: 50%;
+
+    --red: hsl(var(--red-hue), var(--red-sat), var(--red-lit));
+    --dark-red: hsl(var(--red-hue), var(--red-sat), calc(var(--red-lit) - 20%));
+    --transparent-red: hsl(var(--red-hue), var(--red-sat), calc(var(--red-lit) / 0.5));
+    --soft-red: hsl(var(--red-hue), calc(var(--red-sat) - 30%), calc(var(--red-lit) + 10%));
+
+    --primary-hue: 220deg;
+    --primary-sat: 90%;
+    --primary-lit: 40%;
+
+    --primary: hsl(var(--primary-hue), var(--primary-sat), var(--primary-lit));
+    --primary-hover: hsl(var(--primary-hue), var(--primary-sat), calc(var(--primary-lit) + 10%));
+    --primary-active: hsl(var(--primary-hue), var(--primary-sat), calc(var(--primary-lit) - 10%));
+
+    --secondary-hue: 280deg;
+    --secondary-sat: 90%;
+    --secondary-lit: 40%;
+
+    --secondary: hsl(var(--secondary-hue), var(--secondary-sat), var(--secondary-lit));
+    --secondary-hover: hsl(var(--secondary-hue), var(--secondary-sat), calc(var(--secondary-lit) + 10%));
+    --secondary-active: hsl(var(--secondary-hue), var(--secondary-sat), calc(var(--secondary-lit) - 10%));
+
+    --tertiary-hue: 320deg;
+    --tertiary-sat: 90%;
+    --tertiary-lit: 40%;
+
+    --tertiary: hsl(var(--tertiary-hue), var(--tertiary-sat), var(--tertiary-lit));
+    --tertiary-hover: hsl(var(--tertiary-hue), var(--tertiary-sat), calc(var(--tertiary-lit) + 10%));
+    --tertiary-active: hsl(var(--tertiary-hue), var(--tertiary-sat), calc(var(--tertiary-lit) - 10%));
+
+    --success-hue: 120deg;
+    --success-sat: 90%;
+    --success-lit: 40%;
+
+    --success: hsl(var(--success-hue), var(--success-sat), var(--success-lit));
+    --success-hover: hsl(var(--success-hue), var(--success-sat), calc(var(--success-lit) + 10%));
+    --success-active: hsl(var(--success-hue), var(--success-sat), calc(var(--success-lit) - 10%));
+
+    --warning-hue: 30deg;
+    --warning-sat: 90%;
+    --warning-lit: 40%;
+
+    --warning: hsl(var(--warning-hue), var(--warning-sat), var(--warning-lit));
+    --warning-hover: hsl(var(--warning-hue), var(--warning-sat), calc(var(--warning-lit) + 10%));
+    --warning-active: hsl(var(--warning-hue), var(--warning-sat), calc(var(--warning-lit) - 10%));
+
+    --danger-hue: 0deg;
+    --danger-sat: 90%;
+    --danger-lit: 50%;
+
+    --danger: hsl(var(--danger-hue), var(--danger-sat), var(--danger-lit));
+    --danger-hover: hsl(var(--danger-hue), var(--danger-sat), calc(var(--danger-lit) + 10%));
+    --danger-active: hsl(var(--danger-hue), var(--danger-sat), calc(var(--danger-lit) - 10%));
+
+    --info-hue: 200deg;
+    --info-sat: 90%;
+    --info-lit: 40%;
+
+    --info: hsl(var(--info-hue), var(--info-sat), var(--info-lit));
+    --info-hover: hsl(var(--info-hue), var(--info-sat), calc(var(--info-lit) + 10%));
+    --info-active: hsl(var(--info-hue), var(--info-sat), calc(var(--info-lit) - 10%));
+
+    --white: #fff;
+    --black: #000;
+
+    --gray-100: #f7fafc;
+    --gray-200: #edf2f7;
+    --gray-300: #e2e8f0;
+    --gray-400: #cbd5e0;
+    --gray-500: #a0aec0;
+    --gray-600: #718096;
+    --gray-700: #4a5568;
+    
+    --ring: 0 0 0 3px var(--secondary);
+    --soft-ring: 0 0 0 calc(2px + 0.05em) var(--secondary);
+    --hard-ring: 0 0 0 calc(2px + 0.05em) var(--secondary);
+    --shadow: 0 0 0 calc(2px + 0.05em) var(--secondary);
+    --soft-shadow: 0 0 0 calc(2px + 0.05em) var(--secondary);
+    --hard-shadow: 0 0 0 calc(2px + 0.05em) var(--secondary);
+
+    --border: 2px solid var(--secondary);
+
+    --border-radius: var(--unit);
+    --border-radius-xs: calc(var(--border-radius) / 4);
+    --border-radius-sm: calc(var(--border-radius) / 2);
+    --border-radius-lg: calc(var(--border-radius) * 2);
+    --border-radius-xl: calc(var(--border-radius) * 4);
+    --border-radius-full: 9999px;
+
+    --font-size: var(--unit);
+    --font-size-xs: calc(var(--unit) / 4);
+    --font-size-sm: calc(var(--unit) / 2);
+    --font-size-lg: calc(var(--unit) * 2);
+    --font-size-xl: calc(var(--unit) * 4);
+
+    --hue: 223;
+	--bg: hsl(var(--hue),10%,90%);
+	--fg: hsl(var(--hue),10%,10%);
+	--primary: hsl(var(--hue),90%,55%);
+	--trans-dur: 0.3s;
+	font-size: calc(16px + (20 - 16) * (100vw - 320px) / (1280 - 320));
+
+    /* Light theme colors */
+    --light-bg: hsl(var(--hue), 10%, 90%);
+    --light-fg: hsl(var(--hue), 10%, 10%);
+
+    /* Dark theme colors */
+    --dark-bg: hsl(var(--hue), 10%, 10%);
+    --dark-fg: hsl(var(--hue), 10%, 90%);
+
+    /* Default to light theme */
+    --bg: var(--light-bg);
+    --fg: var(--light-fg);
+}

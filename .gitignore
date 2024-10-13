@@ -1,3 +1,8 @@
 .DS_Store
 .amsh
 *.log
+logs
+tmp
+tmp/main
+id_marvin
+id_marvin.pub
