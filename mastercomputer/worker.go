@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/openai/openai-go"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
@@ -64,7 +65,6 @@ type Worker struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	err       error
-	errCh     chan error
 	buffer    data.Artifact
 	memory    *ai.Memory
 	State     WorkerState
@@ -105,13 +105,13 @@ func (worker *Worker) Initialize() *Worker {
 	}
 
 	if worker.State == WorkerStateZombie {
-		errnie.Error(errors.New("worker went zombie"))
-		return worker
+		errnie.Error(errors.New("[" + worker.ID + "] went zombie"))
 	}
 
 	worker.State = WorkerStateReady
 	worker.OK = true
 	errnie.Info("worker: %s OK and ready", worker.ID)
+
 	return worker
 }
 
@@ -133,9 +133,7 @@ unless there is an error.
 */
 func (worker *Worker) Error() string {
 	errnie.Trace()
-	err := <-worker.errCh
-	worker.errCh = nil
-	return errnie.Error(err).Error()
+	return worker.err.Error()
 }
 
 func (worker *Worker) Read(p []byte) (n int, err error) {
@@ -217,6 +215,8 @@ queue.
 */
 func (worker *Worker) ReplyState(msg data.Artifact) (WorkerState, string) {
 	errnie.Trace()
+
+	spew.Dump(worker)
 
 	message, err := NewCompletion(worker.ctx).Execute(worker.ctx, GetParams(
 		worker.buffer.Peek("system"),

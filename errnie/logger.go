@@ -1,6 +1,7 @@
 package errnie
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/invopop/jsonschema"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/berrt"
 )
 
 var fixing = false
@@ -42,28 +44,6 @@ var (
 	logFileMu   sync.Mutex
 	logFilePath string
 )
-
-type ErrorAnalysis struct {
-	Steps []Step `json:"steps" jsonschema_description:"Steps taken to analyze the error"`
-	Fixes []Fix  `json:"fixes" jsonschema_description:"Fixes needed to resolve the error, if any, otherwise leave empty for the next iteration" jsonschema_omitempty:"true"`
-}
-
-type Step struct {
-	Thought string  `json:"thought" jsonschema_description:"Thoughts on what is happening"`
-	Missing string  `json:"missing" jsonschema_description:"What is missing to fully understand the error"`
-	Request Request `json:"request" jsonschema_description:"Request for additional context"`
-}
-
-type Request struct {
-	Filenames []string `json:"filenames" jsonschema_description:"Filenames to include in the context"`
-	Searches  []string `json:"searches" jsonschema_description:"Search the full codebase by keywords"`
-}
-
-type Fix struct {
-	Old string `json:"old" jsonschema_description:"Old code fragment matched for replacement"`
-	New string `json:"new" jsonschema_description:"New code fragment to replace the old code"`
-	Why string `json:"why" jsonschema_description:"Detailed reason for why you are sure this is the correct fix."`
-}
 
 func JSONtoMap(jsonString string) (map[string]any, error) {
 	var result map[string]any
@@ -168,10 +148,8 @@ func Warn(format string, v ...interface{}) {
 	writeToLog(message)
 }
 
-var (
-	errorHandler *ErrorHandler
-	initOnce     sync.Once
-)
+var initOnce sync.Once
+var errorHandler *berrt.ErrorAI
 
 // Error logs an error message with the appropriate symbol, a code snippet, and a stack trace
 func Error(err error) error {
@@ -232,15 +210,14 @@ func Error(err error) error {
 
 	if !fixing {
 		initOnce.Do(func() {
-			errorHandler = NewErrorHandler()
+			errorHandler = berrt.NewErrorAI()
 			fixing = true
 			go func() {
 				defer func() {
 					fixing = false
 				}()
-				if err := errorHandler.Error(err); err != nil {
-					fmt.Printf("Error during analysis and fix process: %v\n", err)
-				}
+
+				errorHandler.Execute(message, stackTrace, codeSnippet)
 				// Consider removing this line if you don't want to exit the program after analysis
 				os.Exit(1)
 			}()
@@ -248,4 +225,48 @@ func Error(err error) error {
 	}
 
 	return fmt.Errorf(message)
+}
+
+func writeToLog(message string) {
+	logFileMu.Lock()
+	defer logFileMu.Unlock()
+	_, err := logFile.WriteString(message + "\n")
+	if err != nil {
+		fmt.Printf("Failed to write to log file: %v\n", err)
+	}
+}
+
+func getStackTrace() string {
+	buf := make([]byte, 1024)
+	n := runtime.Stack(buf, false)
+	return string(buf[:n])
+}
+
+func getCodeSnippet(file string, line, radius int) string {
+	fileHandle, err := os.Open(file)
+	if err != nil {
+		return ""
+	}
+	defer fileHandle.Close()
+
+	scanner := bufio.NewScanner(fileHandle)
+	currentLine := 1
+	var snippet string
+
+	for scanner.Scan() {
+		if currentLine >= line-radius && currentLine <= line+radius {
+			prefix := "  "
+			if currentLine == line {
+				prefix = "> "
+			}
+			snippet += fmt.Sprintf("%s%d: %s\n", prefix, currentLine, scanner.Text())
+		}
+		currentLine++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return ""
+	}
+
+	return snippet
 }

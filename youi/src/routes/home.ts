@@ -5,21 +5,16 @@ import { match } from "@/lib/match"
 import { switchLayer } from "@/lib/layer"
 import { gsap } from "gsap"
 import "@/components/layers/manager"
-import "@/components/dashboard/editor"
-import "@/components/slides/component"
-import "@/components/datatable/table"
-import "@/components/nodegraph/editor"
+import "@/components/product/designer"
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
-    let positions: string[] = ["slides", "dashboard", "table"];
+    let positions: string[] = ["product"];
     let distance: number = 1000;
     let currentLayer: number | undefined = 1;
 
     layers = {
-        slides: document.querySelector("slides-component") as HTMLElement,
-        dashboard: document.querySelector("dashboard-editor") as HTMLElement,
-        table: document.querySelector("datatable-table") as HTMLElement,
+        product: document.querySelector("product-designer") as HTMLElement,
     };
 
     positions.forEach((position: string, index: number) => {
@@ -61,11 +56,7 @@ export const render = async () => {
             return html`<div>Error: ${error}</div>`
         },
         success: (_: any) => {
-            return html`
-            <slides-component data-event="keydown" data-effect="slides" data-topic="state"></slides-component>
-            <dashboard-editor data-event="keydown" data-effect="dashboard" data-topic="state"></dashboard-editor>
-            <datatable-table data-event="keydown" data-effect="table" data-topic="state"></datatable-table>
-            `
+            return html`<product-designer></product-designer>`
         }
     }), {
         enter: sequence(blurIn),
