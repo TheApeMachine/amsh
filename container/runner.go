@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -20,8 +21,6 @@ integration with external systems such as language models.
 type Runner struct {
 	client      *client.Client
 	containerID string
-	in          io.WriteCloser
-	out         io.ReadCloser
 }
 
 /*
@@ -53,14 +52,19 @@ Returns:
   - out: A channel for receiving output from the container
   - err: Any error encountered during the process
 */
-func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []string, username, customMessage string) (in io.WriteCloser, out io.ReadCloser, err error) {
+func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []string, username, customMessage string) (io.WriteCloser, io.ReadCloser, error) {
 	// Create host config with volume mount
 	hostConfig := &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
 				Type:   mount.TypeBind,
 				Source: "/tmp/workspace",
-				Target: "/workspace",
+				Target: "/tmp/workspace",
+			},
+			{
+				Type:   mount.TypeBind,
+				Source: "/tmp/.ssh",
+				Target: "/root/.ssh",
 			},
 		},
 	}
@@ -76,7 +80,7 @@ func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []strin
 			fmt.Sprintf("USERNAME=%s", username),
 			fmt.Sprintf("CUSTOM_MESSAGE=%s", customMessage),
 		},
-		WorkingDir: "/workspace", // Set the working directory to the mounted volume
+		WorkingDir: "/tmp/workspace", // Set the working directory to the mounted volume
 	}, hostConfig, nil, nil, "")
 	if err != nil {
 		return nil, nil, err
@@ -99,17 +103,11 @@ func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []strin
 		return nil, nil, err
 	}
 
-	// Create a multiplexed reader for stdout and stderr
-	r.out, r.in = io.Pipe()
-	go func() {
-		_, _ = stdcopy.StdCopy(r.in, r.in, attachResp.Reader)
-	}()
-
 	fmt.Printf("Container %s is running with user %s\n", resp.ID, username)
 
 	r.containerID = resp.ID
 
-	return attachResp.Conn, r.out, nil
+	return attachResp.Conn, attachResp.Conn, nil
 }
 
 /*
@@ -129,6 +127,48 @@ func (r *Runner) StopContainer(ctx context.Context) error {
 ExecuteCommand executes a command in the container and returns the output.
 */
 func (r *Runner) ExecuteCommand(ctx context.Context, cmd []string) ([]byte, error) {
-	r.in.Write([]byte(strings.Join(cmd, " ")))
-	return io.ReadAll(r.out)
+	// Join command parts into a single string for shell execution
+	commandStr := strings.Join(cmd, " ")
+	fullCmd := []string{"/bin/sh", "-c", commandStr}
+
+	// Set up the exec configuration
+	execConfig := container.ExecOptions{
+		Cmd:          fullCmd,
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	// Create the exec instance
+	execIDResp, err := r.client.ContainerExecCreate(ctx, r.containerID, execConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create exec instance: %w", err)
+	}
+
+	// Attach to the exec instance
+	execAttachResp, err := r.client.ContainerExecAttach(ctx, execIDResp.ID, container.ExecStartOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to attach to exec instance: %w", err)
+	}
+	defer execAttachResp.Close()
+
+	// Read the output
+	var stdout, stderr strings.Builder
+
+	_, err = stdcopy.StdCopy(&stdout, &stderr, execAttachResp.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read exec output: %w", err)
+	}
+
+	// Log and return both stdout and stderr if needed
+	output := stdout.String()
+	errorOutput := stderr.String()
+
+	fmt.Printf("Command stdout: %s\n", output)
+
+	// You can choose to treat non-empty `stderr` differently based on your needs
+	if errorOutput != "" {
+		fmt.Printf("Command stderr: %s\n", errorOutput)
+	}
+
+	return []byte(output), errors.New(errorOutput)
 }

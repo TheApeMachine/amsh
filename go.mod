@@ -48,6 +48,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -123,6 +124,7 @@ require (
 require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+	github.com/charmbracelet/log v0.4.0
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/docker/engine-api v0.4.0
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect

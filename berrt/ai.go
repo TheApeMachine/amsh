@@ -10,15 +10,16 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"slices"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/TylerBrock/colorjson"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/charmbracelet/log"
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
+	"github.com/pkoukk/tiktoken-go"
 	"github.com/theapemachine/amsh/container"
 )
 
@@ -43,7 +44,6 @@ type ErrorAI struct {
 	initialUser      string
 	runner           *container.Runner
 	conversationLog  []openai.ChatCompletionMessageParamUnion
-	toolMessages     []openai.ChatCompletionToolMessageParam
 	maxContextTokens int
 	tokenCounts      []int64 // Store token counts for each message
 	done             bool
@@ -56,14 +56,24 @@ func NewErrorAI(message, stacktrace, snippet string) *ErrorAI {
 	}
 
 	return &ErrorAI{
-		ctx:           context.Background(),
-		initialSystem: "You are a helpful assistant that helps me debug my code...",
+		ctx: context.Background(),
+		initialSystem: `
+		You are a helpful assistant that helps me debug my code...
+		You are currently inside an isolated environment that has the code I need to debug.
+		This means that when you see file paths, they are relative to /tmp/workspace.
+		Example: /Users/theapemachine/go/src/github.com/theapemachine/amsh/mastercomputer/worker.go
+		Becomes: /tmp/workspace/amsh/mastercomputer/worker.go
+
+		You should always create a new git branch before making any changes, using the: aibugfix/<branchname> convention.
+		You should also open a PR early, before making any changes, and keep it updated as you work.
+		Each time you push to the PR, you will receive a code review, which can be used to guide your work.
+		`,
 		initialUser: fmt.Sprintf(
 			"I am getting the following error:\n\n%s\n\nWith this stacktrace:\n\n%s\n\nAnd relevant snippet:\n\n%s\n\n",
 			message, stacktrace, snippet,
 		),
 		runner:           runner,
-		maxContextTokens: 4000, // Adjust based on the model's actual limit
+		maxContextTokens: 128000, // Adjust based on the model's actual limit
 	}
 }
 
@@ -102,8 +112,8 @@ func NewCompletion(ctx context.Context) *Completion {
 
 func (completion *Completion) Execute(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	response, err := completion.client.Chat.Completions.New(ctx, params)
+
 	if err != nil {
-		spew.Dump(params)
 		return nil, fmt.Errorf("error from OpenAI API: %w", err)
 	}
 
@@ -140,6 +150,12 @@ func (ai *ErrorAI) Execute() {
 	defer in.Close()
 	defer out.Close()
 
+	// Initialize conversation log with initial messages
+	ai.conversationLog = []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(ai.initialSystem),
+		openai.UserMessage(ai.initialUser),
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -151,7 +167,8 @@ func (ai *ErrorAI) Execute() {
 
 			params := ai.getParamsWithManagedContext()
 
-			fmt.Println("Executing completion")
+			fmt.Println("executing completion...")
+
 			response, err := ai.executeCompletion(ctx, params)
 			if err != nil {
 				fmt.Printf("Error executing completion: %v\n", err)
@@ -159,6 +176,7 @@ func (ai *ErrorAI) Execute() {
 				continue
 			}
 
+			fmt.Println("processing response...")
 			ai.processResponse(response)
 			time.Sleep(1 * time.Second)
 		}
@@ -168,19 +186,21 @@ func (ai *ErrorAI) Execute() {
 func (ai *ErrorAI) executeCompletion(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	completion := NewCompletion(ctx)
 	response, err := completion.Execute(ctx, params)
+
 	if err != nil {
 		return nil, fmt.Errorf("error from OpenAI API: %w", err)
 	}
+
+	if response == nil {
+		return nil, errors.New("received nil response from OpenAI")
+	}
+
 	return response, nil
 }
 
 func (ai *ErrorAI) getParamsWithManagedContext() openai.ChatCompletionNewParams {
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(ai.initialSystem),
-		openai.UserMessage(ai.initialUser),
-	}
-
-	messages = append(messages, ai.truncateConversation()...)
+	// Truncate conversation to fit within token limit
+	messages := ai.truncateConversation()
 
 	return openai.ChatCompletionNewParams{
 		Messages: openai.F(messages),
@@ -202,29 +222,32 @@ func (ai *ErrorAI) getParamsWithManagedContext() openai.ChatCompletionNewParams 
 				openai.FunctionParameters{
 					"type": "object",
 					"properties": map[string]any{
-						"path": map[string]string{
+						"command": map[string]string{
 							"type":        "string",
 							"description": "The bash command to execute",
 						},
 					},
-					"required": []string{"path"},
+					"required": []string{"command"},
 				},
 			),
 		}),
-		Model:       openai.F(openai.ChatModelGPT4oMini),
+		Model:       openai.F(openai.ChatModelGPT4o),
 		Temperature: openai.Float(0.0),
 	}
 }
 
 func (ai *ErrorAI) truncateConversation() []openai.ChatCompletionMessageParamUnion {
+	maxTokens := ai.maxContextTokens - 500 // Reserve tokens for response
+	totalTokens := 0
 	var truncatedMessages []openai.ChatCompletionMessageParamUnion
-	remainingTokens := ai.maxContextTokens - ai.getTotalTokens()
 
+	// Start from the most recent message
 	for i := len(ai.conversationLog) - 1; i >= 0; i-- {
-		messageTokens := ai.estimateTokens(ai.conversationLog[i])
-		if remainingTokens >= messageTokens {
-			truncatedMessages = append([]openai.ChatCompletionMessageParamUnion{ai.conversationLog[i]}, truncatedMessages...)
-			remainingTokens -= messageTokens
+		msg := ai.conversationLog[i]
+		messageTokens := ai.estimateTokens(msg)
+		if totalTokens+messageTokens <= maxTokens {
+			truncatedMessages = append([]openai.ChatCompletionMessageParamUnion{msg}, truncatedMessages...)
+			totalTokens += messageTokens
 		} else {
 			break
 		}
@@ -234,44 +257,66 @@ func (ai *ErrorAI) truncateConversation() []openai.ChatCompletionMessageParamUni
 }
 
 func (ai *ErrorAI) processResponse(response *openai.ChatCompletion) {
-	ai.updateTokenCounts(response.Usage)
-	fmt.Println("Printing response")
-	ai.updateConversationLog(ai.extractAndPrintResponse(response))
-	fmt.Println("Handling tool calls")
-	ai.updateToolMessages(ai.handleToolCalls(response))
-}
-
-func (ai *ErrorAI) extractAndPrintResponse(response *openai.ChatCompletion) openai.ChatCompletionUserMessageParam {
-	if response == nil || len(response.Choices) == 0 {
-		fmt.Println("No response from OpenAI")
-		return openai.UserMessage("Looking for a response...").(openai.ChatCompletionUserMessageParam)
+	if response.Usage.CompletionTokens > 0 {
+		ai.updateTokenCounts(response.Usage)
 	}
 
-	var reasoning map[string]any
-	if err := json.Unmarshal([]byte(response.Choices[0].Message.Content), &reasoning); err != nil {
-		fmt.Printf("Error unmarshalling response: %v\n", err)
-		return openai.UserMessage(fmt.Sprintf("Error unmarshalling response: %v", err)).(openai.ChatCompletionUserMessageParam)
+	userMessage, err := ai.extractAndPrintResponse(response)
+	if err != nil {
+		log.Error(err)
+		return
 	}
 
-	ai.done = reasoning["done"].(bool)
-	fmt.Println(PrettyJSON(reasoning))
-	return openai.UserMessage(response.Choices[0].Message.Content).(openai.ChatCompletionUserMessageParam)
+	if userMessage != nil {
+		ai.updateConversationLog(userMessage)
+	}
+
+	toolMessage := ai.handleToolCalls(response)
+	if toolMessage != nil {
+		ai.updateConversationLog(toolMessage)
+	}
 }
 
-func (ai *ErrorAI) handleToolCalls(response *openai.ChatCompletion) openai.ChatCompletionToolMessageParam {
+func (ai *ErrorAI) extractAndPrintResponse(response *openai.ChatCompletion) (openai.ChatCompletionMessageParamUnion, error) {
 	if response == nil || len(response.Choices) == 0 {
 		fmt.Println("No response from OpenAI")
-		return openai.ChatCompletionToolMessageParam{}
+		return nil, nil
+	}
+
+	content := response.Choices[0].Message.Content
+	if content == "" {
+		return nil, nil
+	}
+
+	reasoning := ErrorAnalysis{}
+	if err := json.Unmarshal([]byte(content), &reasoning); err != nil {
+		return nil, err
+	}
+
+	for _, step := range reasoning.Steps {
+		fmt.Println("Thought:", step.Thought)
+		fmt.Println("Action:", step.Action)
+	}
+
+	fmt.Println("Plan:", reasoning.Plan)
+
+	ai.done = reasoning.Done
+	return openai.AssistantMessage(content), nil
+}
+
+func (ai *ErrorAI) handleToolCalls(response *openai.ChatCompletion) openai.ChatCompletionMessageParamUnion {
+	if response == nil || len(response.Choices) == 0 {
+		fmt.Println("No response from OpenAI")
+		return nil
 	}
 
 	message := response.Choices[0].Message
 	if message.ToolCalls == nil || len(message.ToolCalls) == 0 {
 		fmt.Println("No tool calls in response")
-		return openai.ChatCompletionToolMessageParam{}
+		return nil
 	}
 
 	for _, toolCall := range message.ToolCalls {
-		fmt.Println(PrettyJSON(toolCall))
 		var args map[string]any
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			fmt.Printf("Error unmarshalling tool call arguments: %v\n", err)
@@ -280,43 +325,41 @@ func (ai *ErrorAI) handleToolCalls(response *openai.ChatCompletion) openai.ChatC
 
 		switch toolCall.Function.Name {
 		case "bash_command":
-			fmt.Printf("Executing command: %s\n", args["path"])
-			buf, err := ai.runner.ExecuteCommand(ai.ctx, []string{args["path"].(string)})
+			fmt.Printf("Executing command: %s\n", args["command"])
+			commandStr := args["command"].(string)
+			commandParts := strings.Fields(commandStr) // Split command into arguments
+			buf, err := ai.runner.ExecuteCommand(ai.ctx, commandParts)
 			if err != nil {
 				fmt.Printf("Error executing command: %v\n", err)
+				// Log error in the conversation to let the model know it failed
+				ai.updateConversationLog(openai.AssistantMessage(fmt.Sprintf("Error executing command: %v", err)))
 				continue
 			}
+
+			if len(buf) == 0 {
+				fmt.Println("No output from command execution. Moving to the next step.")
+				ai.updateConversationLog(openai.AssistantMessage("No output from command execution."))
+				ai.done = true // Stop repeating if there is no output
+				return nil
+			}
+
 			fmt.Println(string(buf))
+			// Return tool message to include in conversation
+			ai.updateConversationLog(message)
 			return openai.ToolMessage(toolCall.ID, string(buf))
 		}
 	}
 
 	fmt.Println("No tool calls matched")
-	return openai.ChatCompletionToolMessageParam{}
-}
-
-func (ai *ErrorAI) getTotalTokens() int {
-	total := 0
-	for _, msg := range ai.conversationLog {
-		total += ai.estimateTokens(msg)
-	}
-	return total
-}
-
-func (ai *ErrorAI) estimateTokens(msg openai.ChatCompletionMessageParamUnion) int {
-	return 0
+	return nil
 }
 
 func (ai *ErrorAI) updateTokenCounts(usage openai.CompletionUsage) {
-	ai.tokenCounts = append(ai.tokenCounts, usage.PromptTokens)
+	ai.tokenCounts = append(ai.tokenCounts, usage.TotalTokens)
 }
 
 func (ai *ErrorAI) updateConversationLog(message openai.ChatCompletionMessageParamUnion) {
 	ai.conversationLog = append(ai.conversationLog, message)
-}
-
-func (ai *ErrorAI) updateToolMessages(message openai.ChatCompletionToolMessageParam) {
-	ai.toolMessages = append(ai.toolMessages, message)
 }
 
 func (ai *ErrorAI) cleanup() {
@@ -327,32 +370,39 @@ func (ai *ErrorAI) cleanup() {
 }
 
 func (ai *ErrorAI) prepareWorkspace() error {
-	fmt.Println("Copying files to /tmp/workspace...")
-	if err := os.RemoveAll("/tmp/workspace"); err != nil {
+	log.Info("copying files to /tmp/workspace...")
+	if err := os.RemoveAll("/tmp/workspace/amsh"); err != nil {
 		return err
 	}
 
 	return filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			log.Error("error walking", "error", err)
 			return err
 		}
 
-		ignoreDirs := []string{"logs", "tmp", "node_modules", ".git", "src-tauri", "youi", "frontend", "ui"}
-		if info.IsDir() && slices.Contains(ignoreDirs, info.Name()) {
-			fmt.Printf("Skipping %s\n", path)
-			return filepath.SkipDir
+		ignoreDirs := []string{"logs", "tmp", "node_modules"}
+		if info.IsDir() {
+			for _, ignoreDir := range ignoreDirs {
+				if info.Name() == ignoreDir {
+					log.Warn("skipping directory", "directory", path)
+					return filepath.SkipDir
+				}
+			}
 		}
 
 		relPath, err := filepath.Rel(".", path)
 		if err != nil {
+			log.Error("error getting relative path", "error", err)
 			return err
 		}
 
-		destPath := filepath.Join("/tmp/workspace", relPath)
+		destPath := filepath.Join("/tmp/workspace/amsh", relPath)
 		if info.IsDir() {
 			return os.MkdirAll(destPath, info.Mode())
 		}
 
+		log.Info("copying file", "source", path, "destination", destPath)
 		cmd := exec.Command("cp", path, destPath)
 		return cmd.Run()
 	})
@@ -366,15 +416,15 @@ func (ai *ErrorAI) startContainer(ctx context.Context) (in io.WriteCloser, out i
 
 	builder, err := container.NewBuilder()
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error creating builder: %w", err)
+		return nil, nil, fmt.Errorf("error creating builder: %w", err)
 	}
 	if err := builder.BuildImage(ctx, "./container", imageName); err != nil {
-		return nil, nil, fmt.Errorf("Error building image: %w", err)
+		return nil, nil, fmt.Errorf("error building image: %w", err)
 	}
 
 	in, out, err = ai.runner.RunContainer(ctx, imageName, cmd, username, customMessage)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error running container: %w", err)
+		return nil, nil, fmt.Errorf("error running container: %w", err)
 	}
 
 	return
@@ -389,4 +439,40 @@ type ErrorAnalysis struct {
 type Step struct {
 	Thought string `json:"thought" jsonschema_description:"The thought process to take to resolve the error"`
 	Action  string `json:"action" jsonschema_description:"The action to take to resolve or further analyze the error"`
+}
+
+func (ai *ErrorAI) estimateTokens(msg openai.ChatCompletionMessageParamUnion) int {
+	content := ""
+	role := ""
+	switch m := msg.(type) {
+	case openai.ChatCompletionUserMessageParam:
+		content = m.Content.String()
+		role = "user"
+	case openai.ChatCompletionAssistantMessageParam:
+		content = m.Content.String()
+		role = "assistant"
+	case openai.ChatCompletionSystemMessageParam:
+		content = m.Content.String()
+		role = "system"
+	case openai.ChatCompletionToolMessageParam:
+		content = m.Content.String()
+		role = "function"
+	}
+
+	// Use tiktoken-go to estimate tokens
+	encoding, err := tiktoken.EncodingForModel("gpt-4o-mini")
+	if err != nil {
+		fmt.Printf("Error getting encoding: %v\n", err)
+		return 0
+	}
+
+	tokensPerMessage := 4 // As per OpenAI's token estimation guidelines
+
+	numTokens := tokensPerMessage
+	numTokens += len(encoding.Encode(content, nil, nil))
+	if role == "user" || role == "assistant" || role == "system" || role == "function" {
+		numTokens += len(encoding.Encode(role, nil, nil))
+	}
+
+	return numTokens
 }
