@@ -2,8 +2,9 @@ package container
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
-	"os"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -50,7 +51,6 @@ func (b *Builder) BuildImage(ctx context.Context, dockerfilePath, imageName stri
 		BuildArgs: map[string]*string{
 			"TARGETARCH": nil, // This will use the default architecture
 		},
-		Target: "dev", // Build the dev stage by default
 	}
 
 	resp, err := b.client.ImageBuild(ctx, tar, opts)
@@ -59,6 +59,30 @@ func (b *Builder) BuildImage(ctx context.Context, dockerfilePath, imageName stri
 	}
 	defer resp.Body.Close()
 
-	_, err = io.Copy(os.Stdout, resp.Body)
-	return err
+	return b.processAndPrintBuildOutput(resp.Body)
+}
+
+func (b *Builder) processAndPrintBuildOutput(reader io.Reader) error {
+	decoder := json.NewDecoder(reader)
+	for {
+		var message struct {
+			Stream string `json:"stream"`
+			Error  string `json:"error"`
+		}
+
+		if err := decoder.Decode(&message); err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+
+		if message.Error != "" {
+			return fmt.Errorf("build error: %s", message.Error)
+		}
+
+		if message.Stream != "" {
+			fmt.Print(message.Stream)
+		}
+	}
 }

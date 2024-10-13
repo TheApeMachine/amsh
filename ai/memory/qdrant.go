@@ -2,81 +2,156 @@ package memory
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"io"
+	"log"
+	"net/url"
+	"strings"
 
-	"github.com/qdrant/go-client/qdrant"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/tmc/langchaingo/embeddings"
+	"github.com/tmc/langchaingo/llms/openai"
+	"github.com/tmc/langchaingo/schema"
+	"github.com/tmc/langchaingo/vectorstores/qdrant"
 )
 
 type Qdrant struct {
-	client     *qdrant.Client
+	ctx        context.Context
+	client     *qdrant.Store
 	collection string
 	dimension  uint64
 }
 
 func NewQdrant(collection string, dimension uint64) *Qdrant {
-	client, err := qdrant.NewClient(&qdrant.Config{
-		Host: "localhost",
-		Port: 6334,
-	})
+	ctx := context.Background()
+
+	llm, err := openai.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	e, err := embeddings.NewEmbedder(llm)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	url, err := url.Parse("http://localhost:6334")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client, err := qdrant.New(
+		qdrant.WithURL(*url),
+		qdrant.WithCollectionName(collection),
+		qdrant.WithEmbedder(e),
+	)
 	if err != nil {
 		// Handle error (you might want to return an error from this function)
 		panic(err)
 	}
 	return &Qdrant{
-		client:     client,
+		ctx:        ctx,
+		client:     &client,
 		collection: collection,
 		dimension:  dimension,
 	}
 }
 
 func (q *Qdrant) Read(p []byte) (n int, err error) {
-	ctx := context.Background()
+	artifact := data.Empty
+	artifact = artifact.Unmarshal(p)
 
-	// Create a vector of the correct dimension filled with zeros
-	vector := make([]float32, q.dimension)
-	var limit uint64 = 1
-
-	request := &qdrant.QueryPoints{
-		CollectionName: q.collection,
-		Query:          qdrant.NewQuery(vector...),
-		Limit:          &limit,
+	var docs []schema.Document
+	if docs, err = q.client.SimilaritySearch(q.ctx, artifact.Peek("query"), 1); errnie.Error(err) != nil {
+		return 0, errnie.Error(err)
 	}
 
-	response, err := q.client.Query(ctx, request)
-	if err != nil {
-		return 0, fmt.Errorf("failed to query points: %v", err)
+	builder := strings.Builder{}
+
+	for _, doc := range docs {
+		builder.WriteString(doc.PageContent)
 	}
 
-	if len(response) > 0 {
-		point := response[0]
-		data, err := json.Marshal(point)
-		if err != nil {
-			return 0, fmt.Errorf("failed to marshal point: %v", err)
-		}
-		n = copy(p, data)
-	}
+	artifact.Poke("payload", builder.String())
+	buf := artifact.Marshal()
 
-	return n, nil
+	copy(p, buf)
+
+	return len(p), io.EOF
 }
 
 func (q *Qdrant) Write(p []byte) (n int, err error) {
-	ctx := context.Background()
-
-	var point qdrant.PointStruct
-	if err := json.Unmarshal(p, &point); err != nil {
-		return 0, fmt.Errorf("failed to unmarshal point: %v", err)
-	}
-
-	request := &qdrant.UpsertPoints{
-		CollectionName: q.collection,
-		Points:         []*qdrant.PointStruct{&point},
-	}
-
-	_, err = q.client.Upsert(ctx, request)
+	llm, err := openai.New()
 	if err != nil {
-		return 0, fmt.Errorf("failed to upsert point: %v", err)
+		log.Fatal(err)
+	}
+
+	e, err := embeddings.NewEmbedder(llm)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create a new Qdrant vector store.
+	url, err := url.Parse("http://localhost:6334")
+	if err != nil {
+		log.Fatal(err)
+	}
+	store, err := qdrant.New(
+		qdrant.WithURL(*url),
+		qdrant.WithCollectionName(q.collection),
+		qdrant.WithEmbedder(e),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Add documents to the Qdrant vector store.
+	_, err = store.AddDocuments(context.Background(), []schema.Document{
+		{
+			PageContent: "A city in texas",
+			Metadata: map[string]any{
+				"area": 3251,
+			},
+		},
+		{
+			PageContent: "A country in Asia",
+			Metadata: map[string]any{
+				"area": 2342,
+			},
+		},
+		{
+			PageContent: "A country in South America",
+			Metadata: map[string]any{
+				"area": 432,
+			},
+		},
+		{
+			PageContent: "An island nation in the Pacific Ocean",
+			Metadata: map[string]any{
+				"area": 6531,
+			},
+		},
+		{
+			PageContent: "A mountainous country in Europe",
+			Metadata: map[string]any{
+				"area": 1211,
+			},
+		},
+		{
+			PageContent: "A lost city in the Amazon",
+			Metadata: map[string]any{
+				"area": 1223,
+			},
+		},
+		{
+			PageContent: "A city in England",
+			Metadata: map[string]any{
+				"area": 4324,
+			},
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	return len(p), nil
@@ -84,27 +159,5 @@ func (q *Qdrant) Write(p []byte) (n int, err error) {
 
 func (q *Qdrant) Close() error {
 	// Qdrant client doesn't have a Close method, so we'll just return nil
-	return nil
-}
-
-func (q *Qdrant) EnsureCollection() error {
-	ctx := context.Background()
-
-	request := &qdrant.CreateCollection{
-		CollectionName: q.collection,
-		VectorsConfig: &qdrant.VectorsConfig{
-			Config: &qdrant.VectorsConfig_Params{
-				Params: &qdrant.VectorParams{
-					Size:     q.dimension,
-					Distance: qdrant.Distance_Cosine,
-				},
-			},
-		},
-	}
-
-	if err := q.client.CreateCollection(ctx, request); err != nil {
-		return errnie.Error(err)
-	}
-
 	return nil
 }

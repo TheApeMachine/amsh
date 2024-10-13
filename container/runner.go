@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 )
@@ -16,7 +18,10 @@ It provides methods to create, start, and attach to containers, allowing for sea
 integration with external systems such as language models.
 */
 type Runner struct {
-	client *client.Client
+	client      *client.Client
+	containerID string
+	in          io.WriteCloser
+	out         io.ReadCloser
 }
 
 /*
@@ -49,6 +54,17 @@ Returns:
   - err: Any error encountered during the process
 */
 func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []string, username, customMessage string) (in io.WriteCloser, out io.ReadCloser, err error) {
+	// Create host config with volume mount
+	hostConfig := &container.HostConfig{
+		Mounts: []mount.Mount{
+			{
+				Type:   mount.TypeBind,
+				Source: "/tmp/workspace",
+				Target: "/workspace",
+			},
+		},
+	}
+
 	// Create the container with specific configuration
 	resp, err := r.client.ContainerCreate(ctx, &container.Config{
 		Image:     imageName,
@@ -60,7 +76,8 @@ func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []strin
 			fmt.Sprintf("USERNAME=%s", username),
 			fmt.Sprintf("CUSTOM_MESSAGE=%s", customMessage),
 		},
-	}, nil, nil, nil, "")
+		WorkingDir: "/workspace", // Set the working directory to the mounted volume
+	}, hostConfig, nil, nil, "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -77,19 +94,22 @@ func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []strin
 		Stdout: true,
 		Stderr: true,
 	})
+
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Create a multiplexed reader for stdout and stderr
-	outReader, outWriter := io.Pipe()
+	r.out, r.in = io.Pipe()
 	go func() {
-		_, _ = stdcopy.StdCopy(outWriter, outWriter, attachResp.Reader)
+		_, _ = stdcopy.StdCopy(r.in, r.in, attachResp.Reader)
 	}()
 
 	fmt.Printf("Container %s is running with user %s\n", resp.ID, username)
 
-	return attachResp.Conn, outReader, nil
+	r.containerID = resp.ID
+
+	return attachResp.Conn, r.out, nil
 }
 
 /*
@@ -100,7 +120,15 @@ Parameters:
   - ctx: The context for the Docker API calls
   - containerID: The ID of the container to stop
 */
-func (r *Runner) StopContainer(ctx context.Context, containerID string) error {
+func (r *Runner) StopContainer(ctx context.Context) error {
 	timeout := 10 // seconds
-	return r.client.ContainerStop(ctx, containerID, container.StopOptions{Timeout: &timeout})
+	return r.client.ContainerStop(ctx, r.containerID, container.StopOptions{Timeout: &timeout})
+}
+
+/*
+ExecuteCommand executes a command in the container and returns the output.
+*/
+func (r *Runner) ExecuteCommand(ctx context.Context, cmd []string) ([]byte, error) {
+	r.in.Write([]byte(strings.Join(cmd, " ")))
+	return io.ReadAll(r.out)
 }

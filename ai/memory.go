@@ -1,13 +1,16 @@
 package ai
 
 import (
+	"io"
+
 	"github.com/smallnest/ringbuffer"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/ai/memory"
+	"github.com/theapemachine/amsh/data"
 )
 
 type Memory struct {
-	err       error
 	ShortTerm *ringbuffer.RingBuffer
+	LongTerm  *memory.LongTerm
 }
 
 func NewMemory() *Memory {
@@ -21,8 +24,13 @@ func (memory *Memory) Read(p []byte) (n int, err error) {
 }
 
 func (memory *Memory) Write(p []byte) (n int, err error) {
-	if _, memory.err = memory.ShortTerm.Write(p); memory.err != nil {
-		errnie.Error(memory.err)
+	artifact := data.Empty
+	artifact = artifact.Unmarshal(p)
+
+	if artifact.Peek("scope") == "short-term" {
+		io.Copy(memory.ShortTerm, artifact)
+	} else {
+		io.Copy(memory.LongTerm, artifact)
 	}
 
 	return len(p), nil

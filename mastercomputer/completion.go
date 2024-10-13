@@ -50,7 +50,6 @@ func GetParams(
 type Completion struct {
 	ctx    context.Context
 	client *openai.Client
-	err    error
 }
 
 func NewCompletion(ctx context.Context) *Completion {

@@ -1,6 +1,8 @@
 package memory
 
 import (
+	"io"
+
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -30,5 +32,19 @@ func (store *LongTerm) Read(p []byte) (n int, err error) {
 		errnie.Warn("invalid memory store called")
 	}
 
-	return
+	return len(p), io.EOF
+}
+
+func (store *LongTerm) Write(p []byte) (n int, err error) {
+	artifact := data.Empty
+	artifact = artifact.Unmarshal(p)
+
+	switch artifact.Peek("scope") {
+	case "vector":
+		io.Copy(store.qdrantClient, artifact)
+	case "graph":
+		io.Copy(store.neo4jClient, artifact)
+	}
+
+	return len(p), nil
 }

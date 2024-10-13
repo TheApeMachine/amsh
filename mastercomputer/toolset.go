@@ -43,6 +43,41 @@ var toolsMap = map[string]openai.ChatCompletionToolParam{
 		"Request a new environment.",
 		EnvironmentToolSchema(),
 	),
+	"browser": makeTool(
+		"browser",
+		"Use a fully functional chrome browser.",
+		BrowserToolSchema(),
+	),
+	"store_vector_memory": makeTool(
+		"store_vector_memory",
+		"Store a memory inside the vector database.",
+		StoreVectorMemoryToolSchema(),
+	),
+	"search_vector_memory": makeTool(
+		"search_vector_memory",
+		"Search the vector database for a memory.",
+		SearchVectorMemoryToolSchema(),
+	),
+	"delete_vector_memory": makeTool(
+		"delete_vector_memory",
+		"Delete a memory from the vector database.",
+		DeleteVectorMemoryToolSchema(),
+	),
+	"store_graph_memory": makeTool(
+		"store_graph_memory",
+		"Store a memory inside the graph database.",
+		StoreGraphMemoryToolSchema(),
+	),
+	"search_graph_memory": makeTool(
+		"search_graph_memory",
+		"Search the graph database for a memory.",
+		SearchGraphMemoryToolSchema(),
+	),
+	"delete_graph_memory": makeTool(
+		"delete_graph_memory",
+		"Delete a memory from the graph database.",
+		DeleteGraphMemoryToolSchema(),
+	),
 }
 
 /*
@@ -52,10 +87,46 @@ func NewToolset(key string) *Toolset {
 	errnie.Trace()
 
 	toolsets := map[string][]string{
-		"reasoning": {"publish_message", "worker"},
-		"execution": {"publish_message", "environment"},
-		"routing":   {"publish_message"},
-		"none":      {},
+		"reasoning": {
+			"publish_message",
+			"store_vector_memory",
+			"search_vector_memory",
+			"delete_vector_memory",
+			"store_graph_memory",
+			"search_graph_memory",
+			"delete_graph_memory",
+			"worker",
+			"browser",
+		},
+		"execution": {
+			"publish_message",
+			"store_vector_memory",
+			"search_vector_memory",
+			"delete_vector_memory",
+			"store_graph_memory",
+			"search_graph_memory",
+			"delete_graph_memory",
+			"environment",
+			"browser",
+		},
+		"routing": {
+			"publish_message",
+			"store_vector_memory",
+			"search_vector_memory",
+			"delete_vector_memory",
+			"store_graph_memory",
+			"search_graph_memory",
+			"delete_graph_memory",
+		},
+		"none": {
+			"publish_message",
+			"store_vector_memory",
+			"search_vector_memory",
+			"delete_vector_memory",
+			"store_graph_memory",
+			"search_graph_memory",
+			"delete_graph_memory",
+		},
 	}
 
 	if tools, exists := toolsets[key]; exists {
@@ -78,7 +149,7 @@ func WorkerToolSchema() openai.FunctionParameters {
 
 	return openai.FunctionParameters{
 		"type": "object",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"system": map[string]string{
 				"type":        "string",
 				"description": "The system prompt",
@@ -115,7 +186,7 @@ func PublishMessageToolSchema() openai.FunctionParameters {
 
 	return openai.FunctionParameters{
 		"type": "object",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"topic": map[string]string{
 				"type":        "string",
 				"description": "The topic channel you want to post to. You must be subscribed to the channel to post to it.",
@@ -148,12 +219,149 @@ func EnvironmentToolSchema() openai.FunctionParameters {
 
 	return openai.FunctionParameters{
 		"type": "object",
-		"properties": map[string]interface{}{
+		"properties": map[string]any{
 			"justification": map[string]string{
 				"type":        "string",
 				"description": "A valid reason why you are requesting a new environment.",
 			},
 		},
 		"required": []string{"justification"},
+	}
+}
+
+/*
+BrowserToolSchema is the schema for the browser tool, which
+enables a worker to browse the web.
+*/
+func BrowserToolSchema() openai.FunctionParameters {
+	errnie.Trace()
+
+	return openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"url": map[string]string{
+				"type":        "string",
+				"description": "The URL you want to browse.",
+			},
+			"javascript": map[string]string{
+				"type":        "string",
+				"description": "The JavaScript code you want to run on the page. Must be a function that returns a string.",
+			},
+		},
+		"required": []string{"url", "javascript"},
+	}
+}
+
+/*
+VectorMemoryToolSchema is the schema for the vector memory tool, which
+enables a worker to create and modify vector memory.
+*/
+func StoreVectorMemoryToolSchema() openai.FunctionParameters {
+	errnie.Trace()
+
+	return openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"memory": map[string]string{
+				"type":        "string",
+				"description": "The memory you want to store inside the vector database.",
+			},
+		},
+		"required": []string{"memory"},
+	}
+}
+
+/*
+SearchVectorMemoryToolSchema is the schema for the search vector memory tool, which
+enables a worker to search the vector database for a memory.
+*/
+func SearchVectorMemoryToolSchema() openai.FunctionParameters {
+	errnie.Trace()
+
+	return openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"query": map[string]string{
+				"type":        "string",
+				"description": "The query you want to search for inside the vector database.",
+			},
+		},
+		"required": []string{"query"},
+	}
+}
+
+/*
+DeleteVectorMemoryToolSchema is the schema for the delete vector memory tool, which
+enables a worker to delete a memory from the vector database.
+*/
+func DeleteVectorMemoryToolSchema() openai.FunctionParameters {
+	errnie.Trace()
+
+	return openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"key": map[string]string{
+				"type":        "string",
+				"description": "The key of the memory you want to delete from the vector database.",
+			},
+		},
+		"required": []string{"key"},
+	}
+}
+
+/*
+StoreGraphMemoryToolSchema is the schema for the store graph memory tool, which
+enables a worker to store a graph memory in the graph database.
+*/
+func StoreGraphMemoryToolSchema() openai.FunctionParameters {
+	errnie.Trace()
+
+	return openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"cypher": map[string]string{
+				"type":        "string",
+				"description": "The cypher query to store the memory.",
+			},
+		},
+		"required": []string{"cypher"},
+	}
+}
+
+/*
+SearchGraphMemoryToolSchema is the schema for the search graph memory tool, which
+enables a worker to search the graph database for a memory.
+*/
+func SearchGraphMemoryToolSchema() openai.FunctionParameters {
+	errnie.Trace()
+
+	return openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"cypher": map[string]string{
+				"type":        "string",
+				"description": "The cypher query to search for the memory.",
+			},
+		},
+		"required": []string{"cypher"},
+	}
+}
+
+/*
+DeleteGraphMemoryToolSchema is the schema for the delete graph memory tool, which
+enables a worker to delete a memory from the graph database.
+*/
+func DeleteGraphMemoryToolSchema() openai.FunctionParameters {
+	errnie.Trace()
+
+	return openai.FunctionParameters{
+		"type": "object",
+		"properties": map[string]any{
+			"cypher": map[string]string{
+				"type":        "string",
+				"description": "The cypher query to delete the memory.",
+			},
+		},
+		"required": []string{"cypher"},
 	}
 }

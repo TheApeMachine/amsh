@@ -210,15 +210,14 @@ func Error(err error) error {
 
 	if !fixing {
 		initOnce.Do(func() {
-			errorHandler = berrt.NewErrorAI()
+			errorHandler = berrt.NewErrorAI(message, stackTrace, codeSnippet)
 			fixing = true
 			go func() {
 				defer func() {
 					fixing = false
 				}()
 
-				errorHandler.Execute(message, stackTrace, codeSnippet)
-				// Consider removing this line if you don't want to exit the program after analysis
+				errorHandler.Execute()
 				os.Exit(1)
 			}()
 		})

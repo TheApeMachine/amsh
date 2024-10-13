@@ -5,14 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
-	"strings"
+	"os/signal"
+	"path/filepath"
+	"slices"
+	"syscall"
+	"time"
 
 	"github.com/TylerBrock/colorjson"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/container"
 )
 
 var Dark = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#666666")).Render
@@ -23,8 +30,6 @@ var Red = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#F7746D")).
 var Yellow = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#F7B96D")).Render
 var Green = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#06C26F")).Render
 
-var done = false
-
 func PrettyJSON(v any) string {
 	f := colorjson.NewFormatter()
 	f.Indent = 2
@@ -33,28 +38,36 @@ func PrettyJSON(v any) string {
 }
 
 type ErrorAI struct {
-	ctx    context.Context
-	System string
-	User   string
+	ctx              context.Context
+	initialSystem    string
+	initialUser      string
+	runner           *container.Runner
+	conversationLog  []openai.ChatCompletionMessageParamUnion
+	toolMessages     []openai.ChatCompletionToolMessageParam
+	maxContextTokens int
+	tokenCounts      []int64 // Store token counts for each message
+	done             bool
 }
 
-func NewErrorAI() *ErrorAI {
+func NewErrorAI(message, stacktrace, snippet string) *ErrorAI {
+	runner, err := container.NewRunner()
+	if err != nil {
+		fmt.Printf("Error creating runner: %v\n", err)
+	}
+
 	return &ErrorAI{
-		ctx: context.Background(),
-		System: `
-		You are a helpful assistant that helps me debug my code.
-		You are given an error message, a stacktrace, and a snippet of code, and you have access to a few tools to help you debug the error.
-		When using tools, you should be careful with using them in ways that produce a lot of output, as it may overflow the message context window.
-		You should always start with highly specific queries and commands, and not search for single, generic words.
-		Always think step-by-step before taking an action.
-		`,
-		User: "I am getting the following error:\n\n",
+		ctx:           context.Background(),
+		initialSystem: "You are a helpful assistant that helps me debug my code...",
+		initialUser: fmt.Sprintf(
+			"I am getting the following error:\n\n%s\n\nWith this stacktrace:\n\n%s\n\nAnd relevant snippet:\n\n%s\n\n",
+			message, stacktrace, snippet,
+		),
+		runner:           runner,
+		maxContextTokens: 4000, // Adjust based on the model's actual limit
 	}
 }
 
 func GenerateSchema[T any]() interface{} {
-	// Structured Outputs uses a subset of JSON schema
-	// These flags are necessary to comply with the subset
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
 		DoNotReference:            true,
@@ -64,32 +77,6 @@ func GenerateSchema[T any]() interface{} {
 	return schema
 }
 
-func GetParams(
-	system, user string,
-	schema openai.ResponseFormatJSONSchemaJSONSchemaParam,
-	toolset []openai.ChatCompletionToolParam,
-) openai.ChatCompletionNewParams {
-	return openai.ChatCompletionNewParams{
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(system),
-			openai.UserMessage(user),
-		}),
-		ResponseFormat: openai.F[openai.ChatCompletionNewParamsResponseFormatUnion](
-			openai.ResponseFormatJSONSchemaParam{
-				Type:       openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
-				JSONSchema: openai.F(schema),
-			},
-		),
-		Tools:       openai.F(toolset),
-		Seed:        openai.Int(0),
-		Model:       openai.F(openai.ChatModelGPT4oMini),
-		Temperature: openai.Float(0.0),
-	}
-}
-
-/*
-makeTool reduces some of the boilerplate code for creating a tool.
-*/
 func makeTool(name, description string, schema openai.FunctionParameters) openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: openai.F(openai.ChatCompletionToolTypeFunction),
@@ -113,222 +100,284 @@ func NewCompletion(ctx context.Context) *Completion {
 	}
 }
 
-func (completion *Completion) Execute(ctx context.Context, params openai.ChatCompletionNewParams) *openai.ChatCompletion {
+func (completion *Completion) Execute(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	response, err := completion.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		_ = fmt.Errorf("%w", err)
-		return nil
+		spew.Dump(params)
+		return nil, fmt.Errorf("error from OpenAI API: %w", err)
 	}
 
 	if response == nil {
-		err = errors.New("no response from OpenAI")
-		_ = fmt.Errorf("%w", err)
-		return nil
+		return nil, errors.New("received nil response from OpenAI")
 	}
 
-	return response
+	return response, nil
 }
 
-func (ai *ErrorAI) Execute(message, stacktrace, snippet string) {
-	params := GetParams(
-		ai.System, strings.Join([]string{ai.User, message, stacktrace, snippet}, "\n\n"),
-		openai.ResponseFormatJSONSchemaJSONSchemaParam{
-			Name:        openai.F("error_analysis"),
-			Description: openai.F("Analyze the error and provide a plan to resolve it"),
-			Schema:      openai.F(GenerateSchema[ErrorAnalysis]()),
-			Strict:      openai.Bool(true),
-		},
-		[]openai.ChatCompletionToolParam{
-			makeTool(
-				"tree",
-				"Get a tree of the current project directory to inspect the file structure.",
-				openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]any{
-						"path": map[string]string{
-							"type":        "string",
-							"description": "The path to the directory to get the tree of",
-						},
-					},
-					"required": []string{"path"},
-				},
-			),
-			makeTool(
-				"get_file_contents",
-				"Get the contents of a file to inspect the code.",
-				openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]any{
-						"path": map[string]string{
-							"type":        "string",
-							"description": "The path to the file to get the contents of",
-						},
-					},
-					"required": []string{"path"},
-				},
-			),
-			makeTool(
-				"ack",
-				"Search the codebase using ack.",
-				openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]any{
-						"ack_arguments": map[string]string{
-							"type":        "string",
-							"description": "The ack arguments to execute",
-						},
-					},
-					"required": []string{"ack_arguments"},
-				},
-			),
-			makeTool(
-				"sed",
-				"Replace code with your fixes using sed.",
-				openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]any{
-						"sed_arguments": map[string]string{
-							"type":        "string",
-							"description": "The sed arguments to execute",
-						},
-					},
-					"required": []string{"sed_arguments"},
-				},
-			),
-			makeTool(
-				"git",
-				"Use git to make sure your changes are isolated on a new branch and don't affect other code.",
-				openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]any{
-						"git_arguments": map[string]string{
-							"type":        "string",
-							"description": "The git arguments to execute",
-						},
-					},
-					"required": []string{"git_arguments"},
-				},
-			),
-		},
-	)
+func (ai *ErrorAI) Execute() {
+	ctx, cancel := context.WithCancel(ai.ctx)
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\nReceived interrupt signal. Shutting down...")
+		cancel()
+	}()
+
+	defer ai.cleanup()
+	if err := ai.prepareWorkspace(); err != nil {
+		fmt.Printf("Error preparing workspace: %v\n", err)
+		return
+	}
+
+	in, out, err := ai.startContainer(ctx)
+	if err != nil {
+		fmt.Printf("Error starting container: %v\n", err)
+		return
+	}
+	defer in.Close()
+	defer out.Close()
 
 	for {
-		if done {
-			os.Exit(0)
-		}
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if ai.done {
+				return
+			}
 
-		response := NewCompletion(ai.ctx).Execute(ai.ctx, params)
-		completionMessage := ai.printResponse(response)
-		params.Messages.Value = append(
-			params.Messages.Value, openai.UserMessage(ai.handleToolCalls(&completionMessage, params)),
-		)
+			params := ai.getParamsWithManagedContext()
+
+			fmt.Println("Executing completion")
+			response, err := ai.executeCompletion(ctx, params)
+			if err != nil {
+				fmt.Printf("Error executing completion: %v\n", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			ai.processResponse(response)
+			time.Sleep(1 * time.Second)
+		}
 	}
 }
 
-func (ai *ErrorAI) printResponse(response *openai.ChatCompletion) openai.ChatCompletionMessage {
+func (ai *ErrorAI) executeCompletion(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+	completion := NewCompletion(ctx)
+	response, err := completion.Execute(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("error from OpenAI API: %w", err)
+	}
+	return response, nil
+}
+
+func (ai *ErrorAI) getParamsWithManagedContext() openai.ChatCompletionNewParams {
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(ai.initialSystem),
+		openai.UserMessage(ai.initialUser),
+	}
+
+	messages = append(messages, ai.truncateConversation()...)
+
+	return openai.ChatCompletionNewParams{
+		Messages: openai.F(messages),
+		ResponseFormat: openai.F[openai.ChatCompletionNewParamsResponseFormatUnion](
+			openai.ResponseFormatJSONSchemaParam{
+				Type: openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
+				JSONSchema: openai.F(openai.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:        openai.F("error_analysis"),
+					Description: openai.F("Analyze the error and provide a plan to resolve it"),
+					Schema:      openai.F(GenerateSchema[ErrorAnalysis]()),
+					Strict:      openai.Bool(true),
+				}),
+			},
+		),
+		Tools: openai.F([]openai.ChatCompletionToolParam{
+			makeTool(
+				"bash_command",
+				"Execute a bash command in the container.",
+				openai.FunctionParameters{
+					"type": "object",
+					"properties": map[string]any{
+						"path": map[string]string{
+							"type":        "string",
+							"description": "The bash command to execute",
+						},
+					},
+					"required": []string{"path"},
+				},
+			),
+		}),
+		Model:       openai.F(openai.ChatModelGPT4oMini),
+		Temperature: openai.Float(0.0),
+	}
+}
+
+func (ai *ErrorAI) truncateConversation() []openai.ChatCompletionMessageParamUnion {
+	var truncatedMessages []openai.ChatCompletionMessageParamUnion
+	remainingTokens := ai.maxContextTokens - ai.getTotalTokens()
+
+	for i := len(ai.conversationLog) - 1; i >= 0; i-- {
+		messageTokens := ai.estimateTokens(ai.conversationLog[i])
+		if remainingTokens >= messageTokens {
+			truncatedMessages = append([]openai.ChatCompletionMessageParamUnion{ai.conversationLog[i]}, truncatedMessages...)
+			remainingTokens -= messageTokens
+		} else {
+			break
+		}
+	}
+
+	return truncatedMessages
+}
+
+func (ai *ErrorAI) processResponse(response *openai.ChatCompletion) {
+	ai.updateTokenCounts(response.Usage)
+	fmt.Println("Printing response")
+	ai.updateConversationLog(ai.extractAndPrintResponse(response))
+	fmt.Println("Handling tool calls")
+	ai.updateToolMessages(ai.handleToolCalls(response))
+}
+
+func (ai *ErrorAI) extractAndPrintResponse(response *openai.ChatCompletion) openai.ChatCompletionUserMessageParam {
 	if response == nil || len(response.Choices) == 0 {
-		return openai.ChatCompletionMessage{}
+		fmt.Println("No response from OpenAI")
+		return openai.UserMessage("Looking for a response...").(openai.ChatCompletionUserMessageParam)
 	}
 
 	var reasoning map[string]any
 	if err := json.Unmarshal([]byte(response.Choices[0].Message.Content), &reasoning); err != nil {
-		_ = fmt.Errorf("%w", err)
-		return response.Choices[0].Message
+		fmt.Printf("Error unmarshalling response: %v\n", err)
+		return openai.UserMessage(fmt.Sprintf("Error unmarshalling response: %v", err)).(openai.ChatCompletionUserMessageParam)
 	}
 
-	done = reasoning["done"].(bool)
+	ai.done = reasoning["done"].(bool)
 	fmt.Println(PrettyJSON(reasoning))
-	return response.Choices[0].Message
+	return openai.UserMessage(response.Choices[0].Message.Content).(openai.ChatCompletionUserMessageParam)
 }
 
-func (ai *ErrorAI) handleToolCalls(
-	message *openai.ChatCompletionMessage, params openai.ChatCompletionNewParams,
-) string {
-	if message.ToolCalls == nil || len(message.ToolCalls) == 0 {
-		return message.Content
+func (ai *ErrorAI) handleToolCalls(response *openai.ChatCompletion) openai.ChatCompletionToolMessageParam {
+	if response == nil || len(response.Choices) == 0 {
+		fmt.Println("No response from OpenAI")
+		return openai.ChatCompletionToolMessageParam{}
 	}
 
-	var (
-		args map[string]interface{}
-		out  string
-	)
+	message := response.Choices[0].Message
+	if message.ToolCalls == nil || len(message.ToolCalls) == 0 {
+		fmt.Println("No tool calls in response")
+		return openai.ChatCompletionToolMessageParam{}
+	}
 
-	params.Messages.Value = append(params.Messages.Value, message)
 	for _, toolCall := range message.ToolCalls {
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); fmt.Errorf("%w", err) != nil {
-			out = "error unmarshalling arguments"
+		fmt.Println(PrettyJSON(toolCall))
+		var args map[string]any
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			fmt.Printf("Error unmarshalling tool call arguments: %v\n", err)
+			continue
 		}
 
 		switch toolCall.Function.Name {
-		case "tree":
-			fmt.Println("$ tree", args["path"])
-			// Call the shell command to get the tree
-			tree, err := exec.Command("/usr/bin/tree", args["path"].(string)).Output()
+		case "bash_command":
+			fmt.Printf("Executing command: %s\n", args["path"])
+			buf, err := ai.runner.ExecuteCommand(ai.ctx, []string{args["path"].(string)})
 			if err != nil {
-				out = fmt.Errorf("%w", err).Error()
-				params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-				return out
+				fmt.Printf("Error executing command: %v\n", err)
+				continue
 			}
-
-			fmt.Println(string(tree))
-			out = string(tree)
-			params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-		case "get_file_contents":
-			fmt.Println("$ cat", args["path"])
-			// Call the shell command to get the file contents
-			contents, err := os.ReadFile(args["path"].(string))
-			if err != nil {
-				out = fmt.Errorf("%w", err).Error()
-				params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-				return out
-			}
-
-			fmt.Println(string(contents))
-			out = string(contents)
-			params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-		case "ack":
-			fmt.Println("$ ack", args["ack_arguments"])
-			// Call the shell command to search the codebase
-			ack, err := exec.Command("ack", args["ack_arguments"].(string), "--ignore-dir={logs,.git,node_modules}").Output()
-			if err != nil {
-				out = fmt.Errorf("%w", err).Error()
-				params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-				return out
-			}
-
-			fmt.Println(string(ack))
-			out = string(ack)
-			params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-		case "sed":
-			// Call the shell command to replace the code
-			sed, err := exec.Command("sed", args["sed_arguments"].(string)).Output()
-			if err != nil {
-				out = fmt.Errorf("%w", err).Error()
-				params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-				return out
-			}
-
-			fmt.Println(string(sed))
-			out = string(sed)
-			params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-		case "git":
-			fmt.Println("$ git", args["git_arguments"])
-
-			// Call the shell command to run git
-			git, err := exec.Command("git", args["git_arguments"].(string)).Output()
-			if err != nil {
-				out = fmt.Errorf("%w", err).Error()
-				params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
-				return out
-			}
-
-			fmt.Println(string(git))
-			out = string(git)
-			params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, out))
+			fmt.Println(string(buf))
+			return openai.ToolMessage(toolCall.ID, string(buf))
 		}
 	}
 
-	return out
+	fmt.Println("No tool calls matched")
+	return openai.ChatCompletionToolMessageParam{}
+}
+
+func (ai *ErrorAI) getTotalTokens() int {
+	total := 0
+	for _, msg := range ai.conversationLog {
+		total += ai.estimateTokens(msg)
+	}
+	return total
+}
+
+func (ai *ErrorAI) estimateTokens(msg openai.ChatCompletionMessageParamUnion) int {
+	return 0
+}
+
+func (ai *ErrorAI) updateTokenCounts(usage openai.CompletionUsage) {
+	ai.tokenCounts = append(ai.tokenCounts, usage.PromptTokens)
+}
+
+func (ai *ErrorAI) updateConversationLog(message openai.ChatCompletionMessageParamUnion) {
+	ai.conversationLog = append(ai.conversationLog, message)
+}
+
+func (ai *ErrorAI) updateToolMessages(message openai.ChatCompletionToolMessageParam) {
+	ai.toolMessages = append(ai.toolMessages, message)
+}
+
+func (ai *ErrorAI) cleanup() {
+	fmt.Println("Stopping container...")
+	if err := ai.runner.StopContainer(context.Background()); err != nil {
+		fmt.Printf("Error stopping container: %v\n", err)
+	}
+}
+
+func (ai *ErrorAI) prepareWorkspace() error {
+	fmt.Println("Copying files to /tmp/workspace...")
+	if err := os.RemoveAll("/tmp/workspace"); err != nil {
+		return err
+	}
+
+	return filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		ignoreDirs := []string{"logs", "tmp", "node_modules", ".git", "src-tauri", "youi", "frontend", "ui"}
+		if info.IsDir() && slices.Contains(ignoreDirs, info.Name()) {
+			fmt.Printf("Skipping %s\n", path)
+			return filepath.SkipDir
+		}
+
+		relPath, err := filepath.Rel(".", path)
+		if err != nil {
+			return err
+		}
+
+		destPath := filepath.Join("/tmp/workspace", relPath)
+		if info.IsDir() {
+			return os.MkdirAll(destPath, info.Mode())
+		}
+
+		cmd := exec.Command("cp", path, destPath)
+		return cmd.Run()
+	})
+}
+
+func (ai *ErrorAI) startContainer(ctx context.Context) (in io.WriteCloser, out io.ReadCloser, err error) {
+	imageName := "berrt:latest"
+	cmd := []string{"/bin/bash"}
+	username := "debug-user"
+	customMessage := "Debug environment ready. Use /tmp/workspace as your working directory. It should already have the code waiting for you."
+
+	builder, err := container.NewBuilder()
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error creating builder: %w", err)
+	}
+	if err := builder.BuildImage(ctx, "./container", imageName); err != nil {
+		return nil, nil, fmt.Errorf("Error building image: %w", err)
+	}
+
+	in, out, err = ai.runner.RunContainer(ctx, imageName, cmd, username, customMessage)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error running container: %w", err)
+	}
+
+	return
 }
 
 type ErrorAnalysis struct {
@@ -340,21 +389,4 @@ type ErrorAnalysis struct {
 type Step struct {
 	Thought string `json:"thought" jsonschema_description:"The thought process to take to resolve the error"`
 	Action  string `json:"action" jsonschema_description:"The action to take to resolve or further analyze the error"`
-}
-
-func checkWithHuman(command string) (string, bool) {
-	fmt.Printf("Executing: %s\n", command)
-	fmt.Println("Continue? (y/n)")
-	var response string
-	fmt.Scanln(&response)
-	if response != "y" {
-		// Get user input to send to the AI
-		fmt.Println("Feedback:")
-		var feedback string
-		fmt.Scanln(&feedback)
-		command = fmt.Sprintf("%s %s", command, feedback)
-		return command, false
-	}
-
-	return command, true
 }

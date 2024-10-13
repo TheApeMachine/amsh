@@ -8,7 +8,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/openai/openai-go"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
@@ -215,8 +214,6 @@ queue.
 */
 func (worker *Worker) ReplyState(msg data.Artifact) (WorkerState, string) {
 	errnie.Trace()
-
-	spew.Dump(worker)
 
 	message, err := NewCompletion(worker.ctx).Execute(worker.ctx, GetParams(
 		worker.buffer.Peek("system"),
