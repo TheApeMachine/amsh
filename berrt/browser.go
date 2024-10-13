@@ -1,4 +1,4 @@
-package mastercomputer
+package berrt
 
 import (
 	"fmt"

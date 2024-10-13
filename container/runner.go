@@ -2,11 +2,11 @@ package container
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
@@ -126,7 +126,7 @@ func (r *Runner) StopContainer(ctx context.Context) error {
 /*
 ExecuteCommand executes a command in the container and returns the output.
 */
-func (r *Runner) ExecuteCommand(ctx context.Context, cmd []string) ([]byte, error) {
+func (r *Runner) ExecuteCommand(ctx context.Context, cmd []string) []byte {
 	// Join command parts into a single string for shell execution
 	commandStr := strings.Join(cmd, " ")
 	fullCmd := []string{"/bin/sh", "-c", commandStr}
@@ -141,13 +141,13 @@ func (r *Runner) ExecuteCommand(ctx context.Context, cmd []string) ([]byte, erro
 	// Create the exec instance
 	execIDResp, err := r.client.ContainerExecCreate(ctx, r.containerID, execConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create exec instance: %w", err)
+		return nil
 	}
 
 	// Attach to the exec instance
 	execAttachResp, err := r.client.ContainerExecAttach(ctx, execIDResp.ID, container.ExecStartOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to attach to exec instance: %w", err)
+		return nil
 	}
 	defer execAttachResp.Close()
 
@@ -156,19 +156,9 @@ func (r *Runner) ExecuteCommand(ctx context.Context, cmd []string) ([]byte, erro
 
 	_, err = stdcopy.StdCopy(&stdout, &stderr, execAttachResp.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read exec output: %w", err)
+		log.Error(err)
+		return nil
 	}
 
-	// Log and return both stdout and stderr if needed
-	output := stdout.String()
-	errorOutput := stderr.String()
-
-	fmt.Printf("Command stdout: %s\n", output)
-
-	// You can choose to treat non-empty `stderr` differently based on your needs
-	if errorOutput != "" {
-		fmt.Printf("Command stderr: %s\n", errorOutput)
-	}
-
-	return []byte(output), errors.New(errorOutput)
+	return []byte(stdout.String() + stderr.String())
 }

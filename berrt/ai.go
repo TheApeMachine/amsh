@@ -64,9 +64,36 @@ func NewErrorAI(message, stacktrace, snippet string) *ErrorAI {
 		Example: /Users/theapemachine/go/src/github.com/theapemachine/amsh/mastercomputer/worker.go
 		Becomes: /tmp/workspace/amsh/mastercomputer/worker.go
 
+		Start by cloning the repository:
+
+		cd /tmp/workspace
+		git clone git@github.com:TheApeMachine/amsh.git
+		cd amsh
+
+		Make sure to use the ssh method to clone the repository, not https. Your SSH key is set up in the container.
+
+		You may have to do some git config stuff first, your username and email are:
+
+		git config --global user.name "marvinnotafan"
+		git config --global user.email "development@fanfactory.nl"
+
 		You should always create a new git branch before making any changes, using the: aibugfix/<branchname> convention.
 		You should also open a PR early, before making any changes, and keep it updated as you work.
 		Each time you push to the PR, you will receive a code review, which can be used to guide your work.
+
+		If you write any tests, which is a good idea, you should use Goconvey. You can run the tests with:
+		
+		go test -v ./...
+
+		REMEMBER: 
+		1. Not all Linux command give an output, in such cases you should just check if the command was successful manually.
+		2. Always know where you are in the filesystem, and what you current working directory contains.
+		3. Using tree can be very helpful to get an overview of the filesystem.
+		4. Install any dependencies you might need using the package manager, remember to update it first.
+		5. Don't keep trying the same action over and over again, that's not how this works, switch strategy when you get stuck.
+		
+		You need to think, and reason your way through the problem, so after each tool call, and after each command execution,
+		you should think about what you just did, and what the next best step is, and verify that you are on the right track.
 		`,
 		initialUser: fmt.Sprintf(
 			"I am getting the following error:\n\n%s\n\nWith this stacktrace:\n\n%s\n\nAnd relevant snippet:\n\n%s\n\n",
@@ -132,19 +159,19 @@ func (ai *ErrorAI) Execute() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		fmt.Println("\nReceived interrupt signal. Shutting down...")
+		fmt.Println(Red("\nReceived interrupt signal. Shutting down..."))
 		cancel()
 	}()
 
 	defer ai.cleanup()
-	if err := ai.prepareWorkspace(); err != nil {
-		fmt.Printf("Error preparing workspace: %v\n", err)
-		return
-	}
+	// if err := ai.prepareWorkspace(); err != nil {
+	// 	fmt.Printf("Error preparing workspace: %v\n", err)
+	// 	return
+	// }
 
 	in, out, err := ai.startContainer(ctx)
 	if err != nil {
-		fmt.Printf("Error starting container: %v\n", err)
+		log.Error("Error starting container", "error", err)
 		return
 	}
 	defer in.Close()
@@ -167,16 +194,16 @@ func (ai *ErrorAI) Execute() {
 
 			params := ai.getParamsWithManagedContext()
 
-			fmt.Println("executing completion...")
+			log.Info("executing completion...")
 
 			response, err := ai.executeCompletion(ctx, params)
 			if err != nil {
-				fmt.Printf("Error executing completion: %v\n", err)
+				log.Error("Error executing completion", "error", err)
 				time.Sleep(5 * time.Second)
 				continue
 			}
 
-			fmt.Println("processing response...")
+			log.Info("processing response...")
 			ai.processResponse(response)
 			time.Sleep(1 * time.Second)
 		}
@@ -230,6 +257,24 @@ func (ai *ErrorAI) getParamsWithManagedContext() openai.ChatCompletionNewParams 
 					"required": []string{"command"},
 				},
 			),
+			makeTool(
+				"browser",
+				"Use a fully functional chrome browser to browse the web.",
+				openai.FunctionParameters{
+					"type": "object",
+					"properties": map[string]any{
+						"url": map[string]string{
+							"type":        "string",
+							"description": "The URL to browse",
+						},
+						"javascript": map[string]string{
+							"type":        "string",
+							"description": "The javascript to execute in the development console. Must be a function that returns a value.",
+						},
+					},
+					"required": []string{"url", "javascript"},
+				},
+			),
 		}),
 		Model:       openai.F(openai.ChatModelGPT4o),
 		Temperature: openai.Float(0.0),
@@ -279,7 +324,7 @@ func (ai *ErrorAI) processResponse(response *openai.ChatCompletion) {
 
 func (ai *ErrorAI) extractAndPrintResponse(response *openai.ChatCompletion) (openai.ChatCompletionMessageParamUnion, error) {
 	if response == nil || len(response.Choices) == 0 {
-		fmt.Println("No response from OpenAI")
+		log.Error("No response from OpenAI")
 		return nil, nil
 	}
 
@@ -294,11 +339,11 @@ func (ai *ErrorAI) extractAndPrintResponse(response *openai.ChatCompletion) (ope
 	}
 
 	for _, step := range reasoning.Steps {
-		fmt.Println("Thought:", step.Thought)
-		fmt.Println("Action:", step.Action)
+		fmt.Println(Red("Thought:"), Highlight(step.Thought))
+		fmt.Println(Green("Action:"), Highlight(step.Action))
 	}
 
-	fmt.Println("Plan:", reasoning.Plan)
+	fmt.Println(Blue("Plan:\n\n"), Highlight(reasoning.Plan))
 
 	ai.done = reasoning.Done
 	return openai.AssistantMessage(content), nil
@@ -306,51 +351,54 @@ func (ai *ErrorAI) extractAndPrintResponse(response *openai.ChatCompletion) (ope
 
 func (ai *ErrorAI) handleToolCalls(response *openai.ChatCompletion) openai.ChatCompletionMessageParamUnion {
 	if response == nil || len(response.Choices) == 0 {
-		fmt.Println("No response from OpenAI")
+		log.Error("No response from OpenAI")
 		return nil
 	}
 
 	message := response.Choices[0].Message
 	if message.ToolCalls == nil || len(message.ToolCalls) == 0 {
-		fmt.Println("No tool calls in response")
+		log.Error("No tool calls in response")
 		return nil
 	}
 
 	for _, toolCall := range message.ToolCalls {
 		var args map[string]any
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			fmt.Printf("Error unmarshalling tool call arguments: %v\n", err)
+			log.Error("Error unmarshalling tool call arguments", "error", err)
 			continue
 		}
 
 		switch toolCall.Function.Name {
 		case "bash_command":
-			fmt.Printf("Executing command: %s\n", args["command"])
+			fmt.Println(Dark("Executing command"), Muted(args["command"].(string)))
 			commandStr := args["command"].(string)
 			commandParts := strings.Fields(commandStr) // Split command into arguments
-			buf, err := ai.runner.ExecuteCommand(ai.ctx, commandParts)
-			if err != nil {
-				fmt.Printf("Error executing command: %v\n", err)
-				// Log error in the conversation to let the model know it failed
-				ai.updateConversationLog(openai.AssistantMessage(fmt.Sprintf("Error executing command: %v", err)))
-				continue
-			}
+			buf := ai.runner.ExecuteCommand(ai.ctx, commandParts)
 
 			if len(buf) == 0 {
-				fmt.Println("No output from command execution. Moving to the next step.")
-				ai.updateConversationLog(openai.AssistantMessage("No output from command execution."))
-				ai.done = true // Stop repeating if there is no output
-				return nil
+				buf = []byte("Command executed successfully, but no output was produced. Check if the command was successful manually.")
 			}
 
-			fmt.Println(string(buf))
-			// Return tool message to include in conversation
+			fmt.Println(Muted(string(buf)))
 			ai.updateConversationLog(message)
 			return openai.ToolMessage(toolCall.ID, string(buf))
+		case "browser":
+			log.Info(Dark("Browsing"), Muted(args["url"].(string)))
+
+			browser := NewBrowser()
+			output, err := browser.Run(args)
+
+			if err != nil {
+				log.Error(err)
+				return openai.ToolMessage(toolCall.ID, err.Error())
+			}
+
+			ai.updateConversationLog(message)
+			return openai.ToolMessage(toolCall.ID, string(output))
 		}
 	}
 
-	fmt.Println("No tool calls matched")
+	log.Warn("No tool calls matched")
 	return nil
 }
 
@@ -363,9 +411,9 @@ func (ai *ErrorAI) updateConversationLog(message openai.ChatCompletionMessagePar
 }
 
 func (ai *ErrorAI) cleanup() {
-	fmt.Println("Stopping container...")
+	log.Info("Stopping container...")
 	if err := ai.runner.StopContainer(context.Background()); err != nil {
-		fmt.Printf("Error stopping container: %v\n", err)
+		log.Error("Error stopping container", "error", err)
 	}
 }
 
@@ -462,7 +510,7 @@ func (ai *ErrorAI) estimateTokens(msg openai.ChatCompletionMessageParamUnion) in
 	// Use tiktoken-go to estimate tokens
 	encoding, err := tiktoken.EncodingForModel("gpt-4o-mini")
 	if err != nil {
-		fmt.Printf("Error getting encoding: %v\n", err)
+		log.Error("Error getting encoding", "error", err)
 		return 0
 	}
 
