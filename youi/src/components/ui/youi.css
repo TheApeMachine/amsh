@@ -1,0 +1,14 @@
+:host {
+    --youi-unit: 1rem;
+    --youi-unit-2: 2rem;
+    --youi-radius: 0.25rem;
+    --youi-border-width: 2px;
+    --youi-muted: hsl(219, 9%, 45%);
+    --youi-danger: hsl(3, 90%, 70%);
+    --youi-success: hsl(154, 94%, 39%);
+    --youi-warning: hsl(33, 90%, 70%);
+    --youi-info: hsl(223, 90%, 70%);
+    --youi-light: hsl(216, 28%, 86%);
+    --youi-dark: hsl(226, 11%, 23%);
+    --youi-brand: hsl(250, 100%, 66%);
+}

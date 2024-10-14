@@ -7,42 +7,52 @@ services:
       - run
       - --token
       - eyJhIjoiMzJlMDRkYTVjYjJmNjBiOWEwY2FkNTczOGJmNDA2YzciLCJ0IjoiNjM0OGNmMTYtNDcwZi00OTFkLThkZmYtZmIwNGVkMTdhMDFmIiwicyI6Ik9EQTRPV0UzT0RBdFpqRmpPQzAwTnpkakxXRmlNamd0TnpjMlpEZzBOakV3T0RsbSJ9
-    links:
-      - amsh-service:amsh.alliedmastercomputer.org
-      - amsh-service:slack.alliedmastercomputer.org
-      - amsh-service:github.alliedmastercomputer.org
-    depends_on:
-      - amsh-service
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  amsh-service:
-    image: amsh
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MARVIN_APP_TOKEN=${MARVIN_APP_TOKEN}
-      - MARVIN_BOT_TOKEN=${MARVIN_BOT_TOKEN}
-      - AZDO_ORG_URL=${AZDO_ORG_URL}
-      - AZDO_PAT=${AZDO_PAT}
-      - GITHUB_PAT=${GITHUB_PAT}
-    build:
-      context: ./
-      dockerfile: Dockerfile
-      target: dev
-      platforms:
-        - linux/amd64
-        - linux/arm64
-    ports:
-      - "8567:8567"
-      - "8568:8568"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - amsh.alliedmastercomputer.org:127.0.0.1
-      - slack.alliedmastercomputer.org:127.0.0.1
-      - github.alliedmastercomputer.org:127.0.0.1
-    volumes:
-      - ./:/app
+  # amsh-service:
+  #   image: amsh
+  #   environment:
+  #     - GEMINI_API_KEY=${GEMINI_API_KEY}
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #     - MARVIN_APP_TOKEN=${MARVIN_APP_TOKEN}
+  #     - MARVIN_BOT_TOKEN=${MARVIN_BOT_TOKEN}
+  #     - AZDO_ORG_URL=${AZDO_ORG_URL}
+  #     - AZDO_PAT=${AZDO_PAT}
+  #     - GITHUB_PAT=${GITHUB_PAT}
+  #   build:
+  #     context: ./
+  #     dockerfile: Dockerfile
+  #     target: dev
+  #     platforms:
+  #       - linux/amd64
+  #       - linux/arm64
+  #   ports:
+  #     - "8567:8567"
+  #     - "8568:8568"
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #     - amsh.alliedmastercomputer.org:127.0.0.1
+  #     - slack.alliedmastercomputer.org:127.0.0.1
+  #     - github.alliedmastercomputer.org:127.0.0.1
+  #   volumes:
+  #     - ./:/app
+
+  # youi:
+  #   image: youi
+  #   build:
+  #     context: ./youi
+  #     dockerfile: Dockerfile
+  #     target: dev
+  #     platforms:
+  #       - linux/amd64
+  #       - linux/arm64
+  #   ports:
+  #     - "1420:1420"
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   volumes:
+  #     - ./youi:/app
 
   minio:
     image: minio/minio

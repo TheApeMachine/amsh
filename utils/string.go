@@ -10,9 +10,11 @@ import (
 	"github.com/goombaio/namegenerator"
 	"github.com/sashabaranov/go-openai"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 func JSONtoMap(jsonString string) (map[string]any, error) {
+	errnie.Debug(jsonString)
 	var result map[string]any
 	if err := json.Unmarshal([]byte(jsonString), &result); err != nil {
 		return nil, err
@@ -22,6 +24,14 @@ func JSONtoMap(jsonString string) (map[string]any, error) {
 
 func JoinWith(delim string, args ...string) string {
 	return strings.Join(args, delim)
+}
+
+func ReplaceWith(template string, args [][]string) string {
+	for _, arg := range args {
+		template = strings.ReplaceAll(template, arg[0], arg[1])
+	}
+
+	return template
 }
 
 func StrategyInstructions(name string) string {

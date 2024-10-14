@@ -11,38 +11,33 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/log"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/invopop/jsonschema"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/berrt"
 )
 
-var fixing = false
-
-func GenerateSchema[T any]() interface{} {
-	// Structured Outputs uses a subset of JSON schema
-	// These flags are necessary to comply with the subset
-	reflector := jsonschema.Reflector{
-		AllowAdditionalProperties: false,
-		DoNotReference:            true,
-	}
-	var v T
-	schema := reflector.Reflect(v)
-	return schema
-}
-
-var dark = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#666666")).Render
-var muted = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#999999")).Render
-var highlight = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#EEEEEE")).Render
-var blue = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#6E95F7")).Render
-var red = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#F7746D")).Render
-var yellow = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#F7B96D")).Render
-var green = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#06C26F")).Render
-
 var (
+	fixing    = false
+	Dark      = "#666666"
+	Muted     = "#999999"
+	Highlight = "#EEEEEE"
+	Blue      = "#6E95F7"
+	Red       = "#F7746D"
+	Yellow    = "#F7B96D"
+	Green     = "#06C26F"
+
+	styles = log.DefaultStyles()
+
 	logFile     *os.File
 	logFileMu   sync.Mutex
 	logFilePath string
+
+	logger = log.NewWithOptions(os.Stderr, log.Options{
+		ReportCaller:    true,
+		CallerOffset:    2,
+		ReportTimestamp: true,
+		TimeFormat:      time.TimeOnly,
+	})
 )
 
 func JSONtoMap(jsonString string) (map[string]any, error) {
@@ -54,15 +49,56 @@ func JSONtoMap(jsonString string) (map[string]any, error) {
 }
 
 func init() {
+	styles.Levels[log.ErrorLevel] = lipgloss.NewStyle().
+		Padding(0, 1, 0, 1).
+		Background(lipgloss.Color(Red)).
+		Foreground(lipgloss.Color(Highlight))
+	styles.Levels[log.WarnLevel] = lipgloss.NewStyle().
+		Padding(0, 1, 0, 1).
+		Background(lipgloss.Color(Yellow)).
+		Foreground(lipgloss.Color(Highlight))
+	styles.Levels[log.InfoLevel] = lipgloss.NewStyle().
+		Padding(0, 1, 0, 1).
+		Background(lipgloss.Color(Blue)).
+		Foreground(lipgloss.Color(Highlight))
+	styles.Levels[log.DebugLevel] = lipgloss.NewStyle().
+		Padding(0, 1, 0, 1).
+		Background(lipgloss.Color(Muted)).
+		Foreground(lipgloss.Color(Highlight))
+
+	logger := log.NewWithOptions(os.Stderr, log.Options{
+		ReportCaller:    true,
+		CallerOffset:    2,
+		ReportTimestamp: true,
+		TimeFormat:      time.TimeOnly,
+	})
+
+	logger.SetStyles(styles)
+
+	switch loglevel := viper.GetViper().GetString("loglevel"); loglevel {
+	case "trace":
+		logger.SetLevel(log.DebugLevel)
+	case "debug":
+		logger.SetLevel(log.DebugLevel)
+	case "info":
+		logger.SetLevel(log.InfoLevel)
+	case "warn":
+		logger.SetLevel(log.WarnLevel)
+	case "error":
+		logger.SetLevel(log.ErrorLevel)
+	default:
+		logger.SetLevel(log.InfoLevel)
+	}
+
 	initLogFile()
-	// sync.OnceFunc(func() {
-	// 	// Periodically print the number of active goroutines.
-	// 	go func() {
-	// 		for range time.Tick(time.Second * 5) {
-	// 			fmt.Printf("Active goroutines: %d\n", runtime.NumGoroutine())
-	// 		}
-	// 	}()
-	// })()
+	sync.OnceFunc(func() {
+		// Periodically print the number of active goroutines.
+		go func() {
+			for range time.Tick(time.Second * 5) {
+				log.Debug("active goroutines", "count", runtime.NumGoroutine())
+			}
+		}()
+	})()
 }
 
 func initLogFile() {
@@ -95,14 +131,15 @@ func Trace() {
 	f := runtime.FuncForPC(pc[0])
 	_, line := f.FileLine(pc[0])
 	formatted := fmt.Sprintf("%d", line)
-	message := fmt.Sprintf("▫️  %s %s", muted(f.Name()), blue(formatted))
-	if !fixing {
-		fmt.Println(message)
-	}
-	writeToLog(message)
+
+	logger.Debug("TRACE", "name", f.Name(), "line", line)
+	writeToLog(fmt.Sprintf("▫️  %s %s", f.Name(), formatted))
 }
 
-// Raw logs a raw message with the appropriate symbol
+/*
+Raw provides a deep dump of the object, which is useful for
+debugging complex data structures.
+*/
 func Raw(obj any) {
 	level := viper.GetViper().GetString("loglevel")
 
@@ -110,120 +147,51 @@ func Raw(obj any) {
 		return
 	}
 
-	if !fixing {
-		spew.Dump(obj)
-	}
+	logger.Debug(spew.Sdump(obj))
 	writeToLog(spew.Sdump(obj))
 }
 
-// Debug logs a debug message with the appropriate symbol
+/*
+Debug logs a debug message with the appropriate symbol
+*/
 func Debug(format string, v ...interface{}) {
-	level := viper.GetViper().GetString("loglevel")
-	if level != "trace" && level != "debug" {
-		return
-	}
-
-	message := fmt.Sprintf("🐛 %s", fmt.Sprintf(format, v...))
-	if !fixing {
-		fmt.Println(message)
-	}
-	writeToLog(message)
+	logger.Debug(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
-// Info logs an info message with the appropriate symbol
+/*
+Info logs an info message with the appropriate symbol
+*/
 func Info(format string, v ...interface{}) {
-	message := fmt.Sprintf("🔷 %s", fmt.Sprintf(format, v...))
-	if !fixing {
-		fmt.Println(message)
-	}
-	writeToLog(message)
+	logger.Info(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
-// Warn logs a warning message with the appropriate symbol
+/*
+Warn logs a warning message with the appropriate symbol
+*/
 func Warn(format string, v ...interface{}) {
-	message := fmt.Sprintf("⚠️ %s", fmt.Sprintf(format, v...))
-	if !fixing {
-		fmt.Println(message)
-	}
-	writeToLog(message)
+	logger.Warn(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
-var initOnce sync.Once
-var errorHandler *berrt.ErrorAI
-
-// Error logs an error message with the appropriate symbol, a code snippet, and a stack trace
+/*
+Error logs the error and returns it, which makes it easy to insert
+errnie error logging in many types of situations, acting as a
+transparent wrapper around the error.
+*/
 func Error(err error) error {
 	if err == nil {
 		return nil
 	}
 
-	// Capture the caller's file and line number
-	var pc [10]uintptr
-	n := runtime.Callers(2, pc[:])
-	if n == 0 {
-		message := fmt.Sprintf("❗ %v", err)
-		if !fixing {
-			fmt.Println(message)
-		}
-		writeToLog(message)
-		return fmt.Errorf(message)
-	}
+	// Build the error message with stack trace and code snippet.
+	message := fmt.Sprintf("%s\n%s", err.Error(), getStackTrace())
+	message += "\n" + getCodeSnippet(err.Error(), 0, 10)
 
-	frames := runtime.CallersFrames(pc[:n])
-	var relevantFrame runtime.Frame
-	for i := 0; i < 3; i++ {
-		frame, more := frames.Next()
-		if !more {
-			break
-		}
-		relevantFrame = frame
-	}
-	file := relevantFrame.File
-	line := relevantFrame.Line
-
-	// Format the error message with the function name, file, and line number
-	message := fmt.Sprintf("❗ %s:%d %v", file, line, err)
-	if !fixing {
-		fmt.Println(message)
-	}
+	logger.Error(message)
 	writeToLog(message)
-
-	// Display a code snippet from the file (e.g., 2 lines before and after the error line)
-	const snippetRadius = 2
-	codeSnippet := getCodeSnippet(file, line, snippetRadius)
-	if codeSnippet != "" {
-		snippetMessage := fmt.Sprintf("📄 Code snippet (around %s:%d):\n%s", file, line, codeSnippet)
-		if !fixing {
-			fmt.Println(snippetMessage)
-		}
-		writeToLog(snippetMessage)
-	}
-
-	// Capture and print the stack trace
-	stackTrace := getStackTrace()
-
-	if !fixing {
-		fmt.Println("📊 Stack trace:")
-		fmt.Println(stackTrace)
-	}
-	writeToLog(stackTrace)
-
-	if !fixing {
-		initOnce.Do(func() {
-			errorHandler = berrt.NewErrorAI(message, stackTrace, codeSnippet)
-			fixing = true
-			go func() {
-				defer func() {
-					fixing = false
-				}()
-
-				errorHandler.Execute()
-				os.Exit(1)
-			}()
-		})
-	}
-
-	return fmt.Errorf(message)
+	return err
 }
 
 func writeToLog(message string) {

@@ -16,18 +16,6 @@ var routerCtx context.Context
 var routerCancel context.CancelFunc
 var routers []*mastercomputer.Worker
 
-func init() {
-	for _, router := range routers {
-		routerCtx, routerCancel = context.WithCancel(context.Background())
-
-		routers = append(routers, mastercomputer.NewWorker(routerCtx, data.New(
-			"router", "request", "webhook", nil,
-		)).Initialize())
-
-		router.Process()
-	}
-}
-
 func NewWebhook() fiber.Handler {
 	return func(ctx fiber.Ctx) (err error) {
 		for _, router := range routers {
@@ -44,8 +32,6 @@ func NewWebhook() fiber.Handler {
 					errnie.Error(err)
 					continue
 				}
-
-				router.Process()
 			}
 		}
 

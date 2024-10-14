@@ -2,6 +2,7 @@ import Reveal from 'reveal.js';
 import '@/components/ui/layout';
 import '@/components/sanddance/component';
 import '@/components/amsh/components';
+import '@/components/slides/zlide';
 
 class SlidesComponent extends HTMLElement {
     private revealInstance: Reveal.Api | undefined;
@@ -11,6 +12,8 @@ class SlidesComponent extends HTMLElement {
         super();
         this.template = document.createElement('template');
         this.template.innerHTML = `
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/dracula.css" id="theme">
             <style>
                 :host {
                     display: flex;
@@ -63,6 +66,9 @@ class SlidesComponent extends HTMLElement {
                     height: 100%;
                     transform-style: preserve-3d;
                 }
+                reveal .slides {
+                    pointer-events: all;
+                }
                 section {
                     display: flex;
                     justify-content: center;
@@ -75,8 +81,7 @@ class SlidesComponent extends HTMLElement {
             <div class="reveal">
                 <div class="slides">
                     <section>
-                        <h2>Slide 2</h2>
-                        <p>This is the second slide.</p>
+                        <youi-zlide></youi-zlide>
                     </section>
                 </div>
             </div>

@@ -4,6 +4,10 @@ type Strategy struct {
 	Reasoning []Reasoning `json:"reasoning" jsonschema_description:"Dynamic composition of reasoning types you want to use" jsonschema:"anyof_ref=#/$defs/chain_of_thought;#/$defs/tree_of_thought;#/$defs/self_reflection;#/$defs/verification;#/$defs/sprintplan"`
 }
 
+func (s Strategy) Format() ResponseFormat {
+	return s
+}
+
 type Thought string
 
 type Reflection string

@@ -6,3 +6,4 @@ tmp
 tmp/main
 id_marvin
 id_marvin.pub
+.env

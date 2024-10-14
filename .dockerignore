@@ -1,0 +1,6 @@
+tmp/
+.git/
+.github/
+.kube/
+Dockerfile
+README.md

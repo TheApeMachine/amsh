@@ -86,7 +86,7 @@ func NewErrorAI(message, stacktrace, snippet string) *ErrorAI {
 		go test -v ./...
 
 		REMEMBER: 
-		1. Not all Linux command give an output, in such cases you should just check if the command was successful manually.
+		1. Not all Linux commands give an output, in such cases you should just check if the command was successful manually.
 		2. Always know where you are in the filesystem, and what you current working directory contains.
 		3. Using tree can be very helpful to get an overview of the filesystem.
 		4. Install any dependencies you might need using the package manager, remember to update it first.

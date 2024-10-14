@@ -1,0 +1,1 @@
+export type YouiVariant = "default" | "primary" | "secondary" | "danger" | "success" | "warning" | "info" | "light" | "dark";

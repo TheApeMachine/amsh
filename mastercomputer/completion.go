@@ -23,30 +23,6 @@ func GenerateSchema[T any]() interface{} {
 	return schema
 }
 
-func GetParams(
-	system, user string,
-	schema openai.ResponseFormatJSONSchemaJSONSchemaParam,
-	toolset []openai.ChatCompletionToolParam,
-) openai.ChatCompletionNewParams {
-	errnie.Trace()
-
-	return openai.ChatCompletionNewParams{
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(system),
-			openai.UserMessage(user),
-		}),
-		ResponseFormat: openai.F[openai.ChatCompletionNewParamsResponseFormatUnion](
-			openai.ResponseFormatJSONSchemaParam{
-				Type:       openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
-				JSONSchema: openai.F(schema),
-			},
-		),
-		Tools: openai.F(toolset),
-		Seed:  openai.Int(0),
-		Model: openai.F(openai.ChatModelGPT4oMini),
-	}
-}
-
 type Completion struct {
 	ctx    context.Context
 	client *openai.Client
@@ -61,19 +37,17 @@ func NewCompletion(ctx context.Context) *Completion {
 	}
 }
 
-func (completion *Completion) Execute(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-	errnie.Trace()
-
+func (completion *Completion) Execute(
+	ctx context.Context, params openai.ChatCompletionNewParams,
+) (*openai.ChatCompletion, error) {
 	response, err := completion.client.Chat.Completions.New(ctx, params)
+
 	if err != nil {
-		errnie.Error(err)
-		return nil, err
+		return nil, errnie.Error(err)
 	}
 
 	if response == nil {
-		err = errors.New("no response from OpenAI")
-		errnie.Error(err)
-		return nil, err
+		return nil, errnie.Error(errors.New("received nil response from OpenAI"))
 	}
 
 	return response, nil

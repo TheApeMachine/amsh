@@ -11,136 +11,6 @@ neo4j:
   user: "neo4j"
   password: "securepassword"
 
-tools:
-  templates:
-    access: |
-      ## Tools
-
-      You can use the following tools to help you with your current objective.
-    json: |
-      Remember, any time you use JSON, you must respond with a valid JSON object, enclosed in a JSON code block.
-  qdrant:
-    instructions: |
-      ### Qdrant (Vector Database)
-
-      The Qdrant tool is used to store and retrieve data in a vector database.
-
-      To use the Qdrant tool, use the template and instructions below.
-
-      ```json
-      {
-        "tool": "qdrant",
-        "command": "<command>",
-        "parameters": {}
-      }
-      ```
-
-      | command  | description                             | parameters       |
-      | -------- | --------------------------------------- | ---------------- |
-      | store    | Store data in the vector database       | data: any        |
-      | retrieve | Retrieve data from the vector database  | question: string |
-  neo4j:
-    instructions: |
-      ### Neo4j (Graph Database)
-
-      The Neo4j tool is used to store and retrieve data in a graph database.
-
-      To use the Neo4j tool, use the template and instructions below.
-
-      ```json
-      {
-        "tool": "neo4j",
-        "command": "<command>",
-        "parameters": {}
-      }
-      ```
-
-      | command | description        | parameters           |
-      | ------- | -------------------| -------------------- |
-      | query   | Search Neo4j graph | cypher query: string |
-      | update  | Update Neo4j graph | cypher query: string |
-
-      > NOTE: When using the Neo4J tool, you must consider the intricate details of how the data you want to store
-      > is connected, and how it may be connected to existing data in the graph.
-  environment:
-    instructions: |
-      You are currently connected to an environment, meaning everything you say will be executed as a bash command.
-      Please treat this as your personal computer, and use it to accomplish your objective.
-      Use caution when executing commands, as a general best practice, always start with verifying you have
-      everything you need, and you are set up as you expect. If you need more helpful information at all times,
-      you could customize you prompt, or other settings to help you.
-
-      If you are here to work on code, you must use the following git workflow.
-
-      1. Clone the repository you need to work on.
-      2. Create a new branch following the naming convention `feature/<name>` or `bugfix/<name>`.
-      3. Open an early pull-request right away.
-      4. Make small, atomic commits, providing a good commit message in general, and a justification for any non-trivial changes.
-      5. Merge the source branch back into your branch to keep your branch in sync with the main branch.
-      6. Make sure to resolve any merge conflicts that arise during the process.
-      7. Update the pull-request regularly, each time you push, you will receive a review very shortly.
-      8. Your reviewer will merge your pull-request once they are happy with the changes.
-      
-      You will exit the environment by issuing the `exit` command.
-  teams:
-    instructions: |
-      ### Teams
-
-      The Teams tool is used to interact with the secondary communication channel.
-
-      To use the Teams tool, use the template and instructions below.
-
-      ```json
-      {
-        "tool": "teams",
-        "command": "<command>",
-        "parameters": {}
-      }
-      ```
-
-      | command | description                | parameters    |
-      | ------- | -------------------------- | ------------- |
-      | search  | Search Teams history       | query: string |
-  slack:
-    instructions: |
-      ### Slack
-
-      The Slack tool is used to interact with the main communication channel.
-
-      To use the Slack tool, use the template and instructions below.
-
-      ```json
-      {
-        "tool": "slack",
-        "command": "<command>",
-        "parameters": {}
-      }
-      ```
-
-      | command | description                | parameters                       |
-      | ------- | -------------------------- | -------------------------------- |
-      | search  | Search Slack history       | query: string                    |
-      | post    | Post a message to Slack    | channel: string, message: string |
-  project:
-    instructions: |
-      ### Project
-
-      The project tool is used to interact with systems that manage projects, tasks, and other related information.
-
-      To use the project tool, use the template and instructions below.
-
-      ```json
-      {
-        "tool": "project",
-        "command": "<command>",
-        "parameters": {}
-      }
-      ```
-
-      | command | description                | parameters      |
-      | ------- | -------------------------- | --------------- |
-      | search  | Search project information | query: string   |
-      | update  | Update project information | updates: object |
 messaging:
   templates:
     new: |
@@ -174,14 +44,14 @@ ai:
            Finally, you can send direct messages to any specific agent if you know their identifier.
 
       [ROLE]
-        {role}
+      {role}
       [/ROLE]
 
+      [GUIDELINES]
       {guidelines}
+      [/GUIDELINES]
 
       YOUR IDENTIFIER: {id}
-
-      Welcome aboard, and good luck, Agent {id}!
     reasoner: |
       You are a reasoner, and you are responsible for providing deep and insightful reasoning to uncover insights, no matter how complex or abstract.
       You are able to find the most important details, and subtle connections between seemingly unrelated concepts.
@@ -199,7 +69,6 @@ ai:
       Reason about the available information, and when you have a good understanding of the request, you must
       route it to the worker pool as a new task.
     guidelines: |
-      [GUIDELINES]
         1. If you do not know what to do, or you are missing information, you should just say so and ask for help. 
         2. Never make up an answer, never try to guess at an answer, and never provide an answer that you are not 100% sure of.
         3. If you are unsure, but are asked to provide a response, clearly state the level of speculation, uncertainty, and confidence.
@@ -207,4 +76,3 @@ ai:
         5. Use solid reasoning as your guide, and allow yourself multiple passes for self-reflection and verification.
         5. Use the tools at your disposal intelligently, and only when they are needed.
         6. Communicate with the other agents effectively, and coordinate your actions whenever possible.
-      [/GUIDELINES]

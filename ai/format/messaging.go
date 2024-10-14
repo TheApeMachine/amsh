@@ -6,6 +6,10 @@ type Messaging struct {
 	FinalResponse Reply        `json:"final_response" jsonschema_description:"Reply to the message"`
 }
 
+func (m Messaging) Format() ResponseFormat {
+	return m
+}
+
 type Evaluation struct {
 	Request string `json:"request" jsonschema_description:"The request that was made"`
 	CanDo   bool   `json:"can_do" jsonschema_description:"Whether the request can be done, based on abilities and resources"`

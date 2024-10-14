@@ -32,6 +32,15 @@ const routes: Route[] = [{
     effect: async () => {
         return null;
     }
+}, {
+    path: "/learn",
+    view: async () => {
+        const module = await import("@/routes/learn");
+        return await module.render();
+    },
+    effect: async () => {
+        return null;
+    }
 }];
 
 let currentPath = '';

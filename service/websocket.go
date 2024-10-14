@@ -1,13 +1,7 @@
 package service
 
 import (
-	"context"
-	"io"
-	"os"
-
-	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/mastercomputer"
 	"github.com/theapemachine/amsh/sockpuppet"
 )
 
@@ -53,19 +47,5 @@ func NewWebSocketHandler() func(c *sockpuppet.WebsocketConn) {
 				}
 			}
 		}()
-
-		// Processor
-		for promptIn := range inChan {
-			io.Copy(os.Stdout, mastercomputer.NewWorker(context.Background(), data.New(
-				"websocket",
-				"prompt",
-				"task",
-				[]byte(promptIn),
-			)))
-
-			//writeChan <- buf
-
-			errnie.Info("Run complete")
-		}
 	}
 }

@@ -55,7 +55,7 @@ Register should be called by all newly created agents to patch them into
 the communication network.
 */
 func (q *Queue) Register(ID string) (chan data.Artifact, error) {
-	errnie.Trace()
+	errnie.Info("registering %s", ID)
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -67,6 +67,8 @@ func (q *Queue) Register(ID string) (chan data.Artifact, error) {
 			inbox:  inbox,
 			topics: make([]string, 0),
 		}
+
+		errnie.Info("registered %s", ID)
 	}
 
 	return q.subscribers[ID].inbox, nil
@@ -78,6 +80,8 @@ func (q *Queue) Subscribe(ID, topic string) (err error) {
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
+	errnie.Info("subscribing %s to %s", ID, topic)
 
 	// Check if the subscriber exists.
 	subscriber, exists := q.subscribers[ID]
@@ -94,6 +98,8 @@ func (q *Queue) Subscribe(ID, topic string) (err error) {
 
 	// Add the topic to the subscriber.
 	subscriber.topics = append(subscriber.topics, topic)
+	errnie.Info("subscribed %s to %s", ID, topic)
+
 	return nil
 }
 

@@ -5,7 +5,7 @@ import { match } from "@/lib/match"
 import { switchLayer } from "@/lib/layer"
 import { gsap } from "gsap"
 import "@/components/layers/manager"
-import "@/components/product/designer"
+import "@/components/slides/presentation"
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
@@ -14,7 +14,7 @@ export const effect = async () => {
     let currentLayer: number | undefined = 1;
 
     layers = {
-        product: document.querySelector("product-designer") as HTMLElement,
+        product: document.querySelector("slides-component") as HTMLElement,
     };
 
     positions.forEach((position: string, index: number) => {
@@ -56,7 +56,7 @@ export const render = async () => {
             return html`<div>Error: ${error}</div>`
         },
         success: (_: any) => {
-            return html`<product-designer></product-designer>`
+            return html`<slides-component></slides-component>`
         }
     }), {
         enter: sequence(blurIn),
