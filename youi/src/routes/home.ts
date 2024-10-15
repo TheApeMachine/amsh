@@ -6,6 +6,7 @@ import { switchLayer } from "@/lib/layer"
 import { gsap } from "gsap"
 import "@/components/layers/manager"
 import "@/components/slides/presentation"
+import "@/components/slides/zlide"
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
@@ -56,7 +57,12 @@ export const render = async () => {
             return html`<div>Error: ${error}</div>`
         },
         success: (_: any) => {
-            return html`<slides-component></slides-component>`
+            return html`
+                <slides-component>
+                        <youi-zlide></youi-zlide>
+                        <h1>Hello World</h1>
+                </slides-component>
+            `
         }
     }), {
         enter: sequence(blurIn),

@@ -81,7 +81,7 @@ class SlidesComponent extends HTMLElement {
             <div class="reveal">
                 <div class="slides">
                     <section>
-                        <youi-zlide></youi-zlide>
+                        <slot></slot>
                     </section>
                 </div>
             </div>

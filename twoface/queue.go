@@ -103,6 +103,14 @@ func (q *Queue) Subscribe(ID, topic string) (err error) {
 	return nil
 }
 
+func (q *Queue) Write(p []byte) (n int, err error) {
+	if artifact := data.Empty.Unmarshal(p); artifact != data.Empty {
+		q.Publish(artifact)
+	}
+
+	return len(p), nil
+}
+
 /*
 Publish a message onto the queue, provided all the necessary conditions are met.
 */

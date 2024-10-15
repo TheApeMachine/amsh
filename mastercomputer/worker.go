@@ -133,6 +133,10 @@ Artifacts naturally implement, also being io.ReadWriteClosers.
 func (worker *Worker) Write(p []byte) (n int, err error) {
 	errnie.Trace()
 
+	if _, err = worker.memory.Read(p); err != nil && err != io.EOF {
+		return 0, err
+	}
+
 	if !worker.OK || worker.State != WorkerStateReady {
 		return 0, io.ErrNoProgress
 	}
