@@ -2,153 +2,121 @@ package mastercomputer
 
 import (
 	"context"
-	"errors"
-	"io"
-	"sync"
+	"log"
 
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/twoface"
 )
 
-/*
-Worker is an agent type that can become many things, depending on how it is prompted.
-By setting the system and user prompts, as well as providing a toolset, we can
-instruct the worker to perform many different tasks.
-A worker is itself also a tool, and can create other workers, and thus form a
-tree of workers.
-
-It carries an Artifact type as a buffer, which will hold the current context of
-the worker, which always includes the syatem an user prompt, so it never loses scope
-but the assistant messages need to be managed to not overflow the context window.
-*/
+// Worker represents an agent that can perform tasks and communicate via the Queue.
 type Worker struct {
 	parentCtx context.Context
 	ctx       context.Context
 	cancel    context.CancelFunc
-	wg        *sync.WaitGroup
-	err       error
-	buffer    data.Artifact
+	buffer    *data.Artifact
 	memory    *ai.Memory
-	State     WorkerState
+	state     WorkerState
 	queue     *twoface.Queue
-	inbox     chan data.Artifact
-	OK        bool
+	inbox     chan *data.Artifact
+	ID        string
+	manager   *WorkerManager
 }
 
-/*
-NewWorker provides a minimal, uninitialized Worker object. We pass in a
-context for cancellation purposes, and an Artifact so we can transfer
-data over if we need to.
-*/
-func NewWorker(ctx context.Context, wg *sync.WaitGroup, buffer data.Artifact) *Worker {
-	errnie.Trace()
-
+// NewWorker provides a minimal, uninitialized Worker object.
+func NewWorker(ctx context.Context, buffer *data.Artifact, manager *WorkerManager) *Worker {
 	return &Worker{
 		parentCtx: ctx,
-		wg:        wg,
 		buffer:    buffer,
-		State:     WorkerStateCreating,
-		OK:        false,
+		state:     WorkerStateCreating,
+		queue:     twoface.NewQueue(),
+		ID:        buffer.Peek("id"),
+		manager:   manager,
 	}
 }
 
-/*
-Initialize the worker, setting up the context, ID, memory, and queue.
-It is essential that this is called before the worker can be used.
-*/
-func (worker *Worker) Initialize() *Worker {
-	errnie.Info("initializing worker %s", worker.buffer.Peek("id"))
+// Initialize sets up the worker's context, queue registration, and starts the executor.
+func (w *Worker) Initialize() error {
+	log.Printf("Initializing worker %s", w.ID)
+	w.state = WorkerStateInitializing
+	w.ctx, w.cancel = context.WithCancel(w.parentCtx)
 
-	worker.State = WorkerStateInitializing
-	worker.ctx, worker.cancel = context.WithCancel(worker.parentCtx)
+	w.memory = ai.NewMemory(w.ID)
+	defer w.memory.Close()
 
-	// Registering the worker with the queue allows it to send and receive
-	// messages, enabling worker communication. The queue itself is an
-	// ambient context, so all workers speak to the same queue instance.
-	worker.queue = twoface.NewQueue()
-
-	// Inbox is the incoming message channel for the worker, and without it
-	// the worker is essentially rogue, and not functional.
-	if worker.inbox, worker.err = worker.queue.Register(
-		worker.buffer.Peek("id"),
-	); errnie.Error(worker.err) != nil {
-		worker.State = WorkerStateZombie
+	// Register the worker with the queue.
+	inbox, err := w.queue.Register(w.ID)
+	if err != nil {
+		w.state = WorkerStateZombie
+		return err
 	}
+	w.inbox = inbox
 
-	if worker.State == WorkerStateZombie {
-		errnie.Error(errors.New("[" + worker.buffer.Peek("id") + "] went zombie"))
-		// Kill it with fire!
-		worker.Close()
+	// Add the worker to the manager
+	w.manager.AddWorker(w)
+
+	w.state = WorkerStateReady
+	w.listenForMessages()
+
+	// Start the executor
+	executor := NewExecutor(w.ctx, w)
+	if err := executor.Initialize(); err != nil {
+		return err
 	}
+	go executor.Run()
 
-	worker.State = WorkerStateReady
-	worker.OK = true
+	log.Printf("Worker %s initialized", w.ID)
 
-	executor := NewExecutor(worker.ctx, worker)
-	executor.Initialize()
+	// Wait until the context is done
+	<-w.ctx.Done()
 
-	_, err := io.Copy(worker, executor)
-
-	if errnie.Error(err) != nil {
-		worker.State = WorkerStateZombie
-		worker.OK = false
-	}
-
-	return worker
-}
-
-/*
-Error implements the error interface for the worker.
-*/
-func (worker *Worker) Error() string {
-	errnie.Trace()
-	return worker.err.Error()
-}
-
-/*
-Read implements the io.Reader interface for the worker.
-In this case, it is reading from the buffer payload, which
-is a slightly different use-case from the behavior that
-Artifacts naturally implement, also being io.ReadWriteClosers.
-*/
-func (worker *Worker) Read(p []byte) (n int, err error) {
-	errnie.Trace()
-
-	if !worker.OK || worker.State != WorkerStateReady {
-		return 0, io.ErrNoProgress
-	}
-
-	n = copy(p, worker.buffer.Peek("payload"))
-	return n, io.EOF
-}
-
-/*
-Write implements the io.Writer interface for the worker.
-In this case, it is writing to the buffer payload, which
-is a slightly different use-case from the behavior that
-Artifacts naturally implement, also being io.ReadWriteClosers.
-*/
-func (worker *Worker) Write(p []byte) (n int, err error) {
-	errnie.Trace()
-
-	if _, err = worker.memory.Read(p); err != nil && err != io.EOF {
-		return 0, err
-	}
-
-	if !worker.OK || worker.State != WorkerStateReady {
-		return 0, io.ErrNoProgress
-	}
-
-	return len(p), worker.buffer.SetPayload(p)
-}
-
-/*
-Close the worker down and make sure it cleans up all its resources.
-*/
-func (worker *Worker) Close() error {
-	errnie.Trace()
-	worker.cancel()
+	// Indicate that the worker is done
+	w.manager.RemoveWorker(w.ID)
 	return nil
+}
+
+// Close shuts down the worker and cleans up resources.
+func (w *Worker) Close() error {
+	if w.cancel != nil {
+		w.cancel()
+	}
+	if w.queue != nil {
+		return w.queue.Unregister(w.ID)
+	}
+	return nil
+}
+
+// listenForMessages listens to the inbox and processes messages.
+func (w *Worker) listenForMessages() {
+	go func() {
+		for {
+			select {
+			case <-w.ctx.Done():
+				return
+			case msg, ok := <-w.inbox:
+				if !ok {
+					return
+				}
+				w.handleMessage(msg)
+			}
+		}
+	}()
+}
+
+// handleMessage processes incoming messages.
+func (w *Worker) handleMessage(msg *data.Artifact) {
+	log.Printf("Worker %s received message from %s", w.ID, msg.Peek("origin"))
+	// Implement message handling logic based on the message type and content.
+	// For example, pick up broadcast messages if in the Ready state.
+	if w.state == WorkerStateReady && msg.Peek("scope") == "broadcast" {
+		w.NewState(WorkerStateBusy)
+		// Acknowledge picking up the workload
+		response := data.New(w.ID, "message", "acknowledgment", []byte("Workload accepted"))
+		response.Poke("origin", w.ID)
+		response.Poke("scope", msg.Peek("origin"))
+		w.queue.Publish(response)
+		// Process the workload
+		// ...
+		w.NewState(WorkerStateDone)
+	}
 }

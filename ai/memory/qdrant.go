@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/url"
@@ -58,8 +59,10 @@ func NewQdrant(collection string, dimension uint64) *Qdrant {
 }
 
 func (q *Qdrant) Read(p []byte) (n int, err error) {
-	artifact := data.Empty
-	artifact = artifact.Unmarshal(p)
+	artifact := data.Unmarshal(p)
+	if artifact == nil {
+		return 0, errnie.Error(errors.New("failed to unmarshal artifact"))
+	}
 
 	var docs []schema.Document
 	if docs, err = q.client.SimilaritySearch(q.ctx, artifact.Peek("query"), 1); errnie.Error(err) != nil {
@@ -74,9 +77,11 @@ func (q *Qdrant) Read(p []byte) (n int, err error) {
 
 	artifact.Poke("payload", builder.String())
 	buf := artifact.Marshal()
+	if buf == nil {
+		return 0, errnie.Error(errors.New("failed to marshal artifact"))
+	}
 
 	copy(p, buf)
-
 	return len(p), io.EOF
 }
 

@@ -3,88 +3,105 @@ package memory
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
+	"errors"
+	"io"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/data"
 )
 
+// Neo4j represents the Neo4j client.
 type Neo4j struct {
 	client neo4j.DriverWithContext
 }
 
+// NewNeo4j creates a new Neo4j client.
 func NewNeo4j() *Neo4j {
-	client, err := neo4j.NewDriverWithContext(
-		"neo4j://neo4j:7687",
-		neo4j.BasicAuth(
-			viper.GetViper().GetString("neo4j.username"),
-			viper.GetViper().GetString("neo4j.password"),
-			"",
-		),
-	)
+	ctx := context.Background()
+	uri := viper.GetString("neo4j.uri")
+	username := viper.GetString("neo4j.username")
+	password := viper.GetString("neo4j.password")
 
+	client, err := neo4j.NewDriverWithContext(uri, neo4j.BasicAuth(username, password, ""))
 	if err != nil {
-		log.Fatalf("Failed to create Neo4j client: %v", err)
-		return nil
+		panic("Failed to create Neo4j client: " + err.Error())
+	}
+
+	// Verify connectivity
+	if err := client.VerifyConnectivity(ctx); err != nil {
+		panic("Failed to connect to Neo4j: " + err.Error())
 	}
 
 	return &Neo4j{client: client}
 }
 
-func (conn *Neo4j) Read(p []byte) (n int, err error) {
+// Read executes a Cypher query and returns the result.
+func (n *Neo4j) Read(p []byte) (int, error) {
 	ctx := context.Background()
-	session := conn.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
+	session := n.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	defer session.Close(ctx)
 
-	result, err := session.Run(ctx, "MATCH (n) RETURN n LIMIT 1", nil)
+	artifact := data.Unmarshal(p)
+	if artifact == nil {
+		return 0, errors.New("failed to unmarshal artifact")
+	}
+
+	query := artifact.Peek("cypher")
+	if query == "" {
+		return 0, errors.New("cypher query is empty")
+	}
+
+	result, err := session.Run(ctx, query, nil)
 	if err != nil {
 		return 0, err
 	}
 
-	if result.Next(ctx) {
+	var records []map[string]interface{}
+	for result.Next(ctx) {
 		record := result.Record()
-		node, ok := record.Values[0].(neo4j.Node)
-		if !ok {
-			return 0, fmt.Errorf("expected neo4j.Node, got %T", record.Values[0])
-		}
-		data, err := json.Marshal(node.Props)
-		if err != nil {
-			return 0, err
-		}
-		n = copy(p, data)
+		records = append(records, record.Values[0].(neo4j.Node).Props)
 	}
 
-	return n, result.Err()
-}
-
-func (conn *Neo4j) Write(p []byte) (n int, err error) {
-	ctx := context.Background()
-	session := conn.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
-	defer session.Close(ctx)
-
-	var data map[string]interface{}
-	if err := json.Unmarshal(p, &data); err != nil {
+	if err = result.Err(); err != nil {
 		return 0, err
 	}
 
-	result, err := session.Run(ctx, "CREATE (n:Node $props) RETURN n", map[string]interface{}{"props": data})
+	dataBytes, err := json.Marshal(records)
 	if err != nil {
 		return 0, err
 	}
 
-	if result.Next(ctx) {
-		record := result.Record()
-		if _, ok := record.Values[0].(neo4j.Node); !ok {
-			return 0, fmt.Errorf("expected neo4j.Node, got %T", record.Values[0])
-		}
-		n = len(p)
-	}
-
-	return n, result.Err()
+	copy(p, dataBytes)
+	return len(dataBytes), io.EOF
 }
 
-func (conn *Neo4j) Close() error {
+// Write executes a Cypher query to write data to the graph.
+func (n *Neo4j) Write(p []byte) (int, error) {
 	ctx := context.Background()
-	return conn.client.Close(ctx)
+	session := n.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	defer session.Close(ctx)
+
+	artifact := data.Unmarshal(p)
+	if artifact == nil {
+		return 0, errors.New("failed to unmarshal artifact")
+	}
+
+	query := artifact.Peek("cypher")
+	if query == "" {
+		return 0, errors.New("cypher query is empty")
+	}
+
+	_, err := session.Run(ctx, query, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(p), nil
+}
+
+// Close closes the Neo4j client connection.
+func (n *Neo4j) Close() error {
+	ctx := context.Background()
+	return n.client.Close(ctx)
 }

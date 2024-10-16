@@ -29,8 +29,7 @@ type Completion struct {
 }
 
 func NewCompletion(ctx context.Context) *Completion {
-	errnie.Trace()
-
+	errnie.Info("new completion")
 	return &Completion{
 		ctx:    ctx,
 		client: openai.NewClient(),
@@ -40,6 +39,8 @@ func NewCompletion(ctx context.Context) *Completion {
 func (completion *Completion) Execute(
 	ctx context.Context, params openai.ChatCompletionNewParams,
 ) (*openai.ChatCompletion, error) {
+	errnie.Info("executing completion")
+
 	response, err := completion.client.Chat.Completions.New(ctx, params)
 
 	if err != nil {

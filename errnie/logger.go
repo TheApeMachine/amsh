@@ -17,7 +17,6 @@ import (
 )
 
 var (
-	fixing    = false
 	Dark      = "#666666"
 	Muted     = "#999999"
 	Highlight = "#EEEEEE"
@@ -37,6 +36,7 @@ var (
 		CallerOffset:    2,
 		ReportTimestamp: true,
 		TimeFormat:      time.TimeOnly,
+		Level:           log.InfoLevel,
 	})
 )
 
@@ -121,19 +121,21 @@ func initLogFile() {
 /*
 Trace logs a trace message with the appropriate symbol
 */
-func Trace() {
-	if viper.GetViper().GetString("loglevel") != "trace" {
-		return
-	}
-
+func Trace(v ...interface{}) {
 	pc := make([]uintptr, 10)
 	runtime.Callers(2, pc)
 	f := runtime.FuncForPC(pc[0])
 	_, line := f.FileLine(pc[0])
 	formatted := fmt.Sprintf("%d", line)
 
-	logger.Debug("TRACE", "name", f.Name(), "line", line)
-	writeToLog(fmt.Sprintf("▫️  %s %s", f.Name(), formatted))
+	// Print the method name with arguments
+	fn := f.Name()
+	for _, arg := range v {
+		fn += fmt.Sprintf(" %v", arg)
+	}
+
+	logger.Debug("TRACE", "name", fn, "line", line)
+	writeToLog(fmt.Sprintf("▫️  %s %s", fn, formatted))
 }
 
 /*

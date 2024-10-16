@@ -8,7 +8,7 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
-func (artifact Artifact) Card() string {
+func (artifact *Artifact) Card() string {
 	builder := strings.Builder{}
 	builder.WriteString(fmt.Sprintf("[ARTIFACT (%s)]\n", artifact.Peek("id")))
 	builder.WriteString(fmt.Sprintf("\tVERSION  : %s\n", artifact.Peek("version")))
@@ -59,34 +59,39 @@ func (artifact Artifact) Card() string {
 	return builder.String()
 }
 
-func (artifact Artifact) Marshal() []byte {
-	errnie.Trace()
+func (artifact *Artifact) Marshal() []byte {
 	var (
 		buf []byte
 		err error
 	)
 
 	if buf, err = artifact.Message().Marshal(); err != nil {
+		errnie.Error(fmt.Errorf("marshal error: %w", err))
 		return nil
 	}
 
 	return buf
 }
 
-func (artifact Artifact) Unmarshal(buf []byte) Artifact {
-	errnie.Trace()
+func Unmarshal(buf []byte) *Artifact {
 	var (
 		msg *capnp.Message
+		af  Artifact
 		err error
 	)
 
 	if msg, err = capnp.Unmarshal(buf); errnie.Error(err) != nil {
-		return Empty
+		errnie.Error(fmt.Errorf("unmarshal error: %w", err))
+		return nil
 	}
 
-	if artifact, err = ReadRootArtifact(msg); errnie.Error(err) != nil {
-		return Empty
+	if errnie.Error(err) != nil {
+		return nil
 	}
 
-	return artifact
+	if af, err = ReadRootArtifact(msg); errnie.Error(err) != nil {
+		return nil
+	}
+
+	return &af
 }

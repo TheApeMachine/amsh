@@ -1,5 +1,11 @@
 package format
 
+import (
+	"fmt"
+	"strings"
+)
+
+// Messaging represents the structure of a messaging format.
 type Messaging struct {
 	Topic         string       `json:"topic" jsonschema_description:"The topic of the message"`
 	Evaluation    []Evaluation `json:"evaluation" jsonschema_description:"Evaluation of each request, instruction, or derived action found in the message"`
@@ -8,6 +14,16 @@ type Messaging struct {
 
 func (m Messaging) Format() ResponseFormat {
 	return m
+}
+
+func (m Messaging) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Topic: %s\n", m.Topic))
+	for _, evaluation := range m.Evaluation {
+		sb.WriteString(fmt.Sprintf("Request: %s, Can Do: %v\n", evaluation.Request, evaluation.CanDo))
+	}
+	sb.WriteString(fmt.Sprintf("Accepted: %v, Reason: %s", m.FinalResponse.Accepted, m.FinalResponse.Reason))
+	return sb.String()
 }
 
 type Evaluation struct {

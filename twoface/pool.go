@@ -6,21 +6,6 @@ import (
 	"sync"
 )
 
-var (
-	globalPool *Pool
-	once       sync.Once
-)
-
-func SetGlobalPool(pool *Pool) {
-	once.Do(func() {
-		globalPool = pool
-	})
-}
-
-func GetGlobalPool() *Pool {
-	return globalPool
-}
-
 type Pool struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
