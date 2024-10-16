@@ -11,6 +11,29 @@ neo4j:
   user: "neo4j"
   password: "securepassword"
 
+integrations:
+  boards:
+    workitem: |
+      [WORKITEM ({id})]
+        {title}
+
+        {description}
+
+        [COMMENTS]
+          {comments}
+        [/COMMENTS]
+      [/WORKITEM]
+    response: |
+      [RESPONSE ({id})]
+        {response}
+      [/RESPONSE]
+  trengo:
+    labels: |
+      The following is a list of labels that are available in the Trengo API.
+
+      [LABELS]
+      {labels}
+      [/LABELS]
 messaging:
   templates:
     new: |

@@ -2,6 +2,9 @@ package mastercomputer
 
 import (
 	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/integration/boards"
+	"github.com/theapemachine/amsh/integration/trengo"
 )
 
 // Toolset represents a set of tools available to a worker.
@@ -9,31 +12,28 @@ type Toolset struct {
 	tools []openai.ChatCompletionToolParam
 }
 
-// makeTool reduces boilerplate for creating a tool.
-func makeTool(name, description string, schema openai.FunctionParameters) openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: openai.F(openai.ChatCompletionToolTypeFunction),
-		Function: openai.F(openai.FunctionDefinitionParam{
-			Name:        openai.String(name),
-			Description: openai.String(description),
-			Parameters:  openai.F(schema),
-		}),
-	}
-}
-
 // toolsMap is a map of tool names to tool definitions.
 var toolsMap = map[string]openai.ChatCompletionToolParam{
-	"publish_message": makeTool(
+	"publish_message": ai.MakeTool(
 		"publish_message",
 		"Publish a message to a topic channel. You must be subscribed to the channel to publish to it.",
 		PublishMessageToolSchema(),
 	),
-	"worker": makeTool(
+	"worker": ai.MakeTool(
 		"worker",
 		"Create any type of worker by providing prompts and tools.",
 		WorkerToolSchema(),
 	),
-	// Add other tools as necessary...
+}
+
+func init() {
+	// Boards
+	toolsMap["create_workitem"] = boards.NewTools().GetSchemas()["create_ticket"]
+	toolsMap["search_workitems"] = boards.NewTools().GetSchemas()["search_tickets"]
+	toolsMap["get_workitem"] = boards.NewTools().GetSchemas()["get_ticket"]
+	// Trengo
+	toolsMap["search_tickets"] = trengo.NewTools().GetSchemas()["search_tickets"]
+	toolsMap["get_ticket"] = trengo.NewTools().GetSchemas()["get_ticket"]
 }
 
 // NewToolset returns a new Toolset for the given key.
@@ -41,7 +41,8 @@ func NewToolset(key string) *Toolset {
 	toolsets := map[string][]string{
 		"reasoning": {"publish_message", "worker"},
 		"messaging": {"publish_message"},
-		// Add other toolsets as necessary...
+		"boards":    {"create_workitem", "search_workitems", "get_workitem"},
+		"trengo":    {"list_labels", "assign_label"},
 	}
 
 	if tools, exists := toolsets[key]; exists {

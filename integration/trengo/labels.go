@@ -74,6 +74,7 @@ func (l *Labels) List(ctx context.Context) ([]Presenter, error) {
 		response     *client.Response
 		labels       = make([]Presenter, 0)
 		responseBody Response
+		err          error
 	)
 
 	nextPage := 1
@@ -81,7 +82,7 @@ func (l *Labels) List(ctx context.Context) ([]Presenter, error) {
 
 	for {
 		// First collect all the labels, making sure to take care of pagination.
-		if response, err = l.conn.Get(l.baseURL+"/labels", client.Config{
+		if response, err = l.conn.Get(nextPageURL, client.Config{
 			Header: map[string]string{
 				"Authorization": "Bearer " + l.token,
 				"Accept":        "application/json",
@@ -105,7 +106,7 @@ func (l *Labels) List(ctx context.Context) ([]Presenter, error) {
 
 		if responseBody.Links.Next != nil {
 			nextPage = responseBody.Meta.CurrentPage + 1
-			nextPageURL = responseBody.Links.Next
+			nextPageURL = responseBody.Links.Next.(string)
 		}
 
 		if responseBody.Links.Next == nil {
