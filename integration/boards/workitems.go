@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 
@@ -12,21 +13,31 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/search"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/workitemtracking"
+	"github.com/openai/openai-go"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
 )
 
-func (srv *Service) GetWorkitem(ctx context.Context, id int) (out string, err error) {
+type GetWorkItemSrv struct {
+	conn workitemtracking.Client
+}
+
+func NewGetWorkItemSrv(ctx context.Context, orgURL, pat string) (*GetWorkItemSrv, error) {
+	conn, err := workitemtracking.NewClient(ctx, azuredevops.NewPatConnection(orgURL, pat))
+	if err != nil {
+		return nil, errnie.Error(err)
+	}
+
+	return &GetWorkItemSrv{conn: conn}, nil
+}
+
+func (srv *GetWorkItemSrv) GetWorkitem(ctx context.Context, id int) (out string, err error) {
 	var (
-		client        workitemtracking.Client
 		responseValue *workitemtracking.WorkItem
 	)
 
-	if client, err = workitemtracking.NewClient(ctx, azuredevops.NewPatConnection(srv.orgURL, srv.pat)); err != nil {
-		return "", errnie.Error(err)
-	}
-
-	if responseValue, err = client.GetWorkItem(ctx, workitemtracking.GetWorkItemArgs{
+	if responseValue, err = srv.conn.GetWorkItem(ctx, workitemtracking.GetWorkItemArgs{
 		Id: &id,
 	}); err != nil {
 		return "", errnie.Error(err)
@@ -43,16 +54,53 @@ func (srv *Service) GetWorkitem(ctx context.Context, id int) (out string, err er
 	return template, nil
 }
 
-func (srv *Service) CreateWorkitem(ctx context.Context, title, description string) (out string, err error) {
-	var (
-		client workitemtracking.Client
-	)
+func (srv *GetWorkItemSrv) Call(args map[string]any) (string, error) {
+	return "", nil
+}
 
-	if client, err = workitemtracking.NewClient(ctx, azuredevops.NewPatConnection(srv.orgURL, srv.pat)); err != nil {
-		return "", errnie.Error(err)
+func (srv *GetWorkItemSrv) Schema() openai.ChatCompletionToolParam {
+	return ai.MakeTool(
+		"get_workitem",
+		"Get a work item from the board",
+		openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"id": map[string]string{
+					"type":        "integer",
+					"description": "The ID of the work item to get",
+				},
+			},
+			"required": []string{"id"},
+		},
+	)
+}
+
+type CreateWorkitemSrv struct {
+	conn        workitemtracking.Client
+	projectName string
+}
+
+func NewCreateWorkitemSrv(ctx context.Context, projectName string) (*CreateWorkitemSrv, error) {
+	conn, err := workitemtracking.NewClient(ctx, azuredevops.NewPatConnection(
+		os.Getenv("AZDO_ORG_URL"),
+		os.Getenv("AZDO_PAT"),
+	))
+	if err != nil {
+		return nil, errnie.Error(err)
 	}
 
+	return &CreateWorkitemSrv{conn: conn}, nil
+}
+
+func (srv *CreateWorkitemSrv) CreateWorkitem(
+	ctx context.Context, title, description string,
+) (out string, err error) {
+	var (
+		responseValue *workitemtracking.WorkItem
+	)
+
 	path := "/fields/System.Title"
+	title = "test"
 
 	doc := []webapi.JsonPatchOperation{
 		{
@@ -62,13 +110,13 @@ func (srv *Service) CreateWorkitem(ctx context.Context, title, description strin
 		},
 	}
 
-	responseValue, err := client.CreateWorkItem(ctx, workitemtracking.CreateWorkItemArgs{
+	responseValue, err = srv.conn.CreateWorkItem(ctx, workitemtracking.CreateWorkItemArgs{
 		Project:  &srv.projectName,
 		Document: &doc,
 	})
 
 	if err != nil {
-		return "[ERROR] Failed to create work item [/ERROR]", errnie.Error(err)
+		return "", errnie.Error(err)
 	}
 
 	template := viper.GetViper().GetString("integrations.boards.response")
@@ -78,9 +126,50 @@ func (srv *Service) CreateWorkitem(ctx context.Context, title, description strin
 	return template, nil
 }
 
-func (srv *Service) SearchWorkitems(ctx context.Context, query string) (out string, err error) {
+func (srv *CreateWorkitemSrv) Call(args map[string]any) (string, error) {
+	return "", nil
+}
+
+func (srv *CreateWorkitemSrv) Schema() openai.ChatCompletionToolParam {
+	return ai.MakeTool(
+		"create_workitem",
+		"Create a work item on the board",
+		openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"title": map[string]string{
+					"type":        "string",
+					"description": "The title of the work item to create",
+				},
+				"description": map[string]string{
+					"type":        "string",
+					"description": "The description of the work item to create",
+				},
+			},
+			"required": []string{"title", "description"},
+		},
+	)
+}
+
+type SearchWorkitemsSrv struct {
+	conn        search.Client
+	projectName string
+}
+
+func NewSearchWorkitemsSrv(ctx context.Context, projectName string) (*SearchWorkitemsSrv, error) {
+	conn, err := search.NewClient(ctx, azuredevops.NewPatConnection(
+		os.Getenv("AZDO_ORG_URL"),
+		os.Getenv("AZDO_PAT"),
+	))
+	if err != nil {
+		return nil, errnie.Error(err)
+	}
+
+	return &SearchWorkitemsSrv{conn: conn}, nil
+}
+
+func (srv *SearchWorkitemsSrv) SearchWorkitems(ctx context.Context, query string) (out string, err error) {
 	var (
-		client        search.Client
 		responseValue *search.WorkItemSearchResponse
 		index         = 0
 		skip          = 0
@@ -90,11 +179,7 @@ func (srv *Service) SearchWorkitems(ctx context.Context, query string) (out stri
 		}
 	)
 
-	if client, err = search.NewClient(ctx, azuredevops.NewPatConnection(srv.orgURL, srv.pat)); err != nil {
-		return "", errnie.Error(err)
-	}
-
-	if responseValue, err = client.FetchWorkItemSearchResults(ctx, search.FetchWorkItemSearchResultsArgs{
+	if responseValue, err = srv.conn.FetchWorkItemSearchResults(ctx, search.FetchWorkItemSearchResultsArgs{
 		Request: &search.WorkItemSearchRequest{
 			Filters:    &filters,
 			SearchText: &query,
@@ -128,4 +213,25 @@ func (srv *Service) SearchWorkitems(ctx context.Context, query string) (out stri
 	}
 
 	return builder.String(), nil
+}
+
+func (srv *SearchWorkitemsSrv) Call(args map[string]any) (string, error) {
+	return "", nil
+}
+
+func (srv *SearchWorkitemsSrv) Schema() openai.ChatCompletionToolParam {
+	return ai.MakeTool(
+		"search_workitems",
+		"Search for work items on the board",
+		openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query": map[string]string{
+					"type":        "string",
+					"description": "The query to search for",
+				},
+			},
+			"required": []string{"query"},
+		},
+	)
 }

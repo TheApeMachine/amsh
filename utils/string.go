@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/google/uuid"
 	"github.com/goombaio/namegenerator"
 	"github.com/sashabaranov/go-openai"
 	"github.com/spf13/viper"
@@ -44,19 +45,23 @@ func StrategyInstructions(name string) string {
 	return prompt
 }
 
-var existingIDs = make([]string, 0)
-
 func NewID() string {
-	newID := namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate()
+	return uuid.New().String()
+}
 
-	for _, id := range existingIDs {
-		if id == newID {
-			return NewID()
+var existingNames = make([]string, 0)
+
+func NewName() string {
+	newName := namegenerator.NewNameGenerator(time.Now().UnixNano()).Generate()
+
+	for _, name := range existingNames {
+		if name == newName {
+			return NewName()
 		}
 	}
 
-	existingIDs = append(existingIDs, newID)
-	return newID
+	existingNames = append(existingNames, newName)
+	return newName
 }
 
 func BeautifyToolCall(toolCall openai.ToolCall, args map[string]interface{}) {

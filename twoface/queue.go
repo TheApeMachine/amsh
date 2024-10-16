@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 // Queue connects subscribers via channels.
@@ -70,13 +71,13 @@ func (q *Queue) Publish(message *data.Artifact) error {
 			select {
 			case subscriber.inbox <- message:
 			default:
-				// Handle full inbox if necessary
+				errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
 			}
 		} else if _, subscribed := subscriber.topics[topic]; subscribed {
 			select {
 			case subscriber.inbox <- message:
 			default:
-				// Handle full inbox if necessary
+				errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
 			}
 		}
 	}

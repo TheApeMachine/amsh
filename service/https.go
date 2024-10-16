@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/favicon"
 	"github.com/gofiber/fiber/v3/middleware/static"
 	"github.com/theapemachine/amsh/sockpuppet"
+	"github.com/theapemachine/amsh/twoface"
 )
 
 /*
@@ -14,7 +15,8 @@ HTTPS wraps the Fiber app and sets up the middleware. It also contains the mappi
 to internal service endpoints.
 */
 type HTTPS struct {
-	app *fiber.App
+	app   *fiber.App
+	queue *twoface.Queue
 }
 
 /*
@@ -31,6 +33,7 @@ func NewHTTPS() *HTTPS {
 			JSONEncoder:   json.Marshal,
 			JSONDecoder:   json.Unmarshal,
 		}),
+		queue: twoface.NewQueue(),
 	}
 }
 
@@ -58,7 +61,7 @@ func (https *HTTPS) Up() error {
 	})
 
 	https.app.Get("/ws", sockpuppet.NewWebsocket(NewWebSocketHandler()))
-	https.app.Post("/webhook", NewWebhook())
+	https.app.Post("/webhook/trengo", https.NewWebhook("trengo", "message"))
 	https.app.Use("/", static.New("./frontend"))
 
 	return https.app.Listen(":8567", fiber.ListenConfig{EnablePrefork: true})

@@ -9,6 +9,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/client"
+	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
 )
 
@@ -52,14 +54,14 @@ type Response struct {
 	} `json:"meta"`
 }
 
-type Labels struct {
+type ListLabels struct {
 	conn    *client.Client
 	baseURL string
 	token   string
 }
 
-func NewLabels() *Labels {
-	return &Labels{
+func NewListLabels() *ListLabels {
+	return &ListLabels{
 		conn:    client.New(),
 		baseURL: "https://api.trengo.com/api/v2",
 		token:   os.Getenv("TRENGO_API_TOKEN"),
@@ -69,7 +71,7 @@ func NewLabels() *Labels {
 /*
 List all the labels in a way that the language model can understand.
 */
-func (l *Labels) List(ctx context.Context) ([]Presenter, error) {
+func (l *ListLabels) List(ctx context.Context) ([]Presenter, error) {
 	var (
 		response     *client.Response
 		labels       = make([]Presenter, 0)
@@ -117,7 +119,21 @@ func (l *Labels) List(ctx context.Context) ([]Presenter, error) {
 	return labels, nil
 }
 
-func (l *Labels) Attach(ctx context.Context, labelID int, ticketID int) (err error) {
+type AssignLabels struct {
+	conn    *client.Client
+	baseURL string
+	token   string
+}
+
+func NewAssignLabels() *AssignLabels {
+	return &AssignLabels{
+		conn:    client.New(),
+		baseURL: "https://api.trengo.com/api/v2",
+		token:   os.Getenv("TRENGO_API_TOKEN"),
+	}
+}
+
+func (l *AssignLabels) Attach(ctx context.Context, labelID int, ticketID int) (err error) {
 	var (
 		response *client.Response
 	)
@@ -142,4 +158,43 @@ func (l *Labels) Attach(ctx context.Context, labelID int, ticketID int) (err err
 	}
 
 	return
+}
+
+func (l *ListLabels) Call(args map[string]any) (string, error) {
+	return "", nil
+}
+
+func (l *ListLabels) Schema() openai.ChatCompletionToolParam {
+	return ai.MakeTool(
+		"list_labels",
+		"List all the labels in a way that the language model can understand.",
+		openai.FunctionParameters{
+			"type":       "object",
+			"properties": map[string]interface{}{},
+			"required":   []string{},
+		},
+	)
+}
+
+func (l *AssignLabels) Call(args map[string]any) (string, error) {
+	return "", nil
+}
+
+func (l *AssignLabels) Schema() openai.ChatCompletionToolParam {
+	return ai.MakeTool(
+		"assign_label",
+		"Assign a label to a ticket.",
+		openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"label_id": map[string]interface{}{
+					"type": "integer",
+				},
+				"ticket_id": map[string]interface{}{
+					"type": "integer",
+				},
+			},
+			"required": []string{"label_id", "ticket_id"},
+		},
+	)
 }

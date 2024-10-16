@@ -4,9 +4,12 @@ import (
 	"context"
 	"log"
 
+	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/twoface"
+	"github.com/theapemachine/amsh/utils"
 )
 
 // Worker represents an agent that can perform tasks and communicate via the Queue.
@@ -20,6 +23,7 @@ type Worker struct {
 	queue     *twoface.Queue
 	inbox     chan *data.Artifact
 	ID        string
+	name      string
 	manager   *WorkerManager
 }
 
@@ -31,92 +35,118 @@ func NewWorker(ctx context.Context, buffer *data.Artifact, manager *WorkerManage
 		state:     WorkerStateCreating,
 		queue:     twoface.NewQueue(),
 		ID:        buffer.Peek("id"),
+		name:      buffer.Peek("origin"),
 		manager:   manager,
 	}
 }
 
 // Initialize sets up the worker's context, queue registration, and starts the executor.
-func (w *Worker) Initialize() error {
-	log.Printf("Initializing worker %s", w.ID)
-	w.state = WorkerStateInitializing
-	w.ctx, w.cancel = context.WithCancel(w.parentCtx)
-
-	w.memory = ai.NewMemory(w.ID)
-	defer w.memory.Close()
-
-	// Register the worker with the queue.
-	inbox, err := w.queue.Register(w.ID)
-	if err != nil {
-		w.state = WorkerStateZombie
-		return err
+func (worker *Worker) Initialize() *Worker {
+	if worker.ID == "" {
+		worker.ID = utils.NewID()
 	}
-	w.inbox = inbox
 
-	// Add the worker to the manager
-	w.manager.AddWorker(w)
-
-	w.state = WorkerStateReady
-	w.listenForMessages()
-
-	// Start the executor
-	executor := NewExecutor(w.ctx, w)
-	if err := executor.Initialize(); err != nil {
-		return err
+	if worker.name == "" {
+		worker.name = utils.NewName()
 	}
-	go executor.Run()
 
-	log.Printf("Worker %s initialized", w.ID)
+	log.Printf("Initializing worker %s (%s)", worker.ID, worker.name)
 
-	// Wait until the context is done
-	<-w.ctx.Done()
+	worker.state = WorkerStateInitializing
+	worker.ctx, worker.cancel = context.WithCancel(worker.parentCtx)
 
-	// Indicate that the worker is done
-	w.manager.RemoveWorker(w.ID)
-	return nil
+	worker.memory = ai.NewMemory(worker.ID)
+	inbox, err := worker.queue.Register(worker.ID)
+
+	if errnie.Error(err) != nil {
+		worker.state = WorkerStateZombie
+		return nil
+	}
+
+	worker.inbox = inbox
+
+	worker.manager.AddWorker(worker)
+	worker.state = WorkerStateReady
+
+	return worker
 }
 
 // Close shuts down the worker and cleans up resources.
-func (w *Worker) Close() error {
-	if w.cancel != nil {
-		w.cancel()
+func (worker *Worker) Close() error {
+	if worker.memory != nil {
+		worker.memory.Close()
 	}
-	if w.queue != nil {
-		return w.queue.Unregister(w.ID)
+
+	if worker.cancel != nil {
+		worker.cancel()
 	}
+
+	if worker.queue != nil {
+		return worker.queue.Unregister(worker.ID)
+	}
+
 	return nil
 }
 
-// listenForMessages listens to the inbox and processes messages.
-func (w *Worker) listenForMessages() {
+// Start the worker and listen for messages from the queue.
+func (worker *Worker) Start() {
 	go func() {
 		for {
 			select {
-			case <-w.ctx.Done():
+			case <-worker.parentCtx.Done():
 				return
-			case msg, ok := <-w.inbox:
+			case <-worker.ctx.Done():
+				return
+			case msg, ok := <-worker.inbox:
 				if !ok {
-					return
+					worker.state = WorkerStateNotOK
+					worker.queue.Publish(data.New(
+						worker.ID, "state", "notok", []byte(worker.buffer.Peek("payload")),
+					))
+
+					continue
 				}
-				w.handleMessage(msg)
+
+				NewMessaging(worker).Reply(msg)
+
+				if worker.state == WorkerStateAccepted {
+					worker.state = WorkerStateWaiting
+				}
+
+				if worker.state == WorkerStateBusy {
+					NewExecutor(worker.ctx, worker).Execute(msg)
+				}
 			}
 		}
 	}()
 }
 
-// handleMessage processes incoming messages.
-func (w *Worker) handleMessage(msg *data.Artifact) {
-	log.Printf("Worker %s received message from %s", w.ID, msg.Peek("origin"))
-	// Implement message handling logic based on the message type and content.
-	// For example, pick up broadcast messages if in the Ready state.
-	if w.state == WorkerStateReady && msg.Peek("scope") == "broadcast" {
-		w.NewState(WorkerStateBusy)
-		// Acknowledge picking up the workload
-		response := data.New(w.ID, "message", "acknowledgment", []byte("Workload accepted"))
-		response.Poke("origin", w.ID)
-		response.Poke("scope", msg.Peek("origin"))
-		w.queue.Publish(response)
-		// Process the workload
-		// ...
-		w.NewState(WorkerStateDone)
-	}
+func (worker *Worker) Call(args map[string]any) (string, error) {
+	return "", nil
+}
+
+func (worker *Worker) Schema() openai.ChatCompletionToolParam {
+	return ai.MakeTool(
+		"worker",
+		"Create any type of worker by providing prompts and tools.",
+		openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"system": map[string]string{
+					"type":        "string",
+					"description": "The system prompt",
+				},
+				"user": map[string]string{
+					"type":        "string",
+					"description": "The user prompt",
+				},
+				"format": map[string]interface{}{
+					"type":        "string",
+					"enum":        []string{"reasoning", "messaging"},
+					"description": "The response format the worker should use",
+				},
+			},
+			"required": []string{"system", "user", "format"},
+		},
+	)
 }

@@ -16,6 +16,7 @@ const (
 	WorkerStateError
 	WorkerStateFinished
 	WorkerStateZombie
+	WorkerStateNotOK
 )
 
 var transitions = map[WorkerState][]WorkerState{
@@ -29,6 +30,8 @@ var transitions = map[WorkerState][]WorkerState{
 	WorkerStateDone:         {WorkerStateFinished},
 	WorkerStateError:        {WorkerStateFinished},
 	WorkerStateFinished:     {},
+	WorkerStateZombie:       {},
+	WorkerStateNotOK:        {},
 }
 
 // NewState transitions the worker to a new state if allowed.

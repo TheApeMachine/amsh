@@ -1,27 +1,39 @@
 package service
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v3"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/twoface"
 )
 
-var queue = twoface.NewQueue()
+type Inbound struct {
+	MessageID    string `json:"message_id"`
+	TicketID     string `json:"ticket_id"`
+	ContactID    string `json:"contact_id"`
+	ContactName  string `json:"contact_name"`
+	ContactEmail string `json:"contact_email"`
+	Message      string `json:"message"`
+}
 
-func NewWebhook() fiber.Handler {
+func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 	return func(ctx fiber.Ctx) (err error) {
-		origin := ctx.Request().Header.Peek("Origin")
-		queue.Publish(data.New(string(origin), "webhook", "message", ctx.Body()).Poke(
-			"user", `
-			[TASK]
-				The following request has been received on the webhook channel.
-			[/TASK]
+		template := viper.GetViper().GetString("webhook." + origin + "." + scope)
 
-			[REQUEST]
-		      {request}
-			[/REQUEST]
-			`,
-		))
+		message := Inbound{}
+		if err = ctx.Bind().Body(&message); err != nil {
+			return err
+		}
+
+		template = strings.ReplaceAll(template, "{message_id}", message.MessageID)
+		template = strings.ReplaceAll(template, "{ticket_id}", message.TicketID)
+		template = strings.ReplaceAll(template, "{contact_id}", message.ContactID)
+		template = strings.ReplaceAll(template, "{contact_name}", message.ContactName)
+		template = strings.ReplaceAll(template, "{contact_email}", message.ContactEmail)
+		template = strings.ReplaceAll(template, "{message}", message.Message)
+
+		https.queue.Publish(data.New(origin, "webhook", "inbound", []byte(template)))
 
 		return ctx.SendStatus(fiber.StatusOK)
 	}

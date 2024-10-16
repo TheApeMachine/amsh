@@ -11,6 +11,28 @@ neo4j:
   user: "neo4j"
   password: "securepassword"
 
+webhook:
+  trengo:
+    message: |
+      The following was delivered to the Trengo Webhook Endpoint.
+
+      [INBOUND {message_id}]
+        TICKET ID    : {ticket_id}
+        CONTACT ID   : {contact_id}
+        CONTACT NAME : {contact_name}
+        CONTACT EMAIL: {contact_email}
+        
+        [MESSAGE]
+          {message}
+        [/MESSAGE]
+      [/INBOUND]
+
+      [TASKS]
+        1. Assign the appropriate labels to the message.
+        2. Gather information on the issues that the customer is experiencing.
+        3. Update existing tickets in Azure Board, or create new tickets when needed.
+        4. Update the relevant people in the company, by sending them a message.
+      [/TASKS]
 integrations:
   boards:
     workitem: |
@@ -40,12 +62,19 @@ messaging:
       The following is a new message that was published on a topic you are subscribed to.
       Please read the message, and respond with the appropriate answer.
 
-      [MESSAGE ({id}) <{priority} priority>]
+      [MESSAGE ({id})]
         FROM: {sender}
         TOPIC: {topic}
       
         {message}
       [/MESSAGE]
+    reply: |
+      [REPLY ({id})]
+        FROM: {sender}
+        TOPIC: {topic}
+      
+        {message}
+      [/REPLY]
 ai:
   prompt:
     system: |
@@ -67,14 +96,15 @@ ai:
            Finally, you can send direct messages to any specific agent if you know their identifier.
 
       [ROLE]
-      {role}
+        {role}
       [/ROLE]
 
       [GUIDELINES]
-      {guidelines}
+        {guidelines}
       [/GUIDELINES]
 
       YOUR IDENTIFIER: {id}
+      YOUR NAME      : {name}
     reasoner: |
       You are a reasoner, and you are responsible for providing deep and insightful reasoning to uncover insights, no matter how complex or abstract.
       You are able to find the most important details, and subtle connections between seemingly unrelated concepts.
