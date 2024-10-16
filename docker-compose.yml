@@ -1,42 +1,40 @@
 services:
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token
-      - eyJhIjoiMzJlMDRkYTVjYjJmNjBiOWEwY2FkNTczOGJmNDA2YzciLCJ0IjoiNjM0OGNmMTYtNDcwZi00OTFkLThkZmYtZmIwNGVkMTdhMDFmIiwicyI6Ik9EQTRPV0UzT0RBdFpqRmpPQzAwTnpkakxXRmlNamd0TnpjMlpEZzBOakV3T0RsbSJ9
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  # amsh-service:
-  #   image: amsh
-  #   environment:
-  #     - GEMINI_API_KEY=${GEMINI_API_KEY}
-  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
-  #     - MARVIN_APP_TOKEN=${MARVIN_APP_TOKEN}
-  #     - MARVIN_BOT_TOKEN=${MARVIN_BOT_TOKEN}
-  #     - AZDO_ORG_URL=${AZDO_ORG_URL}
-  #     - AZDO_PAT=${AZDO_PAT}
-  #     - GITHUB_PAT=${GITHUB_PAT}
-  #   build:
-  #     context: ./
-  #     dockerfile: Dockerfile
-  #     target: dev
-  #     platforms:
-  #       - linux/amd64
-  #       - linux/arm64
-  #   ports:
-  #     - "8567:8567"
-  #     - "8568:8568"
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   command:
+  #     - tunnel
+  #     - --no-autoupdate
+  #     - run
+  #     - --token
+  #     - eyJhIjoiMzJlMDRkYTVjYjJmNjBiOWEwY2FkNTczOGJmNDA2YzciLCJ0IjoiNjM0OGNmMTYtNDcwZi00OTFkLThkZmYtZmIwNGVkMTdhMDFmIiwicyI6Ik9EQTRPV0UzT0RBdFpqRmpPQzAwTnpkakxXRmlNamd0TnpjMlpEZzBOakV3T0RsbSJ9
   #   extra_hosts:
   #     - "host.docker.internal:host-gateway"
-  #     - amsh.alliedmastercomputer.org:127.0.0.1
-  #     - slack.alliedmastercomputer.org:127.0.0.1
-  #     - github.alliedmastercomputer.org:127.0.0.1
-  #   volumes:
-  #     - ./:/app
+  #   links:
+  #     - amsh-service:amsh.alliedmastercomputer.org
+  #   depends_on:
+  #     - amsh-service
+
+  amsh-service:
+    image: amsh
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MARVIN_APP_TOKEN=${MARVIN_APP_TOKEN}
+      - MARVIN_BOT_TOKEN=${MARVIN_BOT_TOKEN}
+      - AZDO_ORG_URL=${AZDO_ORG_URL}
+      - AZDO_PAT=${AZDO_PAT}
+      - GITHUB_PAT=${GITHUB_PAT}
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      target: dev
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    ports:
+      - "8567:8567"
+    volumes:
+      - ./:/app
 
   # youi:
   #   image: youi

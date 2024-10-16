@@ -1,50 +1,68 @@
 package memory
 
 import (
-	"io"
+	"errors"
 
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/errnie"
 )
 
+// LongTerm represents the long-term memory of a worker.
 type LongTerm struct {
 	neo4jClient  *Neo4j
 	qdrantClient *Qdrant
 }
 
+// NewLongTerm creates a new LongTerm memory instance.
 func NewLongTerm(agentID string) *LongTerm {
 	return &LongTerm{
 		neo4jClient:  NewNeo4j(),
-		qdrantClient: NewQdrant(agentID, 3),
+		qdrantClient: NewQdrant(agentID, 1536),
 	}
 }
 
-func (store *LongTerm) Read(p []byte) (n int, err error) {
-	artifact := data.Empty
-	artifact.Write(p)
+// Read reads data from long-term memory.
+func (lt *LongTerm) Read(p []byte) (n int, err error) {
+	artifact := data.Unmarshal(p)
+	if artifact == nil {
+		return 0, errors.New("failed to unmarshal artifact")
+	}
 
-	switch artifact.Peek("scope") {
+	scope := artifact.Peek("scope")
+	switch scope {
 	case "vector":
-		return store.qdrantClient.Read(p)
+		return lt.qdrantClient.Read(p)
 	case "graph":
-		return store.neo4jClient.Read(p)
+		return lt.neo4jClient.Read(p)
 	default:
-		errnie.Warn("invalid memory store called")
+		return 0, errors.New("invalid long-term memory scope")
 	}
-
-	return len(p), io.EOF
 }
 
-func (store *LongTerm) Write(p []byte) (n int, err error) {
-	artifact := data.Empty
-	artifact = artifact.Unmarshal(p)
-
-	switch artifact.Peek("scope") {
-	case "vector":
-		io.Copy(store.qdrantClient, artifact)
-	case "graph":
-		io.Copy(store.neo4jClient, artifact)
+// Write writes data to long-term memory.
+func (lt *LongTerm) Write(p []byte) (n int, err error) {
+	artifact := data.Unmarshal(p)
+	if artifact == nil {
+		return 0, errors.New("failed to unmarshal artifact")
 	}
 
-	return len(p), nil
+	scope := artifact.Peek("scope")
+	switch scope {
+	case "vector":
+		return lt.qdrantClient.Write(p)
+	case "graph":
+		return lt.neo4jClient.Write(p)
+	default:
+		return 0, errors.New("invalid long-term memory scope")
+	}
+}
+
+// Close closes both the Neo4j and Qdrant clients.
+func (lt *LongTerm) Close() error {
+	if err := lt.neo4jClient.Close(); err != nil {
+		return err
+	}
+	if err := lt.qdrantClient.Close(); err != nil {
+		return err
+	}
+	return nil
 }

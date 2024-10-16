@@ -7,6 +7,7 @@ class AnimojiAssistant extends HTMLElement {
     private shadow: ShadowRoot;
     private animojiContainer: HTMLDivElement;
     private currentState: string = 'idle';
+    private currentSet: (index: number) => Animoji;
     private currentIndex: number = 0;
     private isTransitioning: boolean = false;
     private lastSwitchTime: number = 0;
@@ -68,34 +69,35 @@ class AnimojiAssistant extends HTMLElement {
     }
 
     loadNextAnimoji() {
-        const index = this.currentIndex % AnimojiStates[this.currentState].length;
-        const animoji = AnimojiStates[this.currentState](index);
-        this.players[this.currentState].setAttribute('src', `${this.baseDir}${animoji}.json`);
+        const index = this.currentIndex % this.currentSet.length;
+        const animoji = this.currentSet(index);
+        this.players[this.currentIndex % 2].setAttribute(
+            'src', `${this.baseDir}${animoji}/lottie.json`
+        );
     }
 
     playNextAnimoji() {
-        const currentTime = Date.now();
-        if (currentTime - this.lastSwitchTime < 3000) {
-            return;
-        }
-
         this.isTransitioning = true;
-        const index = this.currentIndex % AnimojiStates[this.currentState].length;
         const tl = gsap.timeline({
             onComplete: () => {
-                this.currentPlayer = this.players[this.currentState][index];
                 this.isTransitioning = false;
                 this.lastSwitchTime = Date.now();
             }
         });
-        tl.to(this.currentPlayer, { opacity: 0, duration: 0.25, ease: 'power2.inOut' });
-        tl.to(this.players[this.currentState][index], { opacity: 1, duration: 0.25, ease: 'power2.inOut' }, "<");
+        tl.to(this.players[1], { opacity: 0, duration: 0.25, ease: 'power2.inOut' });
+        tl.to(this.players[0], { opacity: 1, duration: 0.25, ease: 'power2.inOut' }, "<");
         tl.play();
+        this.isTransitioning = false;
     }
 
     setState(newState: string) {
-        if (this.currentState !== newState && !this.isTransitioning && Date.now() - this.lastSwitchTime >= 3000) {
+        if (
+            this.currentState !== newState 
+            && !this.isTransitioning 
+            && Date.now() - this.lastSwitchTime >= 3000
+        ) {
             this.currentState = newState;
+            this.currentSet = AnimojiStates[this.currentState];
             this.currentIndex = 0;
             this.playNextAnimoji();
         }

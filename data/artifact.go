@@ -11,16 +11,15 @@ import (
 
 const version = "0.0.1"
 
-/*
-Empty is an empty artifact.
-*/
-var Empty = Artifact{}
+func Empty() *Artifact {
+	errnie.Trace()
+	return New("new", "new", "new", []byte{})
+}
 
 /*
 New creates a new artifact with the given origin, role, scope, and data.
 */
-func New(origin, role, scope string, data []byte) Artifact {
-	errnie.Trace()
+func New(origin, role, scope string, data []byte) *Artifact {
 	var (
 		seg      *capnp.Segment
 		err      error
@@ -28,11 +27,11 @@ func New(origin, role, scope string, data []byte) Artifact {
 	)
 
 	if _, seg, err = capnp.NewMessage(capnp.SingleSegment(nil)); err != nil {
-		return Empty
+		return Empty()
 	}
 
 	if artifact, err = NewArtifact(seg); err != nil {
-		return Empty
+		return Empty()
 	}
 
 	artifact.SetTimestamp(uint64(time.Now().UnixNano()))
@@ -44,15 +43,15 @@ func New(origin, role, scope string, data []byte) Artifact {
 	errnie.Error(artifact.SetScope(scope))
 	errnie.Error(artifact.SetPayload(data))
 
-	return artifact
+	return &artifact
 }
 
 /*
 Peek retrieves a value from the artifact, starting by looking for an existing field,
 and falling back to searching the attribute list.
 */
-func (artifact Artifact) Peek(key string) string {
-	errnie.Trace()
+func (artifact *Artifact) Peek(key string) string {
+	errnie.Trace(key)
 	var (
 		value string
 		data  []byte
@@ -81,7 +80,14 @@ func (artifact Artifact) Peek(key string) string {
 		value, err = artifact.getAttributeValue(key)
 	}
 
-	errnie.Error(err)
+	if err != nil {
+		return errnie.Error(err).Error()
+	}
+
+	if value == "" {
+		errnie.Warn("value for key: %s is empty", key)
+	}
+
 	return value
 }
 
@@ -89,8 +95,7 @@ func (artifact Artifact) Peek(key string) string {
 Poke sets a value on the artifact, starting by looking for an existing field,
 and falling back to using the attribute list.
 */
-func (artifact Artifact) Poke(key string, value string) Artifact {
-	errnie.Trace()
+func (artifact *Artifact) Poke(key, value string) *Artifact {
 	var err error
 
 	switch key {
@@ -109,7 +114,7 @@ func (artifact Artifact) Poke(key string, value string) Artifact {
 	case "payload":
 		err = artifact.SetPayload([]byte(value))
 	default:
-		// If the key is not a top-level field, add it as an attribute.
+		// Add the attribute and verify that it was correctly added
 		err = artifact.addAttribute(key, value)
 	}
 
@@ -118,8 +123,7 @@ func (artifact Artifact) Poke(key string, value string) Artifact {
 }
 
 // getAttributeValue searches the attribute list for the given key.
-func (artifact Artifact) getAttributeValue(key string) (string, error) {
-	errnie.Trace()
+func (artifact *Artifact) getAttributeValue(key string) (string, error) {
 	attrs, err := artifact.Attributes()
 	if errnie.Error(err) != nil {
 		return "", err
@@ -149,7 +153,7 @@ func (artifact Artifact) getAttributeValue(key string) (string, error) {
 /*
 addAttribute adds a new attribute to the artifact.
 */
-func (artifact Artifact) addAttribute(key, value string) error {
+func (artifact *Artifact) addAttribute(key, value string) error {
 	// Retrieve the existing attributes.
 	attrs, err := artifact.Attributes()
 	if err != nil {
@@ -179,5 +183,9 @@ func (artifact Artifact) addAttribute(key, value string) error {
 	}
 
 	// Set the updated list of attributes back to the artifact.
-	return errnie.Error(artifact.SetAttributes(newAttrs))
+	if err := artifact.SetAttributes(newAttrs); err != nil {
+		return errnie.Error(err)
+	}
+
+	return nil
 }

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"io"
 	"sync"
 
@@ -20,40 +21,25 @@ var bufpool = sync.Pool{
 Read implements the io.Reader interface for the Artifact.
 It marshals the entire artifact into the provided byte slice.
 */
-func (artifact Artifact) Read(p []byte) (n int, err error) {
-	errnie.Trace()
-	var buf []byte
-
-	// Marshal the artifact into bytes.
-	if buf, err = artifact.Message().Marshal(); err != nil {
-		return 0, err
+func (artifact *Artifact) Read(p []byte) (n int, err error) {
+	// Marshal the artifact.
+	buf := artifact.Marshal()
+	if buf == nil {
+		return 0, errnie.Error(errors.New("failed to marshal artifact"))
 	}
 
-	// If the provided byte slice is too small, grow it.
-	if len(p) < len(buf) {
-		// Grow the slice to fit the marshaled data.
-		p = make([]byte, len(buf))
-	}
+	copy(p, buf)
 
-	// Copy the marshaled bytes into the provided byte slice.
-	return copy(p, buf), io.EOF
+	return len(p), io.EOF
 }
 
 /*
 Write implements the io.Writer interface for the Artifact.
 It writes the entire artifact to the provided stream.
 */
-func (artifact Artifact) Write(p []byte) (n int, err error) {
-	errnie.Trace()
-	// Get a buffer from the pool.
-	buf := []byte{}
-
-	if buf, err = artifact.Payload(); err != nil {
-		err = errnie.Error(err)
-	}
-
-	// Copy the provided byte slice into the buffer.
-	artifact.SetPayload(append(buf, p...))
+func (artifact *Artifact) Write(p []byte) (n int, err error) {
+	// Unmarshal the new data into the current Artifact.
+	Unmarshal(p)
 	return len(p), nil
 }
 
@@ -61,7 +47,6 @@ func (artifact Artifact) Write(p []byte) (n int, err error) {
 Close implements the io.Closer interface for the Artifact.
 */
 func (artifact Artifact) Close() error {
-	errnie.Trace()
 	// No-op for this example, but could be extended to manage resources.
 	return nil
 }

@@ -11,7 +11,7 @@ import (
 
 // Queue is the method to send and receive messages between types.
 type Queue struct {
-	topicChans map[string][]chan data.Artifact
+	topicChans map[string][]chan *data.Artifact
 	mutex      sync.RWMutex
 }
 
@@ -19,24 +19,24 @@ type Queue struct {
 func NewQueue() *Queue {
 	errnie.Trace()
 	return &Queue{
-		topicChans: make(map[string][]chan data.Artifact),
+		topicChans: make(map[string][]chan *data.Artifact),
 	}
 }
 
 // Subscribe allows a subscriber to listen to a specific topic.
-func (q *Queue) Subscribe(topic string) <-chan data.Artifact {
+func (q *Queue) Subscribe(topic string) <-chan *data.Artifact {
 	errnie.Trace()
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	ch := make(chan data.Artifact, 100) // Buffered channel to prevent blocking
+	ch := make(chan *data.Artifact, 100) // Buffered channel to prevent blocking
 	q.topicChans[topic] = append(q.topicChans[topic], ch)
 	return ch
 }
 
 // Unsubscribe removes a subscriber's channel from a specific topic.
-func (q *Queue) Unsubscribe(topic string, ch <-chan data.Artifact) {
+func (q *Queue) Unsubscribe(topic string, ch <-chan *data.Artifact) {
 	errnie.Trace()
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -62,7 +62,7 @@ func (q *Queue) Unsubscribe(topic string, ch <-chan data.Artifact) {
 }
 
 // Publish sends an artifact to all subscribers of the given topic.
-func (q *Queue) Publish(topic string, artifact data.Artifact) {
+func (q *Queue) Publish(topic string, artifact *data.Artifact) {
 	errnie.Trace()
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
