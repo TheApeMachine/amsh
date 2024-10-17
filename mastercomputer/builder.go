@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -15,14 +16,15 @@ const (
 	WorkerTypeReasoner WorkerType = "reasoner"
 	WorkerTypeExecutor WorkerType = "executor"
 	WorkerTypeWorker   WorkerType = "worker"
+	WorkerTypeVerifier WorkerType = "verifier"
 )
 
 type Builder struct {
 	ctx     context.Context
-	manager *WorkerManager
+	manager *twoface.WorkerManager
 }
 
-func NewBuilder(ctx context.Context, manager *WorkerManager) *Builder {
+func NewBuilder(ctx context.Context, manager *twoface.WorkerManager) *Builder {
 	return &Builder{ctx: ctx, manager: manager}
 }
 
@@ -47,6 +49,10 @@ func (builder *Builder) NewWorker(t WorkerType) *Worker {
 	artifact.Poke("system", system)
 	artifact.Poke("workload", builder.getWorkload(t))
 
+	for key, value := range v.GetStringMapString("ai.config." + string(t)) {
+		artifact.Poke(key, value)
+	}
+
 	return NewWorker(
 		builder.ctx, artifact, builder.manager,
 	).Initialize()
@@ -60,6 +66,8 @@ func (builder *Builder) getRole(workload string) WorkerType {
 		return WorkerTypeExecutor
 	case "managing":
 		return WorkerTypeManager
+	case "verifying":
+		return WorkerTypeVerifier
 	default:
 		return WorkerTypeWorker
 	}
@@ -73,6 +81,8 @@ func (builder *Builder) getWorkload(t WorkerType) string {
 		return "reasoning"
 	case WorkerTypeExecutor:
 		return "executing"
+	case WorkerTypeVerifier:
+		return "verifying"
 	default:
 		return "working"
 	}

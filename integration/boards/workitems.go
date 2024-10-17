@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/twoface"
 )
 
 type GetWorkItemSrv struct {
@@ -54,7 +55,23 @@ func (srv *GetWorkItemSrv) GetWorkitem(ctx context.Context, id int) (out string,
 	return template, nil
 }
 
-func (srv *GetWorkItemSrv) Call(args map[string]any) (string, error) {
+func (srv *GetWorkItemSrv) Ctx() context.Context {
+	return context.Background()
+}
+
+func (srv *GetWorkItemSrv) ID() string {
+	return "get_workitem"
+}
+
+func (srv *GetWorkItemSrv) Name() string {
+	return "Get Workitem"
+}
+
+func (srv *GetWorkItemSrv) Manager() *twoface.WorkerManager {
+	return twoface.NewWorkerManager()
+}
+
+func (srv *GetWorkItemSrv) Call(args map[string]any, owner twoface.Process) (string, error) {
 	return "", nil
 }
 
@@ -126,7 +143,23 @@ func (srv *CreateWorkitemSrv) CreateWorkitem(
 	return template, nil
 }
 
-func (srv *CreateWorkitemSrv) Call(args map[string]any) (string, error) {
+func (srv *CreateWorkitemSrv) Ctx() context.Context {
+	return context.Background()
+}
+
+func (srv *CreateWorkitemSrv) ID() string {
+	return "create_workitem"
+}
+
+func (srv *CreateWorkitemSrv) Name() string {
+	return "Create Workitem"
+}
+
+func (srv *CreateWorkitemSrv) Manager() *twoface.WorkerManager {
+	return twoface.NewWorkerManager()
+}
+
+func (srv *CreateWorkitemSrv) Call(args map[string]any, owner twoface.Process) (string, error) {
 	return "", nil
 }
 
@@ -215,7 +248,23 @@ func (srv *SearchWorkitemsSrv) SearchWorkitems(ctx context.Context, query string
 	return builder.String(), nil
 }
 
-func (srv *SearchWorkitemsSrv) Call(args map[string]any) (string, error) {
+func (srv *SearchWorkitemsSrv) Ctx() context.Context {
+	return context.Background()
+}
+
+func (srv *SearchWorkitemsSrv) ID() string {
+	return "search_workitems"
+}
+
+func (srv *SearchWorkitemsSrv) Name() string {
+	return "Search Workitems"
+}
+
+func (srv *SearchWorkitemsSrv) Manager() *twoface.WorkerManager {
+	return twoface.NewWorkerManager()
+}
+
+func (srv *SearchWorkitemsSrv) Call(args map[string]any, owner twoface.Process) (string, error) {
 	return "", nil
 }
 

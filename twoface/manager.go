@@ -1,28 +1,38 @@
-package mastercomputer
+package twoface
 
 import (
+	"context"
 	"sync"
 )
+
+type Process interface {
+	Ctx() context.Context
+	ID() string
+	Name() string
+	Start()
+	Stop()
+	Manager() *WorkerManager
+}
 
 // WorkerManager manages all active workers.
 type WorkerManager struct {
 	wg      sync.WaitGroup
-	workers map[string]*Worker
+	workers map[string]Process
 	mu      sync.Mutex
 }
 
 // NewWorkerManager creates a new WorkerManager.
 func NewWorkerManager() *WorkerManager {
 	return &WorkerManager{
-		workers: make(map[string]*Worker),
+		workers: make(map[string]Process),
 	}
 }
 
 // AddWorker adds a new worker to the manager and increments the WaitGroup.
-func (wm *WorkerManager) AddWorker(worker *Worker) {
+func (wm *WorkerManager) AddWorker(worker Process) {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
-	wm.workers[worker.ID] = worker
+	wm.workers[worker.ID()] = worker
 	wm.wg.Add(1)
 }
 

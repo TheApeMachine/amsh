@@ -5,60 +5,70 @@ import (
 )
 
 type Reasoning struct {
-	Strategies []Strategy `json:"strategies" jsonschema:"title=Strategies,description=The strategies to be used"`
-	Done       bool       `json:"done" jsonschema:"title=Done,description=Whether the reasoning is done"`
+	Strategies  []Strategy `json:"strategies" jsonschema:"description=A dynamically constructed strategy to solve the problem"`
+	FinalAnswer string     `json:"final_answer" jsonschema:"description=The final answer to the question"`
+	Done        bool       `json:"done" jsonschema:"description=You will have infinite iterations to reason, until you set this to true"`
+	NextSteps   []Step     `json:"next_steps" jsonschema:"description=The next steps to be taken"`
 }
 
 func (r Reasoning) String() string {
-	output := utils.Muted("[REASONING]\n")
+	output := utils.Dark("[REASONING]") + "\n"
 
 	for _, strategy := range r.Strategies {
 		for _, thought := range strategy.Thoughts {
-			output += utils.Blue(thought.Thought + "\n")
+			output += "\t" + utils.Red(thought.Thought) + "\n"
 
-			output += utils.Red("  Reflection:\n")
-			output += utils.Yellow("    Thought: " + thought.Reflection.Thought + "\n")
-			output += utils.Green("    Verify: " + thought.Reflection.Verify + "\n")
+			output += "\t" + utils.Muted("[REFLECTION]") + "\n"
+			output += "\t\t" + utils.Yellow("Thought: ") + thought.Reflection.Thought + "\n"
+			output += "\t\t" + utils.Green("Verify : ") + thought.Reflection.Verify + "\n"
+			output += "\t" + utils.Muted("[/REFLECTION]") + "\n"
 
-			output += utils.Red("  Challenge:\n")
-			output += utils.Yellow("    Thought: " + thought.Challenge.Thought + "\n")
-			output += utils.Green("    Debate:\n")
+			output += "\t" + utils.Muted("[CHALLENGE]") + "\n"
+			output += "\t\t" + utils.Red("Thought: ") + thought.Challenge.Thought + "\n"
+			output += "\t\t" + utils.Muted("[DEBATE]") + "\n"
 			for _, argument := range thought.Challenge.Debate {
-				output += utils.Red("      Argument: " + argument.Argument + "\n")
-				output += utils.Green("      Counter: " + argument.Counter + "\n")
+				output += "\t\t\t" + utils.Yellow("Argument: ") + argument.Argument + "\n"
+				output += "\t\t\t" + utils.Green("Counter : ") + argument.Counter + "\n"
 			}
-			output += utils.Blue("    Resolve: " + thought.Challenge.Resolve + "\n")
-
-			output += "\n"
+			output += "\t\t" + utils.Muted("[/DEBATE]") + "\n"
+			output += "\t\t" + utils.Blue("Resolve: ") + thought.Challenge.Resolve + "\n"
+			output += "\t" + utils.Muted("[/CHALLENGE]") + "\n"
 		}
 	}
 
-	output += utils.Muted("[/REASONING]\n")
+	output += "\t" + utils.Blue("Final Answer: ") + r.FinalAnswer + "\n"
+	output += utils.Dark("[/REASONING]") + "\n"
 	return output
 }
 
 type Strategy struct {
-	Thoughts []Thought `json:"thoughts" jsonschema:"title=Thoughts,description=The thoughts you have while using the strategy"`
+	Thoughts []Thought `json:"thoughts" jsonschema:"description=The thoughts you have while using the strategy"`
 }
 
 type Thought struct {
-	Thought    string     `json:"thought" jsonschema:"title=Thought,description=A single thought"`
-	Reflection Reflection `json:"reflection" jsonschema:"title=Reflection,description=The reflection of the thought"`
-	Challenge  Challenge  `json:"challenge" jsonschema:"title=Challenge,description=The challenge of the thought"`
+	Thought    string     `json:"thought" jsonschema:"description=A single thought"`
+	Reflection Reflection `json:"reflection" jsonschema:"description=The reflection of the thought"`
+	Challenge  Challenge  `json:"challenge" jsonschema:"description=The challenge of the thought"`
 }
 
 type Reflection struct {
-	Thought string `json:"thought" jsonschema:"title=Thought,description=Restate the thought in a more clear and concise way"`
-	Verify  string `json:"verify" jsonschema:"title=Verify,description=Verify the thought is correct"`
+	Thought string `json:"thought" jsonschema:"description=Restate the thought in a more clear and concise way"`
+	Verify  string `json:"verify" jsonschema:"description=Verify the thought is correct"`
 }
 
 type Challenge struct {
-	Thought string     `json:"thought" jsonschema:"title=Thought,description=Restate the thought in a more clear and concise way"`
-	Debate  []Argument `json:"debate" jsonschema:"title=Debate,description=Debate the thought with an external voice"`
-	Resolve string     `json:"resolve" jsonschema:"title=Resolve,description=Resolve the thought"`
+	Thought string   `json:"thought" jsonschema:"description=Restate the thought from a different perspective"`
+	Debate  []Debate `json:"debate" jsonschema:"description=Debate the thought with an external voice and multiple arguments"`
+	Resolve string   `json:"resolve" jsonschema:"description=Resolve the debate from an independent perspective"`
 }
 
-type Argument struct {
-	Argument string `json:"argument" jsonschema:"title=Argument,description=An argument for the thought"`
-	Counter  string `json:"counter" jsonschema:"title=Counter,description=A counter argument to the thought"`
+type Debate struct {
+	Argument string `json:"argument" jsonschema:"description=An argument for the thought"`
+	Counter  string `json:"counter" jsonschema:"description=A counter argument to the thought"`
+	Answer   string `json:"answer" jsonschema:"description=An answer considering the counter argument"`
+}
+
+type Step struct {
+	Action     string `json:"action" jsonschema:"description=The action to be taken"`
+	Motivation string `json:"motivation" jsonschema:"description=The motivation for the action"`
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,7 @@ var (
 	Red       = "#F7746D"
 	Yellow    = "#F7B96D"
 	Green     = "#06C26F"
+	Purple    = "#6C50FF"
 
 	styles = log.DefaultStyles()
 
@@ -118,6 +120,10 @@ func initLogFile() {
 	}
 }
 
+func Note(format string, v ...interface{}) {
+	fmt.Println(lipgloss.NewStyle().Background(lipgloss.Color(Purple)).Foreground(lipgloss.Color(Highlight)).Render("NOTE"), fmt.Sprintf(format, v...))
+}
+
 /*
 Trace logs a trace message with the appropriate symbol
 */
@@ -206,9 +212,38 @@ func writeToLog(message string) {
 }
 
 func getStackTrace() string {
-	buf := make([]byte, 1024)
-	n := runtime.Stack(buf, false)
-	return string(buf[:n])
+	const depth = 32
+	var pcs [depth]uintptr
+	n := runtime.Callers(3, pcs[:])
+	frames := runtime.CallersFrames(pcs[:n])
+
+	var trace strings.Builder
+	for {
+		frame, more := frames.Next()
+		if !more {
+			break
+		}
+
+		// Format the function name
+		funcName := frame.Function
+		if lastSlash := strings.LastIndexByte(funcName, '/'); lastSlash >= 0 {
+			funcName = funcName[lastSlash+1:]
+		}
+		funcName = strings.Replace(funcName, ".", ":", 1)
+
+		// Construct the colored line
+		line := fmt.Sprintf("%s%s%s %s(%d)\n",
+			lipgloss.NewStyle().Foreground(lipgloss.Color(Blue)).Render(funcName),
+			lipgloss.NewStyle().Foreground(lipgloss.Color(Muted)).Render(" at "),
+			lipgloss.NewStyle().Foreground(lipgloss.Color(Green)).Render(filepath.Base(frame.File)),
+			lipgloss.NewStyle().Foreground(lipgloss.Color(Yellow)).Render("line"),
+			frame.Line,
+		)
+
+		trace.WriteString(line)
+	}
+
+	return "\n===[STACK TRACE]===\n" + trace.String() + "\n===[/STACK TRACE]===\n"
 }
 
 func getCodeSnippet(file string, line, radius int) string {

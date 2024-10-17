@@ -24,16 +24,19 @@ func runTest(cmd *cobra.Command, args []string) error {
 	queue := twoface.NewQueue()
 
 	// Initialize the worker manager
-	manager := mastercomputer.NewWorkerManager()
+	manager := twoface.NewWorkerManager()
 	builder := mastercomputer.NewBuilder(ctx, manager)
 
 	reasoner := builder.NewWorker("reasoner")
 	reasoner.Start()
 
+	verifier := builder.NewWorker("verifier")
+	verifier.Start()
+
 	// Simulate an external prompt being broadcasted
 	externalPrompt := data.New(utils.NewName(), "message", "broadcast", []byte{})
 	externalPrompt.Poke("id", utils.NewID())
-	externalPrompt.Poke("user", "How many times do we find the letter r in the word strawberry?")
+	externalPrompt.Poke("user", "Solve the riddle: In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight.")
 
 	queue.Publish(externalPrompt)
 

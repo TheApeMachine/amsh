@@ -5,14 +5,11 @@ import (
 	"errors"
 
 	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/integration/boards"
 	"github.com/theapemachine/amsh/integration/trengo"
+	"github.com/theapemachine/amsh/twoface"
 )
-
-type Tool interface {
-	Call(args map[string]any) (string, error)
-	Schema() openai.ChatCompletionToolParam
-}
 
 // Toolset represents a set of tools available to a worker.
 type Toolset struct {
@@ -20,7 +17,7 @@ type Toolset struct {
 }
 
 // toolsMap is a map of tool names to tool definitions.
-var toolsMap = map[string]Tool{
+var toolsMap = map[string]ai.Tool{
 	"publish_message": &Messaging{},
 	"worker":          &Worker{},
 }
@@ -47,8 +44,8 @@ func NewToolset(key string) *Toolset {
 		"reasoning": {
 			"publish_message", "worker",
 		},
-		"messaging": {
-			"publish_message",
+		"verifying": {
+			"publish_message", "search_workitems", "search_wiki",
 		},
 		"boards": {
 			"create_workitem", "search_workitems", "get_workitem", "search_wiki",
@@ -74,7 +71,7 @@ func NewToolset(key string) *Toolset {
 /*
 Use a tool, based on the tool call passed in.
 */
-func UseTool(toolCall openai.ChatCompletionMessageToolCall) (string, error) {
+func UseTool(toolCall openai.ChatCompletionMessageToolCall, owner twoface.Process) (string, error) {
 	tool, ok := toolsMap[toolCall.Function.Name]
 	if !ok {
 		return "", errors.New("tool not found")
@@ -86,5 +83,5 @@ func UseTool(toolCall openai.ChatCompletionMessageToolCall) (string, error) {
 		return "", err
 	}
 
-	return tool.Call(args)
+	return tool.Call(args, owner)
 }

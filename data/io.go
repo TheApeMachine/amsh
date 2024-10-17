@@ -38,8 +38,19 @@ Write implements the io.Writer interface for the Artifact.
 It writes the entire artifact to the provided stream.
 */
 func (artifact *Artifact) Write(p []byte) (n int, err error) {
-	// Unmarshal the new data into the current Artifact.
-	Unmarshal(p)
+	payload, err := artifact.Payload()
+
+	if err != nil {
+		return 0, errnie.Error(err)
+	}
+
+	payload = append(payload, p...)
+	err = artifact.SetPayload(payload)
+
+	if err != nil {
+		return 0, errnie.Error(err)
+	}
+
 	return len(p), nil
 }
 

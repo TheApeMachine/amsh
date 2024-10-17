@@ -1,11 +1,14 @@
 package service
 
 import (
+	"context"
+
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/favicon"
 	"github.com/gofiber/fiber/v3/middleware/static"
+	"github.com/theapemachine/amsh/mastercomputer"
 	"github.com/theapemachine/amsh/sockpuppet"
 	"github.com/theapemachine/amsh/twoface"
 )
@@ -24,6 +27,15 @@ NewHTTPS creates a new HTTPS service, configures the mapping to internal service
 from the config file, and sets up fiber (v3) to serve TLS requests.
 */
 func NewHTTPS() *HTTPS {
+	manager := twoface.NewWorkerManager()
+	builder := mastercomputer.NewBuilder(context.Background(), manager)
+
+	reasoner := builder.NewWorker("reasoner")
+	reasoner.Start()
+
+	verifier := builder.NewWorker("verifier")
+	verifier.Start()
+
 	return &HTTPS{
 		app: fiber.New(fiber.Config{
 			CaseSensitive: true,
@@ -64,7 +76,7 @@ func (https *HTTPS) Up() error {
 	https.app.Post("/webhook/trengo", https.NewWebhook("trengo", "message"))
 	https.app.Use("/", static.New("./frontend"))
 
-	return https.app.Listen(":8567", fiber.ListenConfig{EnablePrefork: true})
+	return https.app.Listen(":8567", fiber.ListenConfig{EnablePrefork: false})
 }
 
 /*

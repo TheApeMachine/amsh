@@ -3,10 +3,9 @@ package mastercomputer
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
-	"time"
+	"strconv"
 
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai/format"
@@ -20,6 +19,7 @@ type Executor struct {
 	parentCtx    context.Context
 	ctx          context.Context
 	cancel       context.CancelFunc
+	buffer       *data.Artifact
 	worker       *Worker
 	conversation *Conversation
 }
@@ -27,6 +27,7 @@ type Executor struct {
 func NewExecutor(ctx context.Context, worker *Worker) *Executor {
 	return &Executor{
 		parentCtx:    ctx,
+		buffer:       data.New(worker.name, "execution", "verification", []byte{}),
 		worker:       worker,
 		conversation: NewConversation(worker.buffer, maxContextTokens),
 	}
@@ -62,6 +63,10 @@ func (executor *Executor) Execute(message *data.Artifact) {
 	executor.processResponse(response)
 }
 
+func (executor *Executor) Verify() {
+	executor.worker.queue.Publish(executor.buffer)
+}
+
 func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error) {
 	messages := executor.conversation.Truncate()
 
@@ -70,6 +75,14 @@ func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error
 		return openai.ChatCompletionNewParams{}, err
 	}
 
+	// Convert the string to a float
+	temperature, err := strconv.ParseFloat(executor.worker.buffer.Peek("temperature"), 64)
+	if err != nil {
+		return openai.ChatCompletionNewParams{}, err
+	}
+
+	errnie.Note("%s generating with temperature: %f", executor.worker.name, temperature)
+
 	return openai.ChatCompletionNewParams{
 		Messages:       openai.F(messages),
 		ResponseFormat: openai.F(responseFormat),
@@ -77,44 +90,24 @@ func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error
 			executor.worker.buffer.Peek("workload")).tools,
 		),
 		Model:       openai.F(openai.ChatModelGPT4oMini),
-		Temperature: openai.Float(1.0),
+		Temperature: openai.Float(temperature),
 	}, nil
 }
 
 var semaphore = make(chan struct{}, 1)
 
-func (executor *Executor) executeCompletion(params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
-	semaphore <- struct{}{}        // Acquire a token
-	defer func() { <-semaphore }() // Release the token
+func (executor *Executor) executeCompletion(
+	params openai.ChatCompletionNewParams,
+) (response openai.ChatCompletionAccumulator, err error) {
+	semaphore <- struct{}{}
+	defer func() { <-semaphore }()
 
 	completion := NewCompletion(executor.ctx)
-	response, err := completion.Execute(executor.ctx, params)
-	if err != nil {
-		var apiError *openai.Error
-		if errors.As(err, &apiError) {
-			switch apiError.StatusCode {
-			case 429:
-				log.Printf("Rate limit exceeded: %v", apiError)
-				time.Sleep(time.Minute)
-				return nil, apiError
-			case 401:
-				log.Printf("Authentication error: %v", apiError)
-				return nil, apiError
-			default:
-				log.Printf("OpenAI API error: %v", apiError)
-				return nil, apiError
-			}
-		} else {
-			log.Printf("Unexpected error: %v", err)
-			return nil, err
-		}
-	}
-
-	return response, nil
+	return completion.Execute(executor.ctx, params)
 }
 
-func (executor *Executor) processResponse(response *openai.ChatCompletion) {
-	if response == nil || len(response.Choices) == 0 {
+func (executor *Executor) processResponse(response openai.ChatCompletionAccumulator) {
+	if len(response.Choices) == 0 {
 		log.Println("No response from OpenAI")
 		return
 	}
@@ -125,15 +118,14 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) {
 
 	message := response.Choices[0].Message
 	executor.conversation.Update(message)
+	executor.buffer.Write([]byte(message.Content))
 
 	content := message.Content
-	if content == "" {
+	if content != "" {
 		errnie.Warn("Empty response content")
-		return
-	}
-
-	if err := executor.printResponse(content); err != nil {
-		errnie.Error(err)
+		if err := executor.printResponse(content); err != nil {
+			errnie.Error(err)
+		}
 	}
 
 	toolMessages := executor.handleToolCalls(response)
@@ -149,11 +141,12 @@ func (executor *Executor) printResponse(content string) error {
 		return err
 	}
 
+	errnie.Info("worker: %s", executor.worker.name)
 	fmt.Println(strategy.String())
 	return nil
 }
 
-func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) []openai.ChatCompletionMessageParamUnion {
+func (executor *Executor) handleToolCalls(response openai.ChatCompletionAccumulator) []openai.ChatCompletionMessageParamUnion {
 	message := response.Choices[0].Message
 
 	if message.ToolCalls == nil || len(message.ToolCalls) == 0 {
@@ -164,8 +157,8 @@ func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) []ope
 	results := []openai.ChatCompletionMessageParamUnion{}
 
 	for _, toolCall := range message.ToolCalls {
-		errnie.Info("<tool call> %s", toolCall.Function.Name)
-		result, err := UseTool(toolCall)
+		errnie.Info("TOOL CALL: %s", toolCall.Function.Name)
+		result, err := UseTool(toolCall, executor.worker)
 
 		if err != nil {
 			errnie.Error(err)
@@ -181,12 +174,14 @@ func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) []ope
 func (executor *Executor) getResponseFormat(workload string) (
 	openai.ChatCompletionNewParamsResponseFormatUnion, error,
 ) {
+	schema := GenerateSchema[format.Reasoning]()
+
 	return openai.ResponseFormatJSONSchemaParam{
 		Type: openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
 		JSONSchema: openai.F(openai.ResponseFormatJSONSchemaJSONSchemaParam{
 			Name:        openai.F(workload),
 			Description: openai.F("response format"),
-			Schema:      openai.F(GenerateSchema[format.Reasoning]()),
+			Schema:      openai.F(schema),
 			Strict:      openai.F(true),
 		}),
 	}, nil

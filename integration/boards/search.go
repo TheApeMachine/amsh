@@ -12,6 +12,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/twoface"
 )
 
 type SearchWiki struct {
@@ -62,7 +63,23 @@ func (searchWiki *SearchWiki) Search(ctx context.Context, query string) (err err
 	return
 }
 
-func (searchWiki *SearchWiki) Call(args map[string]any) (string, error) {
+func (searchWiki *SearchWiki) Ctx() context.Context {
+	return context.Background()
+}
+
+func (searchWiki *SearchWiki) ID() string {
+	return "search_wiki"
+}
+
+func (searchWiki *SearchWiki) Name() string {
+	return "Search Wiki"
+}
+
+func (searchWiki *SearchWiki) Manager() *twoface.WorkerManager {
+	return twoface.NewWorkerManager()
+}
+
+func (searchWiki *SearchWiki) Call(args map[string]any, owner twoface.Process) (string, error) {
 	return "", nil
 }
 

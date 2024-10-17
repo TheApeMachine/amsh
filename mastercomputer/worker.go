@@ -2,6 +2,8 @@ package mastercomputer
 
 import (
 	"context"
+	"fmt"
+	"math/rand/v2"
 
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
@@ -21,19 +23,17 @@ type Worker struct {
 	state     WorkerState
 	queue     *twoface.Queue
 	inbox     chan *data.Artifact
-	ID        string
 	name      string
-	manager   *WorkerManager
+	manager   *twoface.WorkerManager
 }
 
 // NewWorker provides a minimal, uninitialized Worker object.
-func NewWorker(ctx context.Context, buffer *data.Artifact, manager *WorkerManager) *Worker {
+func NewWorker(ctx context.Context, buffer *data.Artifact, manager *twoface.WorkerManager) *Worker {
 	return &Worker{
 		parentCtx: ctx,
 		buffer:    buffer,
 		state:     WorkerStateCreating,
 		queue:     twoface.NewQueue(),
-		ID:        buffer.Peek("id"),
 		name:      buffer.Peek("origin"),
 		manager:   manager,
 	}
@@ -41,21 +41,19 @@ func NewWorker(ctx context.Context, buffer *data.Artifact, manager *WorkerManage
 
 // Initialize sets up the worker's context, queue registration, and starts the executor.
 func (worker *Worker) Initialize() *Worker {
-	if worker.ID == "" {
-		worker.ID = utils.NewID()
-	}
+	errnie.Info("initializing worker %s (%s)", worker.ID(), worker.name)
 
-	if worker.name == "" {
-		worker.name = utils.NewName()
-	}
+	// Generate a random float from 0.0 to 2.0
+	temperature := rand.Float64() * 2.0
 
-	errnie.Info("initializing worker %s (%s)", worker.ID, worker.name)
+	// Store as a string inside the buffer.
+	worker.buffer.Poke("temperature", fmt.Sprintf("%f", temperature))
 
 	worker.state = WorkerStateInitializing
 	worker.ctx, worker.cancel = context.WithCancel(worker.parentCtx)
 
-	worker.memory = ai.NewMemory(worker.ID)
-	inbox, err := worker.queue.Register(worker.ID)
+	worker.memory = ai.NewMemory(worker.ID())
+	inbox, err := worker.queue.Register(worker.ID())
 
 	if errnie.Error(err) != nil {
 		worker.state = WorkerStateZombie
@@ -64,8 +62,12 @@ func (worker *Worker) Initialize() *Worker {
 
 	worker.inbox = inbox
 
+	worker.queue.Subscribe(worker.ID(), "verification")
+
 	worker.manager.AddWorker(worker)
 	worker.state = WorkerStateReady
+
+	errnie.Note("worker %s initialized", worker.name)
 
 	return worker
 }
@@ -77,10 +79,26 @@ func (worker *Worker) Close() error {
 	}
 
 	if worker.queue != nil {
-		return worker.queue.Unregister(worker.ID)
+		return worker.queue.Unregister(worker.ID())
 	}
 
 	return nil
+}
+
+func (worker *Worker) Ctx() context.Context {
+	return worker.ctx
+}
+
+func (worker *Worker) Manager() *twoface.WorkerManager {
+	return worker.manager
+}
+
+func (worker *Worker) ID() string {
+	return worker.buffer.Peek("id")
+}
+
+func (worker *Worker) Name() string {
+	return worker.name
 }
 
 // Start the worker and listen for messages from the queue.
@@ -96,10 +114,10 @@ func (worker *Worker) Start() {
 				if !ok {
 					worker.state = WorkerStateNotOK
 					worker.queue.Publish(data.New(
-						worker.ID, "state", "notok", []byte(worker.buffer.Peek("payload")),
+						worker.ID(), "state", "notok", []byte(worker.buffer.Peek("payload")),
 					))
 
-					errnie.Warn("worker %s inbox channel closed", worker.ID)
+					errnie.Warn("worker %s inbox channel closed", worker.ID())
 					continue
 				}
 
@@ -107,30 +125,44 @@ func (worker *Worker) Start() {
 
 				NewMessaging(worker).Reply(msg)
 
-				worker.buffer.Poke("user", msg.Peek("user"))
-				worker.buffer.Poke("payload", msg.Peek("payload"))
+				errnie.Info("worker %s state: %s", worker.name, worker.state)
 
-				exec := NewExecutor(worker.ctx, worker)
-				exec.Initialize()
-				exec.Execute(msg)
+				if worker.state == WorkerStateAccepted {
+					worker.state = WorkerStateBusy
+					exec := NewExecutor(worker.ctx, worker)
+					exec.Initialize()
+					exec.Execute(msg)
+					exec.Verify()
+					worker.state = WorkerStateDone
+				}
 			}
 		}
 	}()
 }
 
-func (worker *Worker) Call(args map[string]any) (string, error) {
-	builder := NewBuilder(worker.ctx, worker.manager)
+func (worker *Worker) Stop() {
+	worker.cancel()
+}
+
+func (worker *Worker) Call(args map[string]any, owner twoface.Process) (string, error) {
+	builder := NewBuilder(owner.Ctx(), owner.Manager())
 	reasoner := builder.NewWorker(builder.getRole(args["toolset"].(string)))
 	reasoner.buffer.Poke("system", args["system"].(string))
 	reasoner.buffer.Poke("user", args["user"].(string))
+	reasoner.buffer.Poke("workload", args["toolset"].(string))
+	reasoner.buffer.Poke("parent", owner.ID())
 	reasoner.Start()
 	return utils.ReplaceWith(`
 	[WORKER {name}]
-	  {state}
+	  STATE   : {state}
+	  WORKLOAD: {workload}
+	  PARENT  : {parent}
 	[/WORKER]
 	`, [][]string{
 		{"name", worker.name},
 		{"state", worker.state.String()},
+		{"workload", args["toolset"].(string)},
+		{"parent", owner.ID()},
 	}), nil
 }
 

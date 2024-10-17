@@ -83,10 +83,6 @@ func (artifact *Artifact) Peek(key string) string {
 		return errnie.Error(err).Error()
 	}
 
-	if value == "" {
-		errnie.Warn("value for key: %s is empty", key)
-	}
-
 	return value
 }
 

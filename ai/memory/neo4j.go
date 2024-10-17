@@ -20,7 +20,7 @@ func NewNeo4j() *Neo4j {
 	// username := viper.GetString("neo4j.username")
 	// password := viper.GetString("neo4j.password")
 
-	client, err := neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
+	client, err := neo4j.NewDriverWithContext("neo4j://neo4j:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
 	if err != nil {
 		panic("Failed to create Neo4j client: " + err.Error())
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/twoface"
 )
 
 type Label struct {
@@ -160,7 +161,23 @@ func (l *AssignLabels) Attach(ctx context.Context, labelID int, ticketID int) (e
 	return
 }
 
-func (l *ListLabels) Call(args map[string]any) (string, error) {
+func (l *ListLabels) Ctx() context.Context {
+	return context.Background()
+}
+
+func (l *ListLabels) ID() string {
+	return "list_labels"
+}
+
+func (l *ListLabels) Name() string {
+	return "List Labels"
+}
+
+func (l *ListLabels) Manager() *twoface.WorkerManager {
+	return twoface.NewWorkerManager()
+}
+
+func (l *ListLabels) Call(args map[string]any, owner twoface.Process) (string, error) {
 	return "", nil
 }
 
@@ -176,7 +193,23 @@ func (l *ListLabels) Schema() openai.ChatCompletionToolParam {
 	)
 }
 
-func (l *AssignLabels) Call(args map[string]any) (string, error) {
+func (l *AssignLabels) Ctx() context.Context {
+	return context.Background()
+}
+
+func (l *AssignLabels) ID() string {
+	return "assign_label"
+}
+
+func (l *AssignLabels) Name() string {
+	return "Assign Label"
+}
+
+func (l *AssignLabels) Manager() *twoface.WorkerManager {
+	return twoface.NewWorkerManager()
+}
+
+func (l *AssignLabels) Call(args map[string]any, owner twoface.Process) (string, error) {
 	return "", nil
 }
 
