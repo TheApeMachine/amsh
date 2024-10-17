@@ -77,7 +77,7 @@ func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error
 			executor.worker.buffer.Peek("workload")).tools,
 		),
 		Model:       openai.F(openai.ChatModelGPT4oMini),
-		Temperature: openai.Float(0.0),
+		Temperature: openai.Float(1.0),
 	}, nil
 }
 
@@ -185,8 +185,9 @@ func (executor *Executor) getResponseFormat(workload string) (
 		Type: openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
 		JSONSchema: openai.F(openai.ResponseFormatJSONSchemaJSONSchemaParam{
 			Name:        openai.F(workload),
-			Description: openai.F(workload + " format"),
+			Description: openai.F("response format"),
 			Schema:      openai.F(GenerateSchema[format.Reasoning]()),
+			Strict:      openai.F(true),
 		}),
 	}, nil
 }

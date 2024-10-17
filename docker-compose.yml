@@ -24,6 +24,7 @@ services:
       - AZDO_ORG_URL=${AZDO_ORG_URL}
       - AZDO_PAT=${AZDO_PAT}
       - GITHUB_PAT=${GITHUB_PAT}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
     build:
       context: ./
       dockerfile: Dockerfile
@@ -96,7 +97,6 @@ services:
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
-      - /Users/theapemachine/data:/var/lib/neo4j/import
       - neo4j_plugins:/plugins
 
 volumes:

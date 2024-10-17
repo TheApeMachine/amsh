@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/errnie"
@@ -41,6 +42,8 @@ func (completion *Completion) Execute(
 ) (*openai.ChatCompletion, error) {
 	errnie.Info("executing completion")
 
+	spew.Dump(params)
+
 	response, err := completion.client.Chat.Completions.New(ctx, params)
 
 	if err != nil {
@@ -50,6 +53,8 @@ func (completion *Completion) Execute(
 	if response == nil {
 		return nil, errnie.Error(errors.New("received nil response from OpenAI"))
 	}
+
+	spew.Dump(response)
 
 	return response, nil
 }

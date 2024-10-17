@@ -2,13 +2,10 @@ package memory
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"io"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
-	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/data"
+	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 // Neo4j represents the Neo4j client.
@@ -19,42 +16,34 @@ type Neo4j struct {
 // NewNeo4j creates a new Neo4j client.
 func NewNeo4j() *Neo4j {
 	ctx := context.Background()
-	uri := viper.GetString("neo4j.uri")
-	username := viper.GetString("neo4j.username")
-	password := viper.GetString("neo4j.password")
+	// uri := viper.GetString("neo4j.uri")
+	// username := viper.GetString("neo4j.username")
+	// password := viper.GetString("neo4j.password")
 
-	client, err := neo4j.NewDriverWithContext(uri, neo4j.BasicAuth(username, password, ""))
+	client, err := neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
 	if err != nil {
 		panic("Failed to create Neo4j client: " + err.Error())
 	}
 
 	// Verify connectivity
 	if err := client.VerifyConnectivity(ctx); err != nil {
-		panic("Failed to connect to Neo4j: " + err.Error())
+		errnie.Error(err)
 	}
 
 	return &Neo4j{client: client}
 }
 
-// Read executes a Cypher query and returns the result.
-func (n *Neo4j) Read(p []byte) (int, error) {
+/*
+Query executes a Cypher query on the Neo4j database and returns the results.
+*/
+func (n *Neo4j) Query(query string) ([]map[string]interface{}, error) {
 	ctx := context.Background()
 	session := n.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	defer session.Close(ctx)
 
-	artifact := data.Unmarshal(p)
-	if artifact == nil {
-		return 0, errors.New("failed to unmarshal artifact")
-	}
-
-	query := artifact.Peek("cypher")
-	if query == "" {
-		return 0, errors.New("cypher query is empty")
-	}
-
 	result, err := session.Run(ctx, query, nil)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	var records []map[string]interface{}
@@ -64,44 +53,35 @@ func (n *Neo4j) Read(p []byte) (int, error) {
 	}
 
 	if err = result.Err(); err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	dataBytes, err := json.Marshal(records)
-	if err != nil {
-		return 0, err
-	}
-
-	copy(p, dataBytes)
-	return len(dataBytes), io.EOF
-}
-
-// Write executes a Cypher query to write data to the graph.
-func (n *Neo4j) Write(p []byte) (int, error) {
-	ctx := context.Background()
-	session := n.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
-	defer session.Close(ctx)
-
-	artifact := data.Unmarshal(p)
-	if artifact == nil {
-		return 0, errors.New("failed to unmarshal artifact")
-	}
-
-	query := artifact.Peek("cypher")
-	if query == "" {
-		return 0, errors.New("cypher query is empty")
-	}
-
-	_, err := session.Run(ctx, query, nil)
-	if err != nil {
-		return 0, err
-	}
-
-	return len(p), nil
+	return records, nil
 }
 
 // Close closes the Neo4j client connection.
 func (n *Neo4j) Close() error {
 	ctx := context.Background()
 	return n.client.Close(ctx)
+}
+
+func (n *Neo4j) Call(args map[string]any) (string, error) {
+	return "", nil
+}
+
+func (n *Neo4j) Schema() openai.ChatCompletionToolParam {
+	return MakeTool(
+		"neo4j",
+		"Manage your long-term graph memory by storing and querying nodes and relationships.",
+		openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query": map[string]string{
+					"type":        "string",
+					"description": "The Cypher query to execute on the Neo4j database",
+				},
+			},
+			"required": []string{"query"},
+		},
+	)
 }

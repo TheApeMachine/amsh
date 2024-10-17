@@ -14,6 +14,7 @@ const (
 	WorkerTypeManager  WorkerType = "manager"
 	WorkerTypeReasoner WorkerType = "reasoner"
 	WorkerTypeExecutor WorkerType = "executor"
+	WorkerTypeWorker   WorkerType = "worker"
 )
 
 type Builder struct {
@@ -25,24 +26,43 @@ func NewBuilder(ctx context.Context, manager *WorkerManager) *Builder {
 	return &Builder{ctx: ctx, manager: manager}
 }
 
-func (builder *Builder) Worker(t WorkerType) *Worker {
+func (builder *Builder) NewWorker(t WorkerType) *Worker {
 	v := viper.GetViper()
 	system := v.GetString("ai.prompt.system")
 	role := v.GetString("ai.prompt." + string(t))
 	guidelines := v.GetString("ai.prompt.guidelines")
 
+	ID := utils.NewID()
+	name := utils.NewName()
+
 	system = utils.ReplaceWith(system, [][]string{
+		{"id", ID},
+		{"name", name},
 		{"role", role},
 		{"guidelines", guidelines},
 	})
 
-	artifact := data.New(utils.NewID(), string(t), "system", nil)
+	artifact := data.New(name, string(t), "system", nil)
+	artifact.Poke("id", ID)
 	artifact.Poke("system", system)
 	artifact.Poke("workload", builder.getWorkload(t))
 
 	return NewWorker(
 		builder.ctx, artifact, builder.manager,
 	).Initialize()
+}
+
+func (builder *Builder) getRole(workload string) WorkerType {
+	switch workload {
+	case "reasoning":
+		return WorkerTypeReasoner
+	case "executing":
+		return WorkerTypeExecutor
+	case "managing":
+		return WorkerTypeManager
+	default:
+		return WorkerTypeWorker
+	}
 }
 
 func (builder *Builder) getWorkload(t WorkerType) string {
@@ -54,6 +74,6 @@ func (builder *Builder) getWorkload(t WorkerType) string {
 	case WorkerTypeExecutor:
 		return "executing"
 	default:
-		return ""
+		return "working"
 	}
 }

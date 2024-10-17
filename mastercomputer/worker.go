@@ -2,7 +2,6 @@ package mastercomputer
 
 import (
 	"context"
-	"log"
 
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
@@ -50,7 +49,7 @@ func (worker *Worker) Initialize() *Worker {
 		worker.name = utils.NewName()
 	}
 
-	log.Printf("Initializing worker %s (%s)", worker.ID, worker.name)
+	errnie.Info("initializing worker %s (%s)", worker.ID, worker.name)
 
 	worker.state = WorkerStateInitializing
 	worker.ctx, worker.cancel = context.WithCancel(worker.parentCtx)
@@ -73,10 +72,6 @@ func (worker *Worker) Initialize() *Worker {
 
 // Close shuts down the worker and cleans up resources.
 func (worker *Worker) Close() error {
-	if worker.memory != nil {
-		worker.memory.Close()
-	}
-
 	if worker.cancel != nil {
 		worker.cancel()
 	}
@@ -104,25 +99,39 @@ func (worker *Worker) Start() {
 						worker.ID, "state", "notok", []byte(worker.buffer.Peek("payload")),
 					))
 
+					errnie.Warn("worker %s inbox channel closed", worker.ID)
 					continue
 				}
 
+				errnie.Info("worker %s received message %s", worker.name, msg.Peek("origin"))
+
 				NewMessaging(worker).Reply(msg)
 
-				if worker.state == WorkerStateAccepted {
-					worker.state = WorkerStateWaiting
-				}
+				worker.buffer.Poke("user", msg.Peek("user"))
+				worker.buffer.Poke("payload", msg.Peek("payload"))
 
-				if worker.state == WorkerStateBusy {
-					NewExecutor(worker.ctx, worker).Execute(msg)
-				}
+				exec := NewExecutor(worker.ctx, worker)
+				exec.Initialize()
+				exec.Execute(msg)
 			}
 		}
 	}()
 }
 
 func (worker *Worker) Call(args map[string]any) (string, error) {
-	return "", nil
+	builder := NewBuilder(worker.ctx, worker.manager)
+	reasoner := builder.NewWorker(builder.getRole(args["toolset"].(string)))
+	reasoner.buffer.Poke("system", args["system"].(string))
+	reasoner.buffer.Poke("user", args["user"].(string))
+	reasoner.Start()
+	return utils.ReplaceWith(`
+	[WORKER {name}]
+	  {state}
+	[/WORKER]
+	`, [][]string{
+		{"name", worker.name},
+		{"state", worker.state.String()},
+	}), nil
 }
 
 func (worker *Worker) Schema() openai.ChatCompletionToolParam {
@@ -140,13 +149,13 @@ func (worker *Worker) Schema() openai.ChatCompletionToolParam {
 					"type":        "string",
 					"description": "The user prompt",
 				},
-				"format": map[string]interface{}{
+				"toolset": map[string]interface{}{
 					"type":        "string",
-					"enum":        []string{"reasoning", "messaging"},
-					"description": "The response format the worker should use",
+					"enum":        []string{"reasoning", "messaging", "boards", "trengo"},
+					"description": "The toolset the worker should use",
 				},
 			},
-			"required": []string{"system", "user", "format"},
+			"required": []string{"system", "user", "toolset"},
 		},
 	)
 }

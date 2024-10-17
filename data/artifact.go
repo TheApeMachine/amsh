@@ -1,7 +1,6 @@
 package data
 
 import (
-	"fmt"
 	"time"
 
 	"capnproto.org/go/capnp/v3"
@@ -118,7 +117,10 @@ func (artifact *Artifact) Poke(key, value string) *Artifact {
 		err = artifact.addAttribute(key, value)
 	}
 
-	errnie.Error(err)
+	if err != nil {
+		errnie.Warn("error poking artifact: %v", err)
+	}
+
 	return artifact
 }
 
@@ -142,12 +144,7 @@ func (artifact *Artifact) getAttributeValue(key string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf(
-		"key: '%s' not found in attributes [%s, %s, %s]",
-		key, artifact.Peek("origin"),
-		artifact.Peek("role"),
-		artifact.Peek("scope"),
-	)
+	return "", nil
 }
 
 /*

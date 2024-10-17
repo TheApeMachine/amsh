@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/utils"
 )
 
 type Messaging struct {
@@ -43,6 +44,10 @@ func (messaging *Messaging) Reply(message *data.Artifact) {
 }
 
 func (messaging *Messaging) Call(args map[string]any) (string, error) {
+	artifact := data.New(messaging.worker.ID, "message", args["topic"].(string), []byte{})
+	artifact.Poke("id", utils.NewID())
+	artifact.Poke("payload", args["message"].(string))
+	messaging.worker.queue.Publish(artifact)
 	return "", nil
 }
 

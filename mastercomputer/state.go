@@ -53,3 +53,35 @@ func (worker *Worker) IsAllowed(state WorkerState) bool {
 	}
 	return false
 }
+
+// String returns the string representation of the worker state.
+func (state WorkerState) String() string {
+	switch state {
+	case WorkerStateCreating:
+		return "creating"
+	case WorkerStateInitializing:
+		return "initializing"
+	case WorkerStateReady:
+		return "ready"
+	case WorkerStateAcknowledged:
+		return "acknowledged"
+	case WorkerStateAccepted:
+		return "accepted"
+	case WorkerStateRejected:
+		return "rejected"
+	case WorkerStateBusy:
+		return "busy"
+	case WorkerStateWaiting:
+		return "waiting"
+	case WorkerStateDone:
+		return "done"
+	case WorkerStateError:
+		return "error"
+	case WorkerStateFinished:
+		return "finished"
+	case WorkerStateZombie:
+		return "zombie"
+	}
+
+	return ""
+}

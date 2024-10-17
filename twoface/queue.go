@@ -40,6 +40,8 @@ func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
+	errnie.Info("registering subscriber %s", ID)
+
 	if _, exists := q.subscribers[ID]; exists {
 		return nil, errors.New("subscriber already exists")
 	}
@@ -58,6 +60,8 @@ func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
 func (q *Queue) Publish(message *data.Artifact) error {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
+
+	errnie.Info("publishing message %s -> %s", message.Peek("origin"), message.Peek("scope"))
 
 	publisher := message.Peek("origin")
 	topic := message.Peek("scope")
