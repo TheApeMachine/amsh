@@ -1,6 +1,10 @@
 package format
 
 import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -14,6 +18,19 @@ type Researching struct {
 	Done             bool            `json:"done" jsonschema:"description=Indicates if the research plan is complete;required=true"`
 }
 
+func NewResearching() *Researching {
+	return &Researching{}
+}
+
+func (rp *Researching) Print(data []byte) error {
+	if err := errnie.Error(json.Unmarshal(data, rp)); err != nil {
+		return err
+	}
+
+	fmt.Println(rp.String())
+	return nil
+}
+
 func (rp Researching) String() string {
 	output := utils.Dark("[RESEARCH PLAN]") + "\n"
 
@@ -22,30 +39,30 @@ func (rp Researching) String() string {
 	output += "\t" + utils.Muted("[KEY FINDINGS]") + "\n"
 	for _, finding := range rp.KeyFindings {
 		output += "\t\t" + utils.Green("Finding: ") + finding.Description + "\n"
-		output += "\t\t" + utils.Yellow("Importance: ") + finding.Importance + "\n\n"
+		output += "\t\t" + utils.Yellow("Importance: ") + finding.Importance + "\n"
 	}
-	output += "\t" + utils.Muted("[/KEY FINDINGS]") + "\n\n"
+	output += "\t" + utils.Muted("[/KEY FINDINGS]") + "\n"
 
 	output += "\t" + utils.Muted("[CONNECTIONS]") + "\n"
 	for _, connection := range rp.Connections {
 		output += "\t\t" + utils.Red("Concepts: ") + connection.ConceptA + " <-> " + connection.ConceptB + "\n"
-		output += "\t\t" + utils.Green("Relationship: ") + connection.Relationship + "\n\n"
+		output += "\t\t" + utils.Green("Relationship: ") + connection.Relationship + "\n"
 	}
-	output += "\t" + utils.Muted("[/CONNECTIONS]") + "\n\n"
+	output += "\t" + utils.Muted("[/CONNECTIONS]") + "\n"
 
 	output += "\t" + utils.Muted("[DETAILED ANALYSIS]") + "\n"
 	for _, point := range rp.DetailedAnalysis {
 		output += "\t\t" + utils.Blue("Aspect: ") + point.Aspect + "\n"
-		output += "\t\t" + utils.Green("Analysis: ") + point.Analysis + "\n\n"
+		output += "\t\t" + utils.Green("Analysis: ") + point.Analysis + "\n"
 	}
-	output += "\t" + utils.Muted("[/DETAILED ANALYSIS]") + "\n\n"
+	output += "\t" + utils.Muted("[/DETAILED ANALYSIS]") + "\n"
 
-	output += "\t" + utils.Blue("Big Picture: ") + rp.BigPicture + "\n\n"
+	output += "\t" + utils.Blue("Big Picture: ") + rp.BigPicture + "\n"
 
 	output += "\t" + utils.Muted("[NEXT STEPS]") + "\n"
 	for _, step := range rp.NextSteps {
 		output += "\t\t" + utils.Blue("Action: ") + step.Action + "\n"
-		output += "\t\t" + utils.Green("Rationale: ") + step.Rationale + "\n\n"
+		output += "\t\t" + utils.Green("Rationale: ") + step.Rationale + "\n"
 	}
 	output += "\t" + utils.Muted("[/NEXT STEPS]") + "\n"
 

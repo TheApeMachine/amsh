@@ -166,3 +166,55 @@ func (srv *SearchWorkitemsSrv) SearchWorkitems(ctx context.Context, query string
 
 	return builder.String(), nil
 }
+
+type UpdateWorkitemSrv struct {
+	conn        workitemtracking.Client
+	projectName string
+}
+
+func NewUpdateWorkitemSrv(ctx context.Context, projectName string) (*UpdateWorkitemSrv, error) {
+	conn, err := workitemtracking.NewClient(ctx, azuredevops.NewPatConnection(
+		os.Getenv("AZDO_ORG_URL"),
+		os.Getenv("AZDO_PAT"),
+	))
+	if err != nil {
+		return nil, errnie.Error(err)
+	}
+
+	return &UpdateWorkitemSrv{conn: conn, projectName: projectName}, nil
+}
+
+func (srv *UpdateWorkitemSrv) UpdateWorkitem(ctx context.Context, id int, title, description string) (out string, err error) {
+	var responseValue *workitemtracking.WorkItem
+
+	path := "/fields/System.Title"
+
+	document := []webapi.JsonPatchOperation{
+		{
+			Op:    &webapi.OperationValues.Add,
+			Path:  &path,
+			Value: &title,
+		},
+		{
+			Op:    &webapi.OperationValues.Add,
+			Path:  &path,
+			Value: &description,
+		},
+	}
+
+	responseValue, err = srv.conn.UpdateWorkItem(ctx, workitemtracking.UpdateWorkItemArgs{
+		Id:       &id,
+		Project:  &srv.projectName,
+		Document: &document,
+	})
+
+	if err != nil {
+		return "", errnie.Error(err)
+	}
+
+	template := viper.GetViper().GetString("integrations.boards.response")
+	template = strings.ReplaceAll(template, "{id}", strconv.Itoa(*responseValue.Id))
+	template = strings.ReplaceAll(template, "{response}", "Work item updated")
+
+	return template, nil
+}

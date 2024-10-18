@@ -1,8 +1,10 @@
 package format
 
 import (
+	"encoding/json"
 	"fmt"
 
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -19,11 +21,24 @@ type Executing struct {
 	Done          bool                 `json:"done" jsonschema:"description=Indicates if the execution plan is complete;required=true"`
 }
 
+func NewExecuting() *Executing {
+	return &Executing{}
+}
+
+func (ep *Executing) Print(data []byte) error {
+	if err := errnie.Error(json.Unmarshal(data, ep)); err != nil {
+		return err
+	}
+
+	fmt.Println(ep.String())
+	return nil
+}
+
 func (ep Executing) String() string {
 	output := utils.Dark("[EXECUTION PLAN]") + "\n"
 
 	output += "\t" + utils.Blue("Task Name: ") + ep.TaskName + "\n"
-	output += "\t" + utils.Green("Description: ") + ep.Description + "\n\n"
+	output += "\t" + utils.Green("Description: ") + ep.Description + "\n"
 
 	output += "\t" + utils.Muted("[STEPS]") + "\n"
 	for i, step := range ep.Steps {
@@ -35,38 +50,38 @@ func (ep Executing) String() string {
 		}
 		output += "\t\t" + utils.Blue(fmt.Sprintf("Step %d: ", i+1)) + step.Description + "\n"
 		output += "\t\t" + utils.Yellow("Status: ") + status + "\n"
-		output += "\t\t" + utils.Green("Details: ") + step.Details + "\n\n"
+		output += "\t\t" + utils.Green("Details: ") + step.Details + "\n"
 	}
-	output += "\t" + utils.Muted("[/STEPS]") + "\n\n"
+	output += "\t" + utils.Muted("[/STEPS]") + "\n"
 
 	output += "\t" + utils.Muted("[RESOURCES]") + "\n"
 	for _, resource := range ep.Resources {
 		output += "\t\t" + utils.Blue("Name: ") + resource.Name + "\n"
 		output += "\t\t" + utils.Green("Type: ") + resource.Type + "\n"
-		output += "\t\t" + utils.Yellow("Status: ") + resource.Status + "\n\n"
+		output += "\t\t" + utils.Yellow("Status: ") + resource.Status + "\n"
 	}
-	output += "\t" + utils.Muted("[/RESOURCES]") + "\n\n"
+	output += "\t" + utils.Muted("[/RESOURCES]") + "\n"
 
 	output += "\t" + utils.Muted("[QUALITY CHECKS]") + "\n"
 	for _, check := range ep.QualityChecks {
 		output += "\t\t" + utils.Blue("Check: ") + check.Description + "\n"
-		output += "\t\t" + utils.Green("Result: ") + check.Result + "\n\n"
+		output += "\t\t" + utils.Green("Result: ") + check.Result + "\n"
 	}
-	output += "\t" + utils.Muted("[/QUALITY CHECKS]") + "\n\n"
+	output += "\t" + utils.Muted("[/QUALITY CHECKS]") + "\n"
 
 	output += "\t" + utils.Muted("[CHALLENGES]") + "\n"
 	for _, challenge := range ep.Challenges {
 		output += "\t\t" + utils.Red("Challenge: ") + challenge.Description + "\n"
-		output += "\t\t" + utils.Yellow("Resolution: ") + challenge.Resolution + "\n\n"
+		output += "\t\t" + utils.Yellow("Resolution: ") + challenge.Resolution + "\n"
 	}
-	output += "\t" + utils.Muted("[/CHALLENGES]") + "\n\n"
+	output += "\t" + utils.Muted("[/CHALLENGES]") + "\n"
 
 	output += "\t" + utils.Muted("[IMPROVEMENTS]") + "\n"
 	for _, improvement := range ep.Improvements {
 		output += "\t\t" + utils.Blue("Improvement: ") + improvement.Description + "\n"
-		output += "\t\t" + utils.Green("Impact: ") + improvement.Impact + "\n\n"
+		output += "\t\t" + utils.Green("Impact: ") + improvement.Impact + "\n"
 	}
-	output += "\t" + utils.Muted("[/IMPROVEMENTS]") + "\n\n"
+	output += "\t" + utils.Muted("[/IMPROVEMENTS]") + "\n"
 
 	output += "\t" + utils.Blue("Progress: ") + FloatToString(ep.Progress) + "\n"
 	output += "\t" + utils.Red("Done: ") + BoolToString(ep.Done) + "\n"

@@ -2,6 +2,7 @@ package mastercomputer
 
 import (
 	"context"
+	"sync"
 
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/data"
@@ -20,13 +21,19 @@ const (
 	WorkerTypeWorker       WorkerType = "worker"
 )
 
+var builderInstance *Builder
+var builderOnce sync.Once
+
 type Builder struct {
 	ctx     context.Context
 	manager *Manager
 }
 
-func NewBuilder(ctx context.Context, manager *Manager) *Builder {
-	return &Builder{ctx: ctx, manager: manager}
+func NewBuilder() *Builder {
+	builderOnce.Do(func() {
+		builderInstance = &Builder{ctx: context.Background(), manager: NewManager()}
+	})
+	return builderInstance
 }
 
 func (builder *Builder) NewWorker(t WorkerType) *Worker {
@@ -95,4 +102,8 @@ func (builder *Builder) GetWorkload(t WorkerType) string {
 	default:
 		return "working"
 	}
+}
+
+func (builder *Builder) Wait() {
+	builder.manager.Wait()
 }

@@ -4,6 +4,9 @@ import (
 	"sync"
 )
 
+var managerInstance *Manager
+var managerOnce sync.Once
+
 // Manager manages all active workers.
 type Manager struct {
 	wg      sync.WaitGroup
@@ -13,9 +16,12 @@ type Manager struct {
 
 // NewWorkerManager creates a new WorkerManager.
 func NewManager() *Manager {
-	return &Manager{
-		workers: make(map[string]*Worker),
-	}
+	managerOnce.Do(func() {
+		managerInstance = &Manager{
+			workers: make(map[string]*Worker),
+		}
+	})
+	return managerInstance
 }
 
 // AddWorker adds a new worker to the manager and increments the WaitGroup.

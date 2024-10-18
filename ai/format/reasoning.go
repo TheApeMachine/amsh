@@ -1,6 +1,10 @@
 package format
 
 import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -9,6 +13,19 @@ type Reasoning struct {
 	FinalAnswer string     `json:"final_answer" jsonschema:"description=The final answer to the question"`
 	Done        bool       `json:"done" jsonschema:"description=You will have infinite iterations to reason, until you set this to true"`
 	NextSteps   []Step     `json:"next_steps" jsonschema:"description=The next steps to be taken"`
+}
+
+func NewReasoning() *Reasoning {
+	return &Reasoning{}
+}
+
+func (r *Reasoning) Print(data []byte) error {
+	if err := errnie.Error(json.Unmarshal(data, r)); err != nil {
+		return err
+	}
+
+	fmt.Println(r.String())
+	return nil
 }
 
 func (r Reasoning) String() string {

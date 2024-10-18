@@ -18,14 +18,11 @@ var testCmd = &cobra.Command{
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
-	ctx := cmd.Context()
-
 	// Initialize the messaging queue
 	queue := twoface.NewQueue()
 
 	// Initialize the worker manager
-	manager := mastercomputer.NewManager()
-	builder := mastercomputer.NewBuilder(ctx, manager)
+	builder := mastercomputer.NewBuilder()
 
 	for _, agent := range []mastercomputer.WorkerType{
 		mastercomputer.WorkerTypeManager,
@@ -47,7 +44,7 @@ func runTest(cmd *cobra.Command, args []string) error {
 	queue.Publish(externalPrompt)
 
 	log.Println("Waiting for workers to finish...")
-	manager.Wait()
+	builder.Wait()
 	return nil
 }
 

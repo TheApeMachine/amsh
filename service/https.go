@@ -1,8 +1,6 @@
 package service
 
 import (
-	"context"
-
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
@@ -27,8 +25,7 @@ NewHTTPS creates a new HTTPS service, configures the mapping to internal service
 from the config file, and sets up fiber (v3) to serve TLS requests.
 */
 func NewHTTPS() *HTTPS {
-	manager := mastercomputer.NewManager()
-	builder := mastercomputer.NewBuilder(context.Background(), manager)
+	builder := mastercomputer.NewBuilder()
 
 	reasoner := builder.NewWorker("reasoner")
 	reasoner.Start()

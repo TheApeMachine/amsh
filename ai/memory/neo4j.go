@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
-	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/errnie"
 )
 
@@ -69,25 +68,4 @@ func (n *Neo4j) Query(query string) ([]map[string]interface{}, error) {
 func (n *Neo4j) Close() error {
 	ctx := context.Background()
 	return n.client.Close(ctx)
-}
-
-func (n *Neo4j) Call(args map[string]any) (string, error) {
-	return "", nil
-}
-
-func (n *Neo4j) Schema() openai.ChatCompletionToolParam {
-	return MakeTool(
-		"neo4j",
-		"Manage your long-term graph memory by storing and querying nodes and relationships.",
-		openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"query": map[string]string{
-					"type":        "string",
-					"description": "The Cypher query to execute on the Neo4j database",
-				},
-			},
-			"required": []string{"query"},
-		},
-	)
 }

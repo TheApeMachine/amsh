@@ -1,8 +1,10 @@
 package format
 
 import (
+	"encoding/json"
 	"fmt"
 
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -17,15 +19,28 @@ type Working struct {
 	Done       bool               `json:"done" jsonschema:"description=Indicates if the work plan is complete;required=true"`
 }
 
+func NewWorking() *Working {
+	return &Working{}
+}
+
+func (wp *Working) Print(data []byte) error {
+	if err := errnie.Error(json.Unmarshal(data, wp)); err != nil {
+		return err
+	}
+
+	fmt.Println(wp.String())
+	return nil
+}
+
 func (wp Working) String() string {
 	output := utils.Dark("[WORK PLAN]") + "\n"
 
 	output += "\t" + utils.Muted("[OBJECTIVES]") + "\n"
 	for _, obj := range wp.Objectives {
 		output += "\t\t" + utils.Blue("Objective: ") + obj.Description + "\n"
-		output += "\t\t" + utils.Green("Status: ") + obj.Status + "\n\n"
+		output += "\t\t" + utils.Green("Status: ") + obj.Status + "\n"
 	}
-	output += "\t" + utils.Muted("[/OBJECTIVES]") + "\n\n"
+	output += "\t" + utils.Muted("[/OBJECTIVES]") + "\n"
 
 	output += "\t" + utils.Muted("[STEPS]") + "\n"
 	for i, step := range wp.Steps {
@@ -36,30 +51,30 @@ func (wp Working) String() string {
 		}
 		output += "\n"
 	}
-	output += "\t" + utils.Muted("[/STEPS]") + "\n\n"
+	output += "\t" + utils.Muted("[/STEPS]") + "\n"
 
 	output += "\t" + utils.Muted("[RESOURCES]") + "\n"
 	for _, resource := range wp.Resources {
 		output += "\t\t" + utils.Blue("Name: ") + resource.Name + "\n"
 		output += "\t\t" + utils.Green("Type: ") + resource.Type + "\n"
-		output += "\t\t" + utils.Yellow("Status: ") + resource.Status + "\n\n"
+		output += "\t\t" + utils.Yellow("Status: ") + resource.Status + "\n"
 	}
-	output += "\t" + utils.Muted("[/RESOURCES]") + "\n\n"
+	output += "\t" + utils.Muted("[/RESOURCES]") + "\n"
 
 	output += "\t" + utils.Muted("[OUTPUTS]") + "\n"
 	for _, out := range wp.Outputs {
 		output += "\t\t" + utils.Blue("Type: ") + out.Type + "\n"
 		output += "\t\t" + utils.Green("Description: ") + out.Description + "\n"
-		output += "\t\t" + utils.Yellow("Location: ") + out.Location + "\n\n"
+		output += "\t\t" + utils.Yellow("Location: ") + out.Location + "\n"
 	}
-	output += "\t" + utils.Muted("[/OUTPUTS]") + "\n\n"
+	output += "\t" + utils.Muted("[/OUTPUTS]") + "\n"
 
 	output += "\t" + utils.Muted("[NOTES]") + "\n"
 	for _, note := range wp.Notes {
 		output += "\t\t" + utils.Blue("Note: ") + note.Content + "\n"
-		output += "\t\t" + utils.Green("Timestamp: ") + note.Timestamp + "\n\n"
+		output += "\t\t" + utils.Green("Timestamp: ") + note.Timestamp + "\n"
 	}
-	output += "\t" + utils.Muted("[/NOTES]") + "\n\n"
+	output += "\t" + utils.Muted("[/NOTES]") + "\n"
 
 	output += "\t" + utils.Blue("Status: ") + wp.Status + "\n"
 	output += "\t" + utils.Green("Progress: ") + FloatToString(wp.Progress) + "\n"

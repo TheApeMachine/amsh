@@ -1,6 +1,10 @@
 package format
 
 import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -10,23 +14,36 @@ type Managing struct {
 	Done  bool       `json:"done" jsonschema:"description=Indicates if the management plan is complete;required=true"`
 }
 
+func NewManaging() *Managing {
+	return &Managing{}
+}
+
+func (mp *Managing) Print(data []byte) error {
+	if err := errnie.Error(json.Unmarshal(data, mp)); err != nil {
+		return err
+	}
+
+	fmt.Println(mp.String())
+	return nil
+}
+
 func (mp Managing) String() string {
 	output := utils.Dark("[MANAGEMENT PLAN]") + "\n"
 
 	output += "\t" + utils.Muted("[GOALS]") + "\n"
 	for _, goal := range mp.Goals {
 		output += "\t\t" + utils.Green("Goal: ") + goal.Description + "\n"
-		output += "\t\t" + utils.Yellow("Status: ") + goal.Status + "\n\n"
+		output += "\t\t" + utils.Yellow("Status: ") + goal.Status + "\n"
 	}
-	output += "\t" + utils.Muted("[/GOALS]") + "\n\n"
+	output += "\t" + utils.Muted("[/GOALS]") + "\n"
 
 	output += "\t" + utils.Muted("[PLAN]") + "\n"
 	for _, goal := range mp.Plan {
 		output += "\t\t" + utils.Green("Goal: ") + goal.Action + "\n"
-		output += "\t\t" + utils.Red("Risks: ") + goal.Risks + "\n\n"
-		output += "\t\t" + utils.Yellow("Reawrds: ") + goal.Rewards + "\n\n"
+		output += "\t\t" + utils.Red("Risks: ") + goal.Risks + "\n"
+		output += "\t\t" + utils.Yellow("Rewards: ") + goal.Rewards + "\n"
 	}
-	output += "\t" + utils.Muted("[/PLAN]") + "\n\n"
+	output += "\t" + utils.Muted("[/PLAN]") + "\n"
 
 	output += "\t" + utils.Red("Done: ") + BoolToString(mp.Done) + "\n"
 	output += utils.Dark("[/MANAGEMENT PLAN]") + "\n"

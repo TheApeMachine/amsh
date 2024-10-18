@@ -1,8 +1,10 @@
 package format
 
 import (
+	"encoding/json"
 	"fmt"
 
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -15,6 +17,19 @@ type Communicating struct {
 	Done             bool           `json:"done" jsonschema:"description=Indicates if the communication plan is complete;required=true"`
 }
 
+func NewCommunicating() *Communicating {
+	return &Communicating{}
+}
+
+func (communicating *Communicating) Print(data []byte) error {
+	if err := errnie.Error(json.Unmarshal(data, communicating)); err != nil {
+		return err
+	}
+
+	fmt.Println(communicating.String())
+	return nil
+}
+
 func (cp Communicating) String() string {
 	output := utils.Dark("[COMMUNICATION PLAN]") + "\n"
 
@@ -22,37 +37,37 @@ func (cp Communicating) String() string {
 	for _, msg := range cp.InternalMessages {
 		output += "\t\t" + utils.Blue("To: ") + msg.Recipient + "\n"
 		output += "\t\t" + utils.Green("Topic: ") + msg.Topic + "\n"
-		output += "\t\t" + utils.Yellow("Message: ") + msg.Content + "\n\n"
+		output += "\t\t" + utils.Yellow("Message: ") + msg.Content + "\n"
 	}
-	output += "\t" + utils.Muted("[/INTERNAL MESSAGES]") + "\n\n"
+	output += "\t" + utils.Muted("[/INTERNAL MESSAGES]") + "\n"
 
 	output += "\t" + utils.Muted("[EXTERNAL MESSAGES (SLACK)]") + "\n"
 	for _, msg := range cp.ExternalMessages {
 		output += "\t\t" + utils.Blue("Channel: ") + msg.Channel + "\n"
 		output += "\t\t" + utils.Green("Message: ") + msg.Content + "\n"
-		output += "\t\t" + utils.Yellow("Attachments: ") + IntToString(len(msg.Attachments)) + "\n\n"
+		output += "\t\t" + utils.Yellow("Attachments: ") + IntToString(len(msg.Attachments)) + "\n"
 	}
-	output += "\t" + utils.Muted("[/EXTERNAL MESSAGES]") + "\n\n"
+	output += "\t" + utils.Muted("[/EXTERNAL MESSAGES]") + "\n"
 
 	output += "\t" + utils.Muted("[RESPONSES]") + "\n"
 	for _, resp := range cp.Responses {
 		output += "\t\t" + utils.Blue("To: ") + resp.Recipient + "\n"
 		output += "\t\t" + utils.Green("In Response To: ") + resp.OriginalMessageID + "\n"
-		output += "\t\t" + utils.Yellow("Response: ") + resp.Content + "\n\n"
+		output += "\t\t" + utils.Yellow("Response: ") + resp.Content + "\n"
 	}
-	output += "\t" + utils.Muted("[/RESPONSES]") + "\n\n"
+	output += "\t" + utils.Muted("[/RESPONSES]") + "\n"
 
 	output += "\t" + utils.Muted("[SUBSCRIPTIONS]") + "\n"
 	for _, sub := range cp.Subscriptions {
 		output += "\t\t" + utils.Blue("Topic: ") + sub.Topic + "\n"
-		output += "\t\t" + utils.Green("Reason: ") + sub.Reason + "\n\n"
+		output += "\t\t" + utils.Green("Reason: ") + sub.Reason + "\n"
 	}
-	output += "\t" + utils.Muted("[/SUBSCRIPTIONS]") + "\n\n"
+	output += "\t" + utils.Muted("[/SUBSCRIPTIONS]") + "\n"
 
 	output += "\t" + utils.Muted("[PENDING ACTIONS]") + "\n"
 	for _, action := range cp.PendingActions {
 		output += "\t\t" + utils.Blue("Action: ") + action.Description + "\n"
-		output += "\t\t" + utils.Green("Priority: ") + action.Priority + "\n\n"
+		output += "\t\t" + utils.Green("Priority: ") + action.Priority + "\n"
 	}
 	output += "\t" + utils.Muted("[/PENDING ACTIONS]") + "\n"
 

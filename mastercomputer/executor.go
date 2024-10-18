@@ -2,7 +2,6 @@ package mastercomputer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
@@ -93,7 +92,7 @@ func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error
 		return openai.ChatCompletionNewParams{}, err
 	}
 
-	errnie.Note("%s generating with temperature: %f", executor.task.Peek("origin"), temperature)
+	errnie.Note("%s generating with temperature: %.1f", executor.task.Peek("origin"), temperature)
 
 	return openai.ChatCompletionNewParams{
 		Messages:       openai.F(messages),
@@ -105,7 +104,7 @@ func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error
 	}, nil
 }
 
-var semaphore = make(chan struct{}, 3)
+var semaphore = make(chan struct{}, 1)
 
 func (executor *Executor) executeCompletion(params openai.ChatCompletionNewParams) (response *openai.ChatCompletion, err error) {
 	errnie.Info("[%s] waiting for semaphore", executor.task.Peek("origin"))
@@ -148,12 +147,23 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) {
 }
 
 func (executor *Executor) printResponse(content string) error {
-	if err := errnie.Error(json.Unmarshal([]byte(content), &executor.strategy)); err != nil {
-		return err
+	switch executor.strategy.(type) {
+	case format.Reasoning:
+		return format.NewReasoning().Print([]byte(content))
+	case format.Working:
+		return format.NewWorking().Print([]byte(content))
+	case format.Reviewing:
+		return format.NewReviewing().Print([]byte(content))
+	case format.Verifying:
+		return format.NewVerifying().Print([]byte(content))
+	case format.Executing:
+		return format.NewExecuting().Print([]byte(content))
+	case format.Communicating:
+		return format.NewCommunicating().Print([]byte(content))
+	case format.Managing:
+		return format.NewManaging().Print([]byte(content))
 	}
 
-	errnie.Info("worker: %s", executor.task.Peek("origin"))
-	fmt.Println(executor.strategy.String())
 	return nil
 }
 
@@ -168,13 +178,15 @@ func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) []ope
 	results := []openai.ChatCompletionMessageParamUnion{}
 
 	for _, toolCall := range message.ToolCalls {
-		errnie.Info("TOOL CALL: %s", toolCall.Function.Name)
-		result, err := executor.toolset.Use(toolCall)
+		errnie.Note("TOOL CALL: %s - %v", toolCall.Function.Name, toolCall.Function.Arguments)
+		result, err := executor.toolset.Use(executor.task.Peek("origin"), toolCall)
 
 		if err != nil {
 			errnie.Error(err)
 			return nil
 		}
+
+		fmt.Println("[TOOL RESULT]\n" + result.Content.String() + "\n[/TOOL RESULT]\n")
 
 		results = append(results, result)
 	}

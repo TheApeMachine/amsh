@@ -1,8 +1,10 @@
 package format
 
 import (
+	"encoding/json"
 	"fmt"
 
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -16,37 +18,50 @@ type Verifying struct {
 	Done              bool              `json:"done" jsonschema:"description=Indicates if the verification plan is complete;required=true"`
 }
 
+func NewVerifying() *Verifying {
+	return &Verifying{}
+}
+
+func (vp *Verifying) Print(data []byte) error {
+	if err := errnie.Error(json.Unmarshal(data, vp)); err != nil {
+		return err
+	}
+
+	fmt.Println(vp.String())
+	return nil
+}
+
 func (vp Verifying) String() string {
 	output := utils.Dark("[VERIFICATION PLAN]") + "\n"
 
-	output += "\t" + utils.Blue("Original Reasoning: ") + vp.OriginalReasoning + "\n\n"
+	output += "\t" + utils.Blue("Original Reasoning: ") + vp.OriginalReasoning + "\n"
 
 	output += "\t" + utils.Muted("[EVALUATION]") + "\n"
 	output += "\t\t" + utils.Green("Strengths: ") + vp.Evaluation.Strengths + "\n"
 	output += "\t\t" + utils.Red("Weaknesses: ") + vp.Evaluation.Weaknesses + "\n"
 	output += "\t\t" + utils.Yellow("Overall Assessment: ") + vp.Evaluation.OverallAssessment + "\n"
-	output += "\t" + utils.Muted("[/EVALUATION]") + "\n\n"
+	output += "\t" + utils.Muted("[/EVALUATION]") + "\n"
 
 	output += "\t" + utils.Muted("[FEEDBACK]") + "\n"
 	for _, point := range vp.Feedback {
 		output += "\t\t" + utils.Blue("Point: ") + point.Point + "\n"
-		output += "\t\t" + utils.Green("Explanation: ") + point.Explanation + "\n\n"
+		output += "\t\t" + utils.Green("Explanation: ") + point.Explanation + "\n"
 	}
-	output += "\t" + utils.Muted("[/FEEDBACK]") + "\n\n"
+	output += "\t" + utils.Muted("[/FEEDBACK]") + "\n"
 
 	output += "\t" + utils.Muted("[IMPROVEMENTS]") + "\n"
 	for _, improvement := range vp.Improvements {
 		output += "\t\t" + utils.Blue("Suggestion: ") + improvement.Suggestion + "\n"
-		output += "\t\t" + utils.Green("Rationale: ") + improvement.Rationale + "\n\n"
+		output += "\t\t" + utils.Green("Rationale: ") + improvement.Rationale + "\n"
 	}
-	output += "\t" + utils.Muted("[/IMPROVEMENTS]") + "\n\n"
+	output += "\t" + utils.Muted("[/IMPROVEMENTS]") + "\n"
 
 	output += "\t" + utils.Muted("[CHALLENGES]") + "\n"
 	for _, challenge := range vp.Challenges {
 		output += "\t\t" + utils.Red("Challenge: ") + challenge.Description + "\n"
-		output += "\t\t" + utils.Yellow("Potential Impact: ") + challenge.PotentialImpact + "\n\n"
+		output += "\t\t" + utils.Yellow("Potential Impact: ") + challenge.PotentialImpact + "\n"
 	}
-	output += "\t" + utils.Muted("[/CHALLENGES]") + "\n\n"
+	output += "\t" + utils.Muted("[/CHALLENGES]") + "\n"
 
 	output += "\t" + utils.Blue("Verification Score: ") + FloatToString(vp.VerificationScore) + "\n"
 	output += "\t" + utils.Red("Done: ") + BoolToString(vp.Done) + "\n"

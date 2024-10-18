@@ -46,7 +46,7 @@ func (worker *Worker) Initialize() *Worker {
 	errnie.Info("initializing %s %s (%s)", worker.buffer.Peek("role"), worker.buffer.Peek("id"), worker.name)
 
 	// Generate a random float from 0.0 to 2.0, rounded to 1 decimal place
-	temperature := utils.ToFixed(rand.Float64()*2.0, 1)
+	temperature := utils.ToFixed(rand.Float64()*1.0, 1)
 
 	// Store as a string inside the buffer.
 	worker.buffer.Poke("temperature", fmt.Sprintf("%.1f", temperature))
