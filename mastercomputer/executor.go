@@ -15,6 +15,10 @@ import (
 	"github.com/theapemachine/amsh/utils"
 )
 
+type Strategy interface {
+	String() string
+}
+
 type Executor struct {
 	parentCtx    context.Context
 	ctx          context.Context
@@ -23,6 +27,7 @@ type Executor struct {
 	toolset      *Toolset
 	task         *data.Artifact
 	conversation *Conversation
+	strategy     Strategy
 }
 
 func NewExecutor(pctx context.Context, task *data.Artifact) *Executor {
@@ -35,11 +40,13 @@ func NewExecutor(pctx context.Context, task *data.Artifact) *Executor {
 		queue:        twoface.NewQueue(),
 		toolset:      NewToolset(),
 		task:         task,
-		conversation: NewConversation(),
+		conversation: NewConversation(task),
 	}
 }
 
 func (executor *Executor) Close() {
+	errnie.Info("[%s] closing execution", executor.task.Peek("origin"))
+
 	if executor.cancel != nil {
 		executor.cancel()
 	}
@@ -50,6 +57,7 @@ func (executor *Executor) Error(err error) *data.Artifact {
 }
 
 func (executor *Executor) Do() *data.Artifact {
+	errnie.Info("[%s] executing task", executor.task.Peek("origin"))
 	defer executor.Close()
 
 	params, err := executor.prepareParams()
@@ -71,9 +79,10 @@ func (executor *Executor) Do() *data.Artifact {
 }
 
 func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error) {
+	errnie.Info("[%s] preparing params", executor.task.Peek("origin"))
 	messages := executor.conversation.Truncate()
 
-	responseFormat, err := executor.getResponseFormat(executor.task.Peek("workload"))
+	responseFormat, err := executor.getResponseFormat(executor.task.Peek("scope"))
 	if err != nil {
 		return openai.ChatCompletionNewParams{}, err
 	}
@@ -99,14 +108,19 @@ func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error
 var semaphore = make(chan struct{}, 3)
 
 func (executor *Executor) executeCompletion(params openai.ChatCompletionNewParams) (response *openai.ChatCompletion, err error) {
+	errnie.Info("[%s] waiting for semaphore", executor.task.Peek("origin"))
+
 	semaphore <- struct{}{}
 	defer func() { <-semaphore }()
 
+	errnie.Info("[%s] starting execution", executor.task.Peek("origin"))
 	completion := NewCompletion(executor.ctx)
 	return completion.Execute(executor.ctx, params)
 }
 
 func (executor *Executor) processResponse(response *openai.ChatCompletion) {
+	errnie.Info("[%s] processing response", executor.task.Peek("origin"))
+
 	if len(response.Choices) == 0 {
 		log.Println("No response from OpenAI")
 		return
@@ -122,7 +136,6 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) {
 
 	content := message.Content
 	if content != "" {
-		errnie.Warn("Empty response content")
 		if err := executor.printResponse(content); err != nil {
 			errnie.Error(err)
 		}
@@ -135,14 +148,12 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) {
 }
 
 func (executor *Executor) printResponse(content string) error {
-	var strategy format.Reasoning
-
-	if err := errnie.Error(json.Unmarshal([]byte(content), &strategy)); err != nil {
+	if err := errnie.Error(json.Unmarshal([]byte(content), &executor.strategy)); err != nil {
 		return err
 	}
 
 	errnie.Info("worker: %s", executor.task.Peek("origin"))
-	fmt.Println(strategy.String())
+	fmt.Println(executor.strategy.String())
 	return nil
 }
 
@@ -178,18 +189,25 @@ func (executor *Executor) getResponseFormat(workload string) (
 
 	switch workload {
 	case "reasoning":
+		executor.strategy = format.Reasoning{}
 		schema = GenerateSchema[format.Reasoning]()
 	case "working":
+		executor.strategy = format.Working{}
 		schema = GenerateSchema[format.Working]()
 	case "reviewing":
+		executor.strategy = format.Reviewing{}
 		schema = GenerateSchema[format.Reviewing]()
 	case "verifying":
+		executor.strategy = format.Verifying{}
 		schema = GenerateSchema[format.Verifying]()
 	case "executing":
+		executor.strategy = format.Executing{}
 		schema = GenerateSchema[format.Executing]()
 	case "communicating":
+		executor.strategy = format.Communicating{}
 		schema = GenerateSchema[format.Communicating]()
 	case "managing":
+		executor.strategy = format.Managing{}
 		schema = GenerateSchema[format.Managing]()
 	}
 

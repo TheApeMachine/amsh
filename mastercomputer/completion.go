@@ -41,8 +41,6 @@ func NewCompletion(ctx context.Context) *Completion {
 func (completion *Completion) Execute(
 	ctx context.Context, params openai.ChatCompletionNewParams,
 ) (response *openai.ChatCompletion, err error) {
-	errnie.Info("executing completion")
-
 	maxRetries := 3
 	baseDelay := 3 * time.Second
 

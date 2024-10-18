@@ -5,6 +5,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/data"
 )
 
 type Conversation struct {
@@ -13,9 +14,12 @@ type Conversation struct {
 	tokenCounts      []int64
 }
 
-func NewConversation() *Conversation {
+func NewConversation(task *data.Artifact) *Conversation {
 	return &Conversation{
-		context:          make([]openai.ChatCompletionMessageParamUnion, 0),
+		context: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(task.Peek("system")),
+			openai.UserMessage(task.Peek("user") + "\n\n" + task.Peek("payload")),
+		},
 		maxContextTokens: viper.GetViper().GetInt("ai.max_context_tokens"),
 		tokenCounts:      make([]int64, 0),
 	}

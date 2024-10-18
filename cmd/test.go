@@ -40,7 +40,7 @@ func runTest(cmd *cobra.Command, args []string) error {
 	}
 
 	// Simulate an external prompt being broadcasted
-	externalPrompt := data.New(utils.NewName(), "message", "managing", []byte{})
+	externalPrompt := data.New(utils.NewName(), "task", "managing", []byte{})
 	externalPrompt.Poke("id", utils.NewID())
 	externalPrompt.Poke("payload", "Solve the riddle: In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight.")
 

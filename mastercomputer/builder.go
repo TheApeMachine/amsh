@@ -91,7 +91,7 @@ func (builder *Builder) GetWorkload(t WorkerType) string {
 	case WorkerTypeCommunicator:
 		return "communicating"
 	case WorkerTypeResearcher:
-		return "researcher"
+		return "researching"
 	default:
 		return "working"
 	}

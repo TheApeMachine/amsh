@@ -109,10 +109,12 @@ func (worker *Worker) Start() {
 				switch msg.Peek("role") {
 				case "task":
 					if worker.IsAllowed(WorkerStateAccepted) {
-						msg.Poke("worker", worker.name)
+						msg.Poke("system", worker.buffer.Peek("system"))
+						msg.Poke("user", worker.buffer.Peek("user"))
+						msg.Poke("origin", worker.name)
 						msg.Poke("temperature", worker.buffer.Peek("temperature"))
 
-						NewExecutor(worker.ctx, msg)
+						worker.queue.PubCh <- NewExecutor(worker.ctx, msg).Do()
 					}
 				case "unregister":
 					worker.state = WorkerStateZombie
