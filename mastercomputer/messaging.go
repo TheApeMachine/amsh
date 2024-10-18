@@ -23,22 +23,6 @@ func NewMessaging(worker *Worker) *Messaging {
 	return &Messaging{worker: worker}
 }
 
-func (messaging *Messaging) ID() string {
-	return messaging.worker.ID()
-}
-
-func (messaging *Messaging) Name() string {
-	return "Messaging"
-}
-
-func (messaging *Messaging) Ctx() context.Context {
-	return messaging.worker.Ctx()
-}
-
-func (messaging *Messaging) Manager() *twoface.WorkerManager {
-	return messaging.worker.Manager()
-}
-
 func (messaging *Messaging) Reply(message *data.Artifact) {
 	filters := messaging.worker.buffer.Peek("filters")
 

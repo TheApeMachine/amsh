@@ -6,91 +6,113 @@ import (
 	"sync"
 )
 
+var poolInstance *Pool
+var oncePool sync.Once
+
+/*
+Employer is an interface that can be implemented by objects that want
+to be able to be scheduled onto a worker pool.
+*/
+type Employer interface {
+	io.ReadWriter
+	PoolSize() int
+}
+
+/*
+Pool is a set of Worker types, each running their own (pre-warmed) goroutine.
+Any object that implements the Job interface is able to schedule work on the
+worker pool, which keeps the amount of goroutines in check, while still being
+able to benefit from high concurrency in all kinds of scenarios.
+*/
 type Pool struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	JobQueue   chan Job
-	WorkerPool chan chan Job
-	workers    []*Worker
-	mu         sync.Mutex
-	pr         *io.PipeReader
-	pw         *io.PipeWriter
+	ctx     context.Context
+	cancel  context.CancelFunc
+	workers chan chan Job
+	jobs    chan Job
+	handles []*Worker
 }
 
-func NewPool(ctx context.Context, initialWorkers int) *Pool {
-	ctx, cancel := context.WithCancel(ctx)
-	pr, pw := io.Pipe()
+/*
+NewPool instantiates a worker pool with bound size of maxWorkers, taking in a
+Context type to be able to cleanly cancel all of the sub processes it starts.
+*/
+func NewPool() *Pool {
+	oncePool.Do(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		poolInstance = &Pool{
+			ctx:     ctx,
+			cancel:  cancel,
+			workers: make(chan chan Job),
+			jobs:    make(chan Job),
+			handles: make([]*Worker, 0),
+		}
+		poolInstance.Run()
+	})
 
-	pool := &Pool{
-		ctx:        ctx,
-		cancel:     cancel,
-		JobQueue:   make(chan Job),
-		WorkerPool: make(chan chan Job),
-		workers:    make([]*Worker, 0),
-		pr:         pr,
-		pw:         pw,
-	}
-
-	for i := 0; i < initialWorkers; i++ {
-		pool.addWorker()
-	}
-
-	go pool.dispatch()
-
-	return pool
+	return poolInstance
 }
 
-func (p *Pool) addWorker() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	worker := NewWorker(len(p.workers), p.WorkerPool)
-	p.workers = append(p.workers, worker)
-}
-
-func (p *Pool) removeWorker() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if len(p.workers) == 0 {
-		return
-	}
-
-	worker := p.workers[len(p.workers)-1]
-	worker.Close()
-	p.workers = p.workers[:len(p.workers)-1]
-}
-
-func (p *Pool) dispatch() {
+/*
+Wait until the pool is fully drained, meaning all workers are done and cancelled.
+*/
+func (pool *Pool) Wait() {
 	for {
-		select {
-		case job := <-p.JobQueue:
-			go func(job Job) {
-				// Obtain an available worker's job channel.
-				jobChannel := <-p.WorkerPool
-				// Send the job to the worker.
-				jobChannel <- job
-			}(job)
-		case <-p.ctx.Done():
+		if len(pool.handles) == 0 {
+			// All workers done, exit.
 			return
 		}
 	}
 }
 
-func (p *Pool) Submit(job Job) {
-	select {
-	case p.JobQueue <- job:
-	case <-p.ctx.Done():
-		// Pool is shutting down.
-	}
+/*
+Size returns the current size of the pool by counting the currently active workers.
+*/
+func (pool *Pool) Size() int {
+	return len(pool.handles)
 }
 
-func (p *Pool) Shutdown() {
-	p.cancel()
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for _, worker := range p.workers {
-		worker.Close()
+/*
+Do is the entry point for new jobs that want to be scheduled onto the worker pool.
+*/
+func (pool *Pool) Do(jobType Job) {
+	// The jobs channel is buffered to prevent the program from blocking if all
+	// workers are currently busy.
+	pool.jobs <- NewJob(jobType)
+}
+
+/*
+Run the workers, after creating and assigning them to the pool.
+*/
+func (pool *Pool) Run() *Pool {
+	// Start the auto-scaler to control the pool size dynamically.
+	NewScaler(pool).Run()
+
+	// Start the job scheduling process.
+	go pool.dispatch()
+	return pool
+}
+
+func (pool *Pool) dispatch() {
+	// Make sure that we cleanly close the channels if our dispatcher
+	// returns for whatever reason.
+	defer close(pool.jobs)
+	defer close(pool.workers)
+
+	for {
+		select {
+		case job := <-pool.jobs:
+			// A new job was received from the jobs queue, get the first available
+			// worker from the pool once ready.
+			jobChannel := <-pool.workers
+			// Then send the job to the worker for processing.
+			jobChannel <- job
+		case <-pool.ctx.Done():
+			// Time to die.
+			for _, worker := range pool.handles {
+				worker.Drain()
+			}
+
+			return
+		}
 	}
-	p.workers = nil
 }

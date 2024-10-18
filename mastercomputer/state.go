@@ -26,7 +26,7 @@ var transitions = map[WorkerState][]WorkerState{
 	WorkerStateAcknowledged: {WorkerStateAccepted},
 	WorkerStateAccepted:     {WorkerStateBusy, WorkerStateWaiting},
 	WorkerStateBusy:         {WorkerStateWaiting, WorkerStateDone},
-	WorkerStateWaiting:      {WorkerStateBusy, WorkerStateDone},
+	WorkerStateWaiting:      {WorkerStateBusy, WorkerStateReady},
 	WorkerStateDone:         {WorkerStateFinished},
 	WorkerStateError:        {WorkerStateFinished},
 	WorkerStateFinished:     {},

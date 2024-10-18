@@ -1,6 +1,7 @@
 package twoface
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -8,34 +9,85 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
-// Queue connects subscribers via channels.
+/*
+Queue is a simple pub/sub implementation that allows for topics to be created
+on the fly and for subscribers to be added and removed dynamically.
+*/
 type Queue struct {
+	ctx         context.Context
+	cancel      context.CancelFunc
 	mu          sync.RWMutex
 	subscribers map[string]*Subscriber
+	PubCh       chan *data.Artifact
 }
 
-// Subscriber describes an agent connected to the queue.
+/*
+Subscriber describes an agent connected to the queue.
+*/
 type Subscriber struct {
 	ID     string
 	inbox  chan *data.Artifact
 	topics map[string]struct{}
 }
 
-// queueInstance ensures that the queue is a singleton.
 var queueInstance *Queue
 var once sync.Once
 
-// NewQueue returns the singleton instance of the queue.
+/*
+NewQueue returns the singleton instance of the queue.
+*/
 func NewQueue() *Queue {
 	once.Do(func() {
+		ctx, cancel := context.WithCancel(context.Background())
 		queueInstance = &Queue{
+			ctx:         ctx,
+			cancel:      cancel,
 			subscribers: make(map[string]*Subscriber),
+			PubCh:       make(chan *data.Artifact, 128),
 		}
+		queueInstance.Start()
 	})
+
 	return queueInstance
 }
 
-// Register adds a new subscriber to the queue.
+/*
+Start the queue to begin processing messages.
+*/
+func (q *Queue) Start() {
+	go func() {
+		for {
+			select {
+			case <-q.ctx.Done():
+				return
+			case message := <-q.PubCh:
+				switch message.Peek("role") {
+				case "register":
+					q.Register(message.Peek("name"))
+				case "unregister":
+					q.Unregister(message.Peek("name"))
+				case "subscribe":
+					q.Subscribe(message.Peek("name"), message.Peek("scope"))
+				case "unsubscribe":
+					q.Unsubscribe(message.Peek("name"), message.Peek("scope"))
+				default:
+					q.Publish(message)
+				}
+			}
+		}
+	}()
+}
+
+/*
+Stop the queue from processing messages.
+*/
+func (q *Queue) Stop() {
+	q.cancel()
+}
+
+/*
+Register adds a new subscriber to the queue.
+*/
 func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -69,6 +121,24 @@ func (q *Queue) Subscribe(ID string, topic string) error {
 	}
 
 	subscriber.topics[topic] = struct{}{}
+	return nil
+}
+
+/*
+Unsubscribe from a topic.
+*/
+func (q *Queue) Unsubscribe(ID string, topic string) error {
+	errnie.Info("unsubscribing %s from %s", ID, topic)
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	subscriber, exists := q.subscribers[ID]
+	if !exists {
+		return errnie.Error(errors.New("subscriber does not exist"))
+	}
+
+	delete(subscriber.topics, topic)
 	return nil
 }
 

@@ -4,28 +4,21 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/pkoukk/tiktoken-go"
-	"github.com/theapemachine/amsh/data"
+	"github.com/spf13/viper"
 )
 
 type Conversation struct {
-	message          *data.Artifact
 	context          []openai.ChatCompletionMessageParamUnion
 	maxContextTokens int
 	tokenCounts      []int64
 }
 
-func NewConversation(message *data.Artifact, maxContextTokens int) *Conversation {
-	return &Conversation{message: message, maxContextTokens: maxContextTokens}
-}
-
-func (conversation *Conversation) Initialize() *Conversation {
-	conversation.context = []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(conversation.message.Peek("system")),
-		openai.UserMessage(conversation.message.Peek("user")),
-		openai.AssistantMessage(conversation.message.Peek("payload")),
+func NewConversation() *Conversation {
+	return &Conversation{
+		context:          make([]openai.ChatCompletionMessageParamUnion, 0),
+		maxContextTokens: viper.GetViper().GetInt("ai.max_context_tokens"),
+		tokenCounts:      make([]int64, 0),
 	}
-
-	return conversation
 }
 
 func (conversation *Conversation) Update(message openai.ChatCompletionMessageParamUnion) {

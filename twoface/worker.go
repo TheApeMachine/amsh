@@ -1,75 +1,77 @@
 package twoface
 
 import (
-	"io"
+	"time"
 
 	"github.com/theapemachine/amsh/errnie"
 )
 
-/*
-Worker is a concurrent context for executing jobs.
-It implements the io.ReadCloser interface, to maintain a high level of compatibility with
-other components, which mostly all implement the io.ReadWriteCloser interface.
-*/
 type Worker struct {
-	ID         int
-	JobChannel chan Job
-	WorkerPool chan chan Job
-	quit       chan struct{}
-	pr         *io.PipeReader
-	pw         *io.PipeWriter
+	ID           int
+	WorkerPool   chan chan Job
+	JobChannel   chan Job
+	queue        *Queue
+	lastUse      time.Time
+	lastDuration int64
+	drain        bool
 }
 
-/*
-NewWorker instantiates a goroutine that will execute jobs.
-*/
-func NewWorker(id int, workerPool chan chan Job) *Worker {
-	pr, pw := io.Pipe()
-
+func NewWorker(
+	ID int,
+	workerPool chan chan Job,
+) *Worker {
 	return &Worker{
-		ID:         id,
-		JobChannel: make(chan Job),
+		ID:         ID,
 		WorkerPool: workerPool,
-		quit:       make(chan struct{}),
-		pr:         pr,
-		pw:         pw,
+		JobChannel: make(chan Job),
+		queue:      NewQueue(),
+		lastUse:    time.Now(),
+		drain:      false,
 	}
 }
 
 /*
-Read implements the io.Reader interface, and is used to execute jobs.
-Think of it as 'lazy' execution, where the write action loads the job onto the worker,
-and the read action is called by the pool to get the results of the job.
-This means that if the job is cancelled before read is called, we have not wasted any resources.
+Start the worker to be ready to accept jobs from the job queue.
 */
-func (w *Worker) Read(p []byte) (n int, err error) {
+func (worker *Worker) Start() *Worker {
 	go func() {
-		for {
-			// Register the worker's job channel into the worker pool to signal that we
-			// are ready to accept a new job.
-			w.WorkerPool <- w.JobChannel
+		defer close(worker.JobChannel)
 
-			select {
-			case job := <-w.JobChannel:
-				// We have received a job, which we will execute by reading from it, given that
-				// jobs are also only executed by reading from them.
-				_, err = io.Copy(w.pw, job)
-				errnie.Error(err)
-			case <-w.quit:
-				// We have been asked to stop, so we close the pipe to signal EOF to the reader.
-				w.pw.CloseWithError(io.EOF)
+		for {
+			// Return the job channel to the worker pool.
+			worker.WorkerPool <- worker.JobChannel
+
+			// Pick up a new job if available.
+			job := <-worker.JobChannel
+
+			// Keep track of the time before the work starts, with a
+			// secondary benefit of helping to determine if the worker
+			// is idle for a significant amount of time later on.
+			worker.lastUse = time.Now()
+
+			// Do the work by calling the interface method on the current
+			// instance.
+			worker.queue.PubCh <- job.Do()
+
+			// Store the duration of the job load so it can later be used to
+			// determine if the worker pool is overloaded.
+			worker.lastDuration = time.Since(worker.lastUse).Nanoseconds()
+
+			// This worker is about to get retired in a pool schrink.
+			if worker.drain {
 				return
 			}
 		}
 	}()
 
-	return w.pr.Read(p)
+	return worker
 }
 
 /*
-Close the worker, which will signal EOF to any readers.
+Drain the worker, which means it will finish its current job first
+before it will stop.
 */
-func (w *Worker) Close() error {
-	close(w.quit)
-	return nil
+func (worker *Worker) Drain() {
+	errnie.Trace("draining worker %d", worker.ID)
+	worker.drain = true
 }

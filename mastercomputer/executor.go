@@ -20,23 +20,20 @@ type Executor struct {
 	parentCtx    context.Context
 	ctx          context.Context
 	cancel       context.CancelFunc
-	buffer       *data.Artifact
-	worker       *Worker
+	task         *data.Artifact
 	conversation *Conversation
 }
 
-func NewExecutor(ctx context.Context, worker *Worker) *Executor {
-	return &Executor{
-		parentCtx:    ctx,
-		buffer:       data.New(worker.name, "execution", "verification", []byte{}),
-		worker:       worker,
-		conversation: NewConversation(worker.buffer, maxContextTokens),
-	}
-}
+func NewExecutor(pctx context.Context, task *data.Artifact) *Executor {
+	ctx, cancel := context.WithCancel(context.Background())
 
-func (executor *Executor) Initialize() error {
-	executor.ctx, executor.cancel = context.WithCancel(context.Background())
-	return nil
+	return &Executor{
+		parentCtx:    pctx,
+		ctx:          ctx,
+		cancel:       cancel,
+		task:         task,
+		conversation: NewConversation(),
+	}
 }
 
 func (executor *Executor) Close() {
@@ -45,9 +42,8 @@ func (executor *Executor) Close() {
 	}
 }
 
-func (executor *Executor) Execute(message *data.Artifact) {
+func (executor *Executor) Do() *data.Artifact {
 	defer executor.Close()
-	executor.conversation.Initialize()
 
 	params, err := executor.prepareParams()
 	if err != nil {

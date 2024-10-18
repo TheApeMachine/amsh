@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand/v2"
 
-	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
@@ -21,19 +20,21 @@ type Worker struct {
 	buffer    *data.Artifact
 	memory    *ai.Memory
 	state     WorkerState
+	pool      *twoface.Pool
 	queue     *twoface.Queue
 	inbox     chan *data.Artifact
 	name      string
-	manager   *twoface.WorkerManager
+	manager   *Manager
 	err       error
 }
 
 // NewWorker provides a minimal, uninitialized Worker object.
-func NewWorker(ctx context.Context, buffer *data.Artifact, manager *twoface.WorkerManager) *Worker {
+func NewWorker(ctx context.Context, buffer *data.Artifact, manager *Manager) *Worker {
 	return &Worker{
 		parentCtx: ctx,
 		buffer:    buffer,
 		state:     WorkerStateCreating,
+		pool:      twoface.NewPool(),
 		queue:     twoface.NewQueue(),
 		name:      buffer.Peek("origin"),
 		manager:   manager,
@@ -42,7 +43,7 @@ func NewWorker(ctx context.Context, buffer *data.Artifact, manager *twoface.Work
 
 // Initialize sets up the worker's context, queue registration, and starts the executor.
 func (worker *Worker) Initialize() *Worker {
-	errnie.Info("initializing %s %s (%s)", worker.buffer.Peek("role"), worker.ID(), worker.name)
+	errnie.Info("initializing %s %s (%s)", worker.buffer.Peek("role"), worker.buffer.Peek("id"), worker.name)
 
 	// Generate a random float from 0.0 to 2.0, rounded to 1 decimal place
 	temperature := utils.ToFixed(rand.Float64()*2.0, 1)
@@ -53,15 +54,15 @@ func (worker *Worker) Initialize() *Worker {
 	worker.state = WorkerStateInitializing
 	worker.ctx, worker.cancel = context.WithCancel(worker.parentCtx)
 
-	worker.memory = ai.NewMemory(worker.ID())
-	worker.inbox, worker.err = worker.queue.Register(worker.ID())
+	worker.memory = ai.NewMemory(worker.buffer.Peek("id"))
+	worker.inbox, worker.err = worker.queue.Register(worker.name)
 
 	if errnie.Error(worker.err) != nil {
 		worker.state = WorkerStateZombie
 		return nil
 	}
 
-	worker.queue.Subscribe(worker.ID(), worker.buffer.Peek("workload"))
+	worker.queue.Subscribe(worker.name, worker.buffer.Peek("workload"))
 
 	worker.manager.AddWorker(worker)
 	worker.state = WorkerStateReady
@@ -78,26 +79,10 @@ func (worker *Worker) Close() error {
 	}
 
 	if worker.queue != nil {
-		return worker.queue.Unregister(worker.ID())
+		return worker.queue.Unregister(worker.name)
 	}
 
 	return nil
-}
-
-func (worker *Worker) Ctx() context.Context {
-	return worker.ctx
-}
-
-func (worker *Worker) Manager() *twoface.WorkerManager {
-	return worker.manager
-}
-
-func (worker *Worker) ID() string {
-	return worker.buffer.Peek("id")
-}
-
-func (worker *Worker) Name() string {
-	return worker.name
 }
 
 // Start the worker and listen for messages from the queue.
@@ -112,28 +97,25 @@ func (worker *Worker) Start() {
 			case msg, ok := <-worker.inbox:
 				if !ok {
 					worker.state = WorkerStateNotOK
-					worker.queue.Publish(data.New(
-						worker.ID(), "state", "notok", []byte(worker.buffer.Peek("payload")),
-					))
+					worker.queue.PubCh <- data.New(
+						worker.name, "state", "notok", []byte(worker.buffer.Peek("payload")),
+					)
 
-					errnie.Warn("worker %s inbox channel closed", worker.ID())
 					continue
 				}
 
-				errnie.Info("%s <-[%s]- %s", worker.name, msg.Peek("role"), msg.Peek("scope"))
-				errnie.Note("[PAYLOAD]\n%s\n[/PAYLOAD]", msg.Peek("payload"))
+				errnie.Note("%s <-[%s]- %s\n%s", worker.name, msg.Peek("role"), msg.Peek("scope"), msg.Peek("payload"))
 
-				NewMessaging(worker).Reply(msg)
+				switch msg.Peek("role") {
+				case "task":
+					if worker.IsAllowed(WorkerStateAccepted) {
+						msg.Poke("worker", worker.name)
+						msg.Poke("temperature", worker.buffer.Peek("temperature"))
 
-				errnie.Info("worker %s state: %s", worker.name, worker.state)
-
-				if worker.state == WorkerStateAccepted {
-					worker.state = WorkerStateBusy
-					exec := NewExecutor(worker.ctx, worker)
-					exec.Initialize()
-					exec.Execute(msg)
-					exec.Verify()
-					worker.state = WorkerStateDone
+						NewExecutor(worker.ctx, msg)
+					}
+				case "unregister":
+					worker.state = WorkerStateZombie
 				}
 			}
 		}
@@ -142,52 +124,4 @@ func (worker *Worker) Start() {
 
 func (worker *Worker) Stop() {
 	worker.cancel()
-}
-
-func (worker *Worker) Call(args map[string]any, owner twoface.Process) (string, error) {
-	builder := NewBuilder(owner.Ctx(), owner.Manager())
-	reasoner := builder.NewWorker(builder.getRole(args["toolset"].(string)))
-	reasoner.buffer.Poke("system", args["system"].(string))
-	reasoner.buffer.Poke("user", args["user"].(string))
-	reasoner.buffer.Poke("workload", args["toolset"].(string))
-	reasoner.buffer.Poke("parent", owner.ID())
-	reasoner.Start()
-	return utils.ReplaceWith(`
-	[WORKER {name}]
-	  STATE   : {state}
-	  WORKLOAD: {workload}
-	  PARENT  : {parent}
-	[/WORKER]
-	`, [][]string{
-		{"name", worker.name},
-		{"state", worker.state.String()},
-		{"workload", args["toolset"].(string)},
-		{"parent", owner.ID()},
-	}), nil
-}
-
-func (worker *Worker) Schema() openai.ChatCompletionToolParam {
-	return ai.MakeTool(
-		"worker",
-		"Create any type of worker by providing prompts and tools.",
-		openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"system": map[string]string{
-					"type":        "string",
-					"description": "The system prompt",
-				},
-				"user": map[string]string{
-					"type":        "string",
-					"description": "The user prompt",
-				},
-				"toolset": map[string]interface{}{
-					"type":        "string",
-					"enum":        []string{"reasoning", "messaging", "boards", "trengo"},
-					"description": "The toolset the worker should use",
-				},
-			},
-			"required": []string{"system", "user", "toolset"},
-		},
-	)
 }
