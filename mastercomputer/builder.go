@@ -5,26 +5,27 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
 )
 
 type WorkerType string
 
 const (
-	WorkerTypeManager  WorkerType = "manager"
-	WorkerTypeReasoner WorkerType = "reasoner"
-	WorkerTypeExecutor WorkerType = "executor"
-	WorkerTypeWorker   WorkerType = "worker"
-	WorkerTypeVerifier WorkerType = "verifier"
+	WorkerTypeManager      WorkerType = "manager"
+	WorkerTypeReasoner     WorkerType = "reasoner"
+	WorkerTypeExecutor     WorkerType = "executor"
+	WorkerTypeVerifier     WorkerType = "verifier"
+	WorkerTypeCommunicator WorkerType = "communicator"
+	WorkerTypeResearcher   WorkerType = "researcher"
+	WorkerTypeWorker       WorkerType = "worker"
 )
 
 type Builder struct {
 	ctx     context.Context
-	manager *twoface.WorkerManager
+	manager *Manager
 }
 
-func NewBuilder(ctx context.Context, manager *twoface.WorkerManager) *Builder {
+func NewBuilder(ctx context.Context, manager *Manager) *Builder {
 	return &Builder{ctx: ctx, manager: manager}
 }
 
@@ -47,7 +48,7 @@ func (builder *Builder) NewWorker(t WorkerType) *Worker {
 	artifact := data.New(name, string(t), "system", nil)
 	artifact.Poke("id", ID)
 	artifact.Poke("system", system)
-	artifact.Poke("workload", builder.getWorkload(t))
+	artifact.Poke("workload", builder.GetWorkload(t))
 
 	for key, value := range v.GetStringMapString("ai.config." + string(t)) {
 		artifact.Poke(key, value)
@@ -58,7 +59,7 @@ func (builder *Builder) NewWorker(t WorkerType) *Worker {
 	).Initialize()
 }
 
-func (builder *Builder) getRole(workload string) WorkerType {
+func (builder *Builder) GetRole(workload string) WorkerType {
 	switch workload {
 	case "reasoning":
 		return WorkerTypeReasoner
@@ -68,12 +69,16 @@ func (builder *Builder) getRole(workload string) WorkerType {
 		return WorkerTypeManager
 	case "verifying":
 		return WorkerTypeVerifier
+	case "communicating":
+		return WorkerTypeCommunicator
+	case "researcher":
+		return WorkerTypeResearcher
 	default:
 		return WorkerTypeWorker
 	}
 }
 
-func (builder *Builder) getWorkload(t WorkerType) string {
+func (builder *Builder) GetWorkload(t WorkerType) string {
 	switch t {
 	case WorkerTypeManager:
 		return "managing"
@@ -83,6 +88,10 @@ func (builder *Builder) getWorkload(t WorkerType) string {
 		return "executing"
 	case WorkerTypeVerifier:
 		return "verifying"
+	case WorkerTypeCommunicator:
+		return "communicating"
+	case WorkerTypeResearcher:
+		return "researcher"
 	default:
 		return "working"
 	}

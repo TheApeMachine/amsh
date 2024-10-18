@@ -24,17 +24,23 @@ func runTest(cmd *cobra.Command, args []string) error {
 	queue := twoface.NewQueue()
 
 	// Initialize the worker manager
-	manager := twoface.NewWorkerManager()
+	manager := mastercomputer.NewManager()
 	builder := mastercomputer.NewBuilder(ctx, manager)
 
-	reasoner := builder.NewWorker("reasoner")
-	reasoner.Start()
-
-	verifier := builder.NewWorker("verifier")
-	verifier.Start()
+	for _, agent := range []mastercomputer.WorkerType{
+		mastercomputer.WorkerTypeManager,
+		mastercomputer.WorkerTypeReasoner,
+		mastercomputer.WorkerTypeVerifier,
+		mastercomputer.WorkerTypeCommunicator,
+		mastercomputer.WorkerTypeResearcher,
+		mastercomputer.WorkerTypeExecutor,
+	} {
+		worker := builder.NewWorker(agent)
+		worker.Start()
+	}
 
 	// Simulate an external prompt being broadcasted
-	externalPrompt := data.New(utils.NewName(), "message", "reasoning", []byte{})
+	externalPrompt := data.New(utils.NewName(), "message", "managing", []byte{})
 	externalPrompt.Poke("id", utils.NewID())
 	externalPrompt.Poke("payload", "Solve the riddle: In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight.")
 

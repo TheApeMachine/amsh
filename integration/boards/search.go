@@ -9,10 +9,7 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/search"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/searchshared"
-	"github.com/openai/openai-go"
-	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/twoface"
 )
 
 type SearchWiki struct {
@@ -61,41 +58,4 @@ func (searchWiki *SearchWiki) Search(ctx context.Context, query string) (err err
 	}
 
 	return
-}
-
-func (searchWiki *SearchWiki) Ctx() context.Context {
-	return context.Background()
-}
-
-func (searchWiki *SearchWiki) ID() string {
-	return "search_wiki"
-}
-
-func (searchWiki *SearchWiki) Name() string {
-	return "Search Wiki"
-}
-
-func (searchWiki *SearchWiki) Manager() *twoface.WorkerManager {
-	return twoface.NewWorkerManager()
-}
-
-func (searchWiki *SearchWiki) Call(args map[string]any, owner twoface.Process) (string, error) {
-	return "", nil
-}
-
-func (searchWiki *SearchWiki) Schema() openai.ChatCompletionToolParam {
-	return ai.MakeTool(
-		"search_wiki",
-		"Search the wiki for a given query",
-		openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"query": map[string]string{
-					"type":        "string",
-					"description": "The query to search for",
-				},
-			},
-			"required": []string{"query"},
-		},
-	)
 }

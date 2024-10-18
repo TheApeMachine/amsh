@@ -13,11 +13,8 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/search"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/workitemtracking"
-	"github.com/openai/openai-go"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/twoface"
 )
 
 type GetWorkItemSrv struct {
@@ -53,43 +50,6 @@ func (srv *GetWorkItemSrv) GetWorkitem(ctx context.Context, id int) (out string,
 	template = strings.ReplaceAll(template, "{comments}", fields["System.History"].(string))
 
 	return template, nil
-}
-
-func (srv *GetWorkItemSrv) Ctx() context.Context {
-	return context.Background()
-}
-
-func (srv *GetWorkItemSrv) ID() string {
-	return "get_workitem"
-}
-
-func (srv *GetWorkItemSrv) Name() string {
-	return "Get Workitem"
-}
-
-func (srv *GetWorkItemSrv) Manager() *twoface.WorkerManager {
-	return twoface.NewWorkerManager()
-}
-
-func (srv *GetWorkItemSrv) Call(args map[string]any, owner twoface.Process) (string, error) {
-	return "", nil
-}
-
-func (srv *GetWorkItemSrv) Schema() openai.ChatCompletionToolParam {
-	return ai.MakeTool(
-		"get_workitem",
-		"Get a work item from the board",
-		openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"id": map[string]string{
-					"type":        "integer",
-					"description": "The ID of the work item to get",
-				},
-			},
-			"required": []string{"id"},
-		},
-	)
 }
 
 type CreateWorkitemSrv struct {
@@ -141,47 +101,6 @@ func (srv *CreateWorkitemSrv) CreateWorkitem(
 	template = strings.ReplaceAll(template, "{response}", "Work item created")
 
 	return template, nil
-}
-
-func (srv *CreateWorkitemSrv) Ctx() context.Context {
-	return context.Background()
-}
-
-func (srv *CreateWorkitemSrv) ID() string {
-	return "create_workitem"
-}
-
-func (srv *CreateWorkitemSrv) Name() string {
-	return "Create Workitem"
-}
-
-func (srv *CreateWorkitemSrv) Manager() *twoface.WorkerManager {
-	return twoface.NewWorkerManager()
-}
-
-func (srv *CreateWorkitemSrv) Call(args map[string]any, owner twoface.Process) (string, error) {
-	return "", nil
-}
-
-func (srv *CreateWorkitemSrv) Schema() openai.ChatCompletionToolParam {
-	return ai.MakeTool(
-		"create_workitem",
-		"Create a work item on the board",
-		openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"title": map[string]string{
-					"type":        "string",
-					"description": "The title of the work item to create",
-				},
-				"description": map[string]string{
-					"type":        "string",
-					"description": "The description of the work item to create",
-				},
-			},
-			"required": []string{"title", "description"},
-		},
-	)
 }
 
 type SearchWorkitemsSrv struct {
@@ -246,41 +165,4 @@ func (srv *SearchWorkitemsSrv) SearchWorkitems(ctx context.Context, query string
 	}
 
 	return builder.String(), nil
-}
-
-func (srv *SearchWorkitemsSrv) Ctx() context.Context {
-	return context.Background()
-}
-
-func (srv *SearchWorkitemsSrv) ID() string {
-	return "search_workitems"
-}
-
-func (srv *SearchWorkitemsSrv) Name() string {
-	return "Search Workitems"
-}
-
-func (srv *SearchWorkitemsSrv) Manager() *twoface.WorkerManager {
-	return twoface.NewWorkerManager()
-}
-
-func (srv *SearchWorkitemsSrv) Call(args map[string]any, owner twoface.Process) (string, error) {
-	return "", nil
-}
-
-func (srv *SearchWorkitemsSrv) Schema() openai.ChatCompletionToolParam {
-	return ai.MakeTool(
-		"search_workitems",
-		"Search for work items on the board",
-		openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"query": map[string]string{
-					"type":        "string",
-					"description": "The query to search for",
-				},
-			},
-			"required": []string{"query"},
-		},
-	)
 }

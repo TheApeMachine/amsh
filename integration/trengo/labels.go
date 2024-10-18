@@ -9,10 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/client"
-	"github.com/openai/openai-go"
-	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/twoface"
 )
 
 type Label struct {
@@ -159,75 +156,4 @@ func (l *AssignLabels) Attach(ctx context.Context, labelID int, ticketID int) (e
 	}
 
 	return
-}
-
-func (l *ListLabels) Ctx() context.Context {
-	return context.Background()
-}
-
-func (l *ListLabels) ID() string {
-	return "list_labels"
-}
-
-func (l *ListLabels) Name() string {
-	return "List Labels"
-}
-
-func (l *ListLabels) Manager() *twoface.WorkerManager {
-	return twoface.NewWorkerManager()
-}
-
-func (l *ListLabels) Call(args map[string]any, owner twoface.Process) (string, error) {
-	return "", nil
-}
-
-func (l *ListLabels) Schema() openai.ChatCompletionToolParam {
-	return ai.MakeTool(
-		"list_labels",
-		"List all the labels in a way that the language model can understand.",
-		openai.FunctionParameters{
-			"type":       "object",
-			"properties": map[string]interface{}{},
-			"required":   []string{},
-		},
-	)
-}
-
-func (l *AssignLabels) Ctx() context.Context {
-	return context.Background()
-}
-
-func (l *AssignLabels) ID() string {
-	return "assign_label"
-}
-
-func (l *AssignLabels) Name() string {
-	return "Assign Label"
-}
-
-func (l *AssignLabels) Manager() *twoface.WorkerManager {
-	return twoface.NewWorkerManager()
-}
-
-func (l *AssignLabels) Call(args map[string]any, owner twoface.Process) (string, error) {
-	return "", nil
-}
-
-func (l *AssignLabels) Schema() openai.ChatCompletionToolParam {
-	return ai.MakeTool(
-		"assign_label",
-		"Assign a label to a ticket.",
-		openai.FunctionParameters{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"label_id": map[string]interface{}{
-					"type": "integer",
-				},
-				"ticket_id": map[string]interface{}{
-					"type": "integer",
-				},
-			},
-			"required": []string{"label_id", "ticket_id"},
-		},
-	)
 }

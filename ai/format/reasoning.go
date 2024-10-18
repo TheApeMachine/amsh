@@ -7,7 +7,7 @@ import (
 type Reasoning struct {
 	Strategies  []Strategy `json:"strategies" jsonschema:"description=A dynamically constructed strategy to solve the problem"`
 	FinalAnswer string     `json:"final_answer" jsonschema:"description=The final answer to the question"`
-	Done        bool       `json:"done" jsonschema:"description=You will have infinite iterations to reason, until you set this to true;required=true"`
+	Done        bool       `json:"done" jsonschema:"description=You will have infinite iterations to reason, until you set this to true"`
 	NextSteps   []Step     `json:"next_steps" jsonschema:"description=The next steps to be taken"`
 }
 
@@ -37,6 +37,7 @@ func (r Reasoning) String() string {
 	}
 
 	output += "\t" + utils.Blue("Final Answer: ") + r.FinalAnswer + "\n"
+	output += "\t" + utils.Red("Done: ") + BoolToString(r.Done) + "\n"
 	output += utils.Dark("[/REASONING]") + "\n"
 	return output
 }

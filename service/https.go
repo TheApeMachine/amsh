@@ -27,7 +27,7 @@ NewHTTPS creates a new HTTPS service, configures the mapping to internal service
 from the config file, and sets up fiber (v3) to serve TLS requests.
 */
 func NewHTTPS() *HTTPS {
-	manager := twoface.NewWorkerManager()
+	manager := mastercomputer.NewManager()
 	builder := mastercomputer.NewBuilder(context.Background(), manager)
 
 	reasoner := builder.NewWorker("reasoner")

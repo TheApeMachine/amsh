@@ -86,6 +86,21 @@ func (q *Queue) Stop() {
 }
 
 /*
+GetTopics returns a list of all topics.
+*/
+func (q *Queue) GetTopics() []string {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	topics := make([]string, 0, len(q.subscribers))
+	for topic := range q.subscribers {
+		topics = append(topics, topic)
+	}
+
+	return topics
+}
+
+/*
 Register adds a new subscriber to the queue.
 */
 func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
