@@ -70,7 +70,7 @@ func (srv *Events) Run(ctx context.Context) error {
 		}
 	})
 
-	fmt.Println("[INFO] Server listening on :8568")
+	errnie.Info("Slack Event Server listening on :8568")
 	return http.ListenAndServe(":8568", nil)
 }
 

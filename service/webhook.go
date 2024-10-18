@@ -33,7 +33,7 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 		template = strings.ReplaceAll(template, "{contact_email}", message.ContactEmail)
 		template = strings.ReplaceAll(template, "{message}", message.Message)
 
-		https.queue.Publish(data.New("trengo", "webhook", "broadcast", []byte(template)))
+		https.queue.Publish(data.New("trengo", "webhook", "managing", []byte(template)))
 
 		return ctx.SendStatus(fiber.StatusOK)
 	}
