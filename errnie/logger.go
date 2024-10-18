@@ -243,7 +243,7 @@ func getStackTrace() string {
 		trace.WriteString(line)
 	}
 
-	return "\n===[STACK TRACE]===\n" + trace.String() + "\n===[/STACK TRACE]===\n"
+	return "\n===[STACK TRACE]===\n" + trace.String() + "===[/STACK TRACE]===\n"
 }
 
 func getCodeSnippet(file string, line, radius int) string {

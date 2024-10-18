@@ -11,6 +11,7 @@ import (
 	"github.com/theapemachine/amsh/ai/format"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 var maxContextTokens = 128000
@@ -64,7 +65,9 @@ func (executor *Executor) Execute(message *data.Artifact) {
 }
 
 func (executor *Executor) Verify() {
-	executor.worker.queue.Publish(executor.buffer)
+	errnie.Info("verifying")
+	verification := data.New(executor.worker.name, executor.worker.buffer.Peek("workload"), "verifying", []byte{})
+	executor.worker.queue.Publish(verification)
 }
 
 func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error) {
@@ -90,15 +93,16 @@ func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error
 			executor.worker.buffer.Peek("workload")).tools,
 		),
 		Model:       openai.F(openai.ChatModelGPT4oMini),
-		Temperature: openai.Float(temperature),
+		Temperature: openai.Float(utils.ToFixed(temperature, 1)),
+		Store:       openai.F(true),
 	}, nil
 }
 
-var semaphore = make(chan struct{}, 1)
+var semaphore = make(chan struct{}, 3)
 
 func (executor *Executor) executeCompletion(
 	params openai.ChatCompletionNewParams,
-) (response openai.ChatCompletionAccumulator, err error) {
+) (response *openai.ChatCompletion, err error) {
 	semaphore <- struct{}{}
 	defer func() { <-semaphore }()
 
@@ -106,7 +110,7 @@ func (executor *Executor) executeCompletion(
 	return completion.Execute(executor.ctx, params)
 }
 
-func (executor *Executor) processResponse(response openai.ChatCompletionAccumulator) {
+func (executor *Executor) processResponse(response *openai.ChatCompletion) {
 	if len(response.Choices) == 0 {
 		log.Println("No response from OpenAI")
 		return
@@ -146,7 +150,7 @@ func (executor *Executor) printResponse(content string) error {
 	return nil
 }
 
-func (executor *Executor) handleToolCalls(response openai.ChatCompletionAccumulator) []openai.ChatCompletionMessageParamUnion {
+func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) []openai.ChatCompletionMessageParamUnion {
 	message := response.Choices[0].Message
 
 	if message.ToolCalls == nil || len(message.ToolCalls) == 0 {

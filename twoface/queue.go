@@ -58,6 +58,8 @@ func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
 
 // Subscribe adds a topic to a subscriber.
 func (q *Queue) Subscribe(ID string, topic string) error {
+	errnie.Info("subscribing %s to %s", ID, topic)
+
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -72,44 +74,56 @@ func (q *Queue) Subscribe(ID string, topic string) error {
 
 // Publish sends a message to all relevant subscribers.
 func (q *Queue) Publish(message *data.Artifact) error {
-	q.mu.RLock()
-	defer q.mu.RUnlock()
+	go func() {
+		q.mu.RLock()
+		defer q.mu.RUnlock()
 
-	errnie.Info("publishing message %s -> %s", message.Peek("origin"), message.Peek("scope"))
+		publisher := message.Peek("origin")
+		topic := message.Peek("scope")
 
-	publisher := message.Peek("origin")
-	topic := message.Peek("scope")
+		if publisher == "" || topic == "" {
+			errnie.Warn("message %s not published, invalid origin or topic", message.Peek("id"))
+			return
+		}
 
-	if publisher == "" || topic == "" {
-		return errors.New("message missing origin or scope")
-	}
-
-	sent := false
-	for _, subscriber := range q.subscribers {
-		if topic == "broadcast" || subscriber.ID == topic {
-			sent = true
-			select {
-			case subscriber.inbox <- message:
-			default:
-				errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
-			}
-		} else if _, subscribed := subscriber.topics[topic]; subscribed {
-			sent = true
-			select {
-			case subscriber.inbox <- message:
-			default:
-				errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
+		sent := false
+		for _, subscriber := range q.subscribers {
+			if topic == "broadcast" || subscriber.ID == topic {
+				sent = true
+				select {
+				case subscriber.inbox <- message:
+				default:
+					errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
+				}
+			} else if _, subscribed := subscriber.topics[topic]; subscribed {
+				sent = true
+				select {
+				case subscriber.inbox <- message:
+				default:
+					errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
+				}
 			}
 		}
-	}
 
-	if !sent {
-		// Create the new topic channels for this subscriber.
-		// Then send out an announcement about the new topic onto broadcast.
-		topic := message.Peek("scope")
-		q.Subscribe(message.Peek("origin"), topic)
-		q.Publish(data.New(message.Peek("origin"), topic, "broadcast", []byte("I created a new topic channel: "+topic)))
-	}
+		if !sent {
+			// Create the new topic and subscribe the sender
+			q.mu.RUnlock()
+			q.mu.Lock()
+			q.Subscribe(publisher, topic)
+			q.mu.Unlock()
+			q.mu.RLock()
+
+			// Send a broadcast message about the new topic
+			broadcastMsg := data.New(publisher, "system", "broadcast", []byte("New topic created: "+topic))
+			q.Publish(broadcastMsg)
+
+			// Publish the original message to the new topic
+			q.Publish(message)
+		}
+
+		errnie.Info("%s -[%s]-> %s", message.Peek("origin"), message.Peek("role"), message.Peek("scope"))
+		errnie.Note("[PAYLOAD]\n%s\n[/PAYLOAD]", message.Peek("payload"))
+	}()
 
 	return nil
 }

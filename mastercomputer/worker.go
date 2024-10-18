@@ -25,6 +25,7 @@ type Worker struct {
 	inbox     chan *data.Artifact
 	name      string
 	manager   *twoface.WorkerManager
+	err       error
 }
 
 // NewWorker provides a minimal, uninitialized Worker object.
@@ -41,28 +42,26 @@ func NewWorker(ctx context.Context, buffer *data.Artifact, manager *twoface.Work
 
 // Initialize sets up the worker's context, queue registration, and starts the executor.
 func (worker *Worker) Initialize() *Worker {
-	errnie.Info("initializing worker %s (%s)", worker.ID(), worker.name)
+	errnie.Info("initializing %s %s (%s)", worker.buffer.Peek("role"), worker.ID(), worker.name)
 
-	// Generate a random float from 0.0 to 2.0
-	temperature := rand.Float64() * 2.0
+	// Generate a random float from 0.0 to 2.0, rounded to 1 decimal place
+	temperature := utils.ToFixed(rand.Float64()*2.0, 1)
 
 	// Store as a string inside the buffer.
-	worker.buffer.Poke("temperature", fmt.Sprintf("%f", temperature))
+	worker.buffer.Poke("temperature", fmt.Sprintf("%.1f", temperature))
 
 	worker.state = WorkerStateInitializing
 	worker.ctx, worker.cancel = context.WithCancel(worker.parentCtx)
 
 	worker.memory = ai.NewMemory(worker.ID())
-	inbox, err := worker.queue.Register(worker.ID())
+	worker.inbox, worker.err = worker.queue.Register(worker.ID())
 
-	if errnie.Error(err) != nil {
+	if errnie.Error(worker.err) != nil {
 		worker.state = WorkerStateZombie
 		return nil
 	}
 
-	worker.inbox = inbox
-
-	worker.queue.Subscribe(worker.ID(), "verification")
+	worker.queue.Subscribe(worker.ID(), worker.buffer.Peek("workload"))
 
 	worker.manager.AddWorker(worker)
 	worker.state = WorkerStateReady
@@ -121,7 +120,8 @@ func (worker *Worker) Start() {
 					continue
 				}
 
-				errnie.Info("worker %s received message %s", worker.name, msg.Peek("origin"))
+				errnie.Info("%s <-[%s]- %s", worker.name, msg.Peek("role"), msg.Peek("scope"))
+				errnie.Note("[PAYLOAD]\n%s\n[/PAYLOAD]", msg.Peek("payload"))
 
 				NewMessaging(worker).Reply(msg)
 

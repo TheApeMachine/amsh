@@ -3,12 +3,14 @@ package mastercomputer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/openai/openai-go"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
 )
@@ -76,11 +78,12 @@ func (messaging *Messaging) Reply(message *data.Artifact) {
 
 	messaging.worker.queue.Publish(replyMsg)
 	messaging.worker.state = WorkerStateAccepted
-	messaging.worker.buffer.Poke("user", message.Peek("user"))
 	messaging.worker.buffer.Poke("payload", message.Peek("payload"))
 }
 
 func (messaging *Messaging) Call(args map[string]any, owner twoface.Process) (string, error) {
+	errnie.Info("messaging.Call(%v, %s)", args, owner.Name())
+
 	var (
 		topic   string
 		message string
@@ -95,10 +98,15 @@ func (messaging *Messaging) Call(args map[string]any, owner twoface.Process) (st
 		return "", errors.New("message is not a string")
 	}
 
-	artifact := data.New(owner.Name(), "message", topic, []byte{})
+	artifact := data.New(owner.Name(), "message", topic, []byte(message))
 	artifact.Poke("id", utils.NewID())
-	artifact.Poke("payload", message)
-	twoface.NewQueue().Publish(artifact)
+
+	queue := twoface.NewQueue()
+	err := queue.Publish(artifact)
+	if err != nil {
+		return "", fmt.Errorf("failed to publish message: %w", err)
+	}
+
 	return "", nil
 }
 

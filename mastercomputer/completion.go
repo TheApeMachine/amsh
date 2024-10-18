@@ -2,6 +2,9 @@ package mastercomputer
 
 import (
 	"context"
+	"errors"
+	"math"
+	"time"
 
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
@@ -37,37 +40,39 @@ func NewCompletion(ctx context.Context) *Completion {
 
 func (completion *Completion) Execute(
 	ctx context.Context, params openai.ChatCompletionNewParams,
-) (response openai.ChatCompletionAccumulator, err error) {
+) (response *openai.ChatCompletion, err error) {
 	errnie.Info("executing completion")
 
-	stream := completion.client.Chat.Completions.NewStreaming(ctx, params)
-	acc := openai.ChatCompletionAccumulator{}
+	maxRetries := 3
+	baseDelay := 3 * time.Second
 
-	for stream.Next() {
-		chunk := stream.Current()
-		println(chunk.Choices[0].Delta.Content)
-		acc.AddChunk(chunk)
-
-		// When this fires, the current chunk value will not contain content data
-		if content, ok := acc.JustFinishedContent(); ok {
-			println("Content stream finished:", content)
-			println()
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		response, err := completion.executeWithStream(ctx, params)
+		if err == nil {
+			return response, nil
 		}
 
-		if tool, ok := acc.JustFinishedToolCall(); ok {
-			println("Tool call stream finished:", tool.Index, tool.Name, tool.Arguments)
-			println()
+		if attempt == maxRetries {
+			errnie.Error(err)
+			return response, err
 		}
 
-		if refusal, ok := acc.JustFinishedRefusal(); ok {
-			println("Refusal stream finished:", refusal)
-			println()
-		}
+		delay := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
+		errnie.Info("retry attempt %d failed, retrying in %v: %v", attempt+1, delay, err)
+		time.Sleep(delay)
 	}
 
-	if err := stream.Err(); err != nil {
-		errnie.Error(err)
+	return nil, errnie.Error(errors.New("max retries reached"))
+}
+
+func (completion *Completion) executeWithStream(
+	ctx context.Context, params openai.ChatCompletionNewParams,
+) (*openai.ChatCompletion, error) {
+	response, err := completion.client.Chat.Completions.New(ctx, params)
+
+	if errnie.Error(err) != nil {
+		return nil, err
 	}
 
-	return acc, nil
+	return response, nil
 }

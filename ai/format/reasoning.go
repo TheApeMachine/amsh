@@ -7,7 +7,7 @@ import (
 type Reasoning struct {
 	Strategies  []Strategy `json:"strategies" jsonschema:"description=A dynamically constructed strategy to solve the problem"`
 	FinalAnswer string     `json:"final_answer" jsonschema:"description=The final answer to the question"`
-	Done        bool       `json:"done" jsonschema:"description=You will have infinite iterations to reason, until you set this to true"`
+	Done        bool       `json:"done" jsonschema:"description=You will have infinite iterations to reason, until you set this to true;required=true"`
 	NextSteps   []Step     `json:"next_steps" jsonschema:"description=The next steps to be taken"`
 }
 
@@ -46,9 +46,10 @@ type Strategy struct {
 }
 
 type Thought struct {
-	Thought    string     `json:"thought" jsonschema:"description=A single thought"`
-	Reflection Reflection `json:"reflection" jsonschema:"description=The reflection of the thought"`
-	Challenge  Challenge  `json:"challenge" jsonschema:"description=The challenge of the thought"`
+	Thought     string     `json:"thought" jsonschema:"description=A single thought"`
+	Reflection  Reflection `json:"reflection" jsonschema:"description=The reflection of the thought"`
+	OutOfTheBox string     `json:"out_of_the_box" jsonschema:"description=An out of the box idea"`
+	Challenge   Challenge  `json:"challenge" jsonschema:"description=The challenge of the thought"`
 }
 
 type Reflection struct {
