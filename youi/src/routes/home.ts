@@ -7,6 +7,10 @@ import { gsap } from "gsap"
 import "@/components/layers/manager"
 import "@/components/slides/presentation"
 import "@/components/slides/zlide"
+import "@/components/animoji/assistant"
+import "@/components/island/dynamic"
+import "@/components/ui/progress"
+import "@/components/ui/popover"
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
@@ -59,8 +63,33 @@ export const render = async () => {
         success: (_: any) => {
             return html`
                 <slides-component>
-                        <youi-zlide></youi-zlide>
-                        <h1>Hello World</h1>
+                    <section>
+                        <zlide-component>
+                            <article class="zlide">
+                                <h1>Hello World</h1>
+                                <youi-popover></youi-popover>
+                                <youi-progress></youi-progress>
+                            </article>
+                            <article class="zlide">
+                                <h1>Hello World</h1>
+                            </article>
+                            <article class="zlide">
+                                <h1>Hello World</h1>
+                            </article>
+                            <article class="zlide">
+                                <h1>Hello World</h1>
+                            </article>
+                            <article class="zlide">
+                                <h1>Hello World</h1>
+                            </article>
+                            <article class="zlide">
+                                <h1>Hello World</h1>
+                            </article>
+                            <article class="zlide">
+                                <h1>Hello World</h1>
+                            </article>
+                        </zlide-component>
+                    </section>
                 </slides-component>
             `
         }

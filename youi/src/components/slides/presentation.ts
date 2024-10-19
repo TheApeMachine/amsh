@@ -66,7 +66,7 @@ class SlidesComponent extends HTMLElement {
                     height: 100%;
                     transform-style: preserve-3d;
                 }
-                reveal .slides {
+                .reveal .slides {
                     pointer-events: all;
                 }
                 section {
@@ -108,7 +108,7 @@ class SlidesComponent extends HTMLElement {
                 hash: true,
                 respondToHashChanges: true,
                 history: true,
-                keyboard: true,
+                keyboard: false,
                 keyboardCondition: null,
                 disableLayout: true,
                 overview: true,

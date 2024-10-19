@@ -32,6 +32,7 @@ type Completion struct {
 
 func NewCompletion(ctx context.Context) *Completion {
 	errnie.Info("new completion")
+
 	return &Completion{
 		ctx:    ctx,
 		client: openai.NewClient(),

@@ -10,15 +10,13 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@msrvida/sanddance": "^4.0.6",
-    "@tauri-apps/api": ">=2.0.0",
-    "@tauri-apps/plugin-shell": ">=2.0.0",
-    "@tweenjs/tween.js": "^25.0.0",
-    "@uwdata/vgplot": "^0.11.0",
     "@blocksuite/blocks": "0.15.0-canary-202406291027-8aed732",
     "@blocksuite/presets": "0.15.0-canary-202406291027-8aed732",
     "@blocksuite/store": "0.15.0-canary-202406291027-8aed732",
-    "y-indexeddb": "^9.0.12",
+    "@dotlottie/player-component": "^2.7.12",
+    "@msrvida/sanddance": "^4.0.6",
+    "@tauri-apps/api": ">=2.0.0",
+    "@tauri-apps/plugin-shell": ">=2.0.0",
     "arquero": "^7.1.0",
     "cannon": "^0.6.2",
     "cytoscape": "^3.30.2",
@@ -32,9 +30,9 @@
     "gsap": "^3.12.5",
     "localforage": "^1.10.0",
     "reveal.js": "^5.1.0",
-    "socket.io-client": "^4.8.0",
     "three": "^0.169.0",
-    "vega": "^5.30.0"
+    "vega": "^5.30.0",
+    "y-indexeddb": "^9.0.12"
   },
   "devDependencies": {
     "@tauri-apps/cli": ">=2.0.0",

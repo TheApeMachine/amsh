@@ -1,10 +1,12 @@
 import { YouiVariant } from "./types";
+import { gsap } from "gsap";
 
 export class YouiButton extends HTMLElement {
     private shadowRoot: ShadowRoot;
     private variant: YouiVariant = "default";
     private size: 'small' | 'medium' | 'large' = 'medium';
     private loading: boolean = false;
+    private animationTimeline: gsap.core.Timeline | null = null;
 
     constructor() {
         super();
@@ -18,6 +20,18 @@ export class YouiButton extends HTMLElement {
     connectedCallback() {
         this.render();
         this.setupEventListeners();
+        this.playEnterAnimation();
+    }
+
+    private playEnterAnimation() {
+        const button = this.shadowRoot!.querySelector('.youi-button') as HTMLElement;
+        this.animationTimeline = gsap.timeline()
+            .from(button, {
+                scale: 0.5,
+                opacity: 0,
+                duration: 0.3,
+                ease: "back.out(1.7)"
+            });
     }
 
     attributeChangedCallback(name: string, oldValue: string, newValue: string) {
@@ -208,7 +222,30 @@ export class YouiButton extends HTMLElement {
             event.stopPropagation();
             return;
         }
+
+        const button = this.shadowRoot!.querySelector('.youi-button') as HTMLElement;
+        gsap.to(button, {
+            scale: 0.95,
+            duration: 0.1,
+            yoyo: true,
+            repeat: 1,
+            ease: "power1.inOut"
+        });
+
         this.dispatchEvent(new CustomEvent('youi-button-click', { bubbles: true, composed: true }));
+    }
+
+    public playExitAnimation(): Promise<void> {
+        return new Promise((resolve) => {
+            const button = this.shadowRoot!.querySelector('.youi-button') as HTMLElement;
+            gsap.to(button, {
+                scale: 0.5,
+                opacity: 0,
+                duration: 0.3,
+                ease: "back.in(1.7)",
+                onComplete: resolve
+            });
+        });
     }
 
     private handleKeydown(event: KeyboardEvent) {

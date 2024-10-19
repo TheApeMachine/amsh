@@ -31,9 +31,14 @@ func NewQdrant(collection string, dimension uint64) *Qdrant {
 		log.Fatal(err)
 	}
 
-	url, err := url.Parse("http://localhost:6334")
+	url, err := url.Parse("http://localhost:6333")
+
 	if err != nil {
-		log.Fatal(err)
+		url, err = url.Parse("http://qdrant:6333")
+	}
+
+	if err != nil {
+		errnie.Error(err)
 	}
 
 	client, err := qdrant.New(
@@ -42,8 +47,7 @@ func NewQdrant(collection string, dimension uint64) *Qdrant {
 		qdrant.WithEmbedder(e),
 	)
 	if err != nil {
-		// Handle error (you might want to return an error from this function)
-		panic(err)
+		errnie.Error(err)
 	}
 	return &Qdrant{
 		ctx:        ctx,

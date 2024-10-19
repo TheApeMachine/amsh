@@ -1,3 +1,5 @@
+import gsap from "gsap";
+
 export type Animoji =
     "crying" 
     | "cursing" 

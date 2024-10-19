@@ -26,7 +26,6 @@ func NewNeo4j() *Neo4j {
 	client, err = neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
 
 	if err != nil {
-		errnie.Error(err)
 		client, err = neo4j.NewDriverWithContext("neo4j://neo4j:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
 	}
 

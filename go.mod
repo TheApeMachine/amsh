@@ -14,6 +14,7 @@ require (
 	github.com/fasthttp/websocket v1.5.10
 	github.com/gofiber/utils/v2 v2.0.0-beta.4
 	github.com/google/generative-ai-go v0.18.0
+	github.com/google/go-github/v66 v66.0.0
 	github.com/google/uuid v1.6.0
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/openai/openai-go v0.1.0-alpha.26
@@ -23,6 +24,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/tmc/langchaingo v0.1.12
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
+	golang.org/x/oauth2 v0.23.0
 	google.golang.org/api v0.199.0
 )
 
@@ -56,7 +58,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/google/go-github/v66 v66.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
@@ -111,7 +112,6 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240924160255-9d4c2d233b61 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240924160255-9d4c2d233b61 // indirect

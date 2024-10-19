@@ -1,27 +1,19 @@
 import gsap from 'gsap';
-import ScrollTrigger from 'gsap/ScrollTrigger';
 import { Observer } from 'gsap/Observer';
-
-gsap.registerPlugin(ScrollTrigger, Observer)
+import { Flip } from 'gsap/Flip';
+gsap.registerPlugin(Flip, Observer);
 
 class YouiZlide extends HTMLElement {
     private template: HTMLTemplateElement;
-    private zScaler: number = 0.5;
-    private tl: gsap.core.Timeline = gsap.timeline();
     private panels: NodeListOf<Element> | null = null;
     private totalPanels: number = 0;
-    private spacing: number = 50;
     private scaleRatio: number = 0.9;
-    private rotationX: number = 0;
-    private elevationStep: number = 50;
-    private laidOut: boolean = false;
-    private scrollPosition: number = 0;
-    private scrollSpeed: number = 2; // Reduced for smoother movement
-    private isScrolling: boolean = false;
     private zDistance: number = 500; // Distance between panels on z-axis
-    private activeIndex: number = 0;
-    private isAtRest: boolean = true;
+    private scrollPosition: number = 0;
+    private scrollSpeed: number = 1; // Reduced for smoother movement
+    private tl: gsap.core.Timeline = gsap.timeline();
     private scrollTimeout: number | null = null;
+    private isScrolling: boolean = false;
 
     constructor() {
         super();
@@ -50,85 +42,73 @@ class YouiZlide extends HTMLElement {
                     color: #333;
                 }
             </style>
-            <article class="zlide">
-                <h1>Hello World</h1>
-            </article>
-            <article class="zlide">
-                <h1>Hello World</h1>
-            </article>
-            <article class="zlide">
-                <h1>Hello World</h1>
-            </article>
-            <article class="zlide">
-                <h1>Hello World</h1>
-            </article>
-            <article class="zlide">
-                <h1>Hello World</h1>
-            </article>
-            <article class="zlide">
-                <h1>Hello World</h1>
-            </article>
-            <article class="zlide">
-                <h1>Hello World</h1>
-            </article>
+            <div id="zlides">
+            </div>
         `;
         this.attachShadow({ mode: 'open' });
+    }
+
+    onConnectedCallback() {
         this.shadowRoot?.appendChild(this.template.content.cloneNode(true));
-        this.panels = this.shadowRoot?.querySelectorAll(".zlide");
-        this.totalPanels = this.panels?.length || 0;
-        this.spacing = 50; // Adjust this value to increase/decrease spacing between panels
-        this.scaleRatio = 0.9; // Adjust this value to control how quickly panels shrink
-        this.rotationX = 0; // Adjust this value to change the "camera angle"
-        this.elevationStep = 50; // The amount each panel is raised relative to the one in front
+        this.panels = this.shadowRoot?.querySelectorAll(".zlide") ?? null;
+        this.totalPanels = this.panels?.length ?? 0;
+
         Observer.create({
             target: window,
             type: "wheel,touch,pointer",
-            onWheel: (e) => this.handleScroll(e.deltaY),
-            onDrag: (e) => this.handleScroll(e.deltaY),
-            onStop: () => this.stopScrolling(),
+            onWheel: (e) => {
+                console.log("onWheel");
+                this.onScroll();
+            },
+            onDrag: (e) => {
+                console.log("onDrag");
+                this.onScroll();
+            }
         });
-
-        this.updatePanelPositions(true); // Initial positioning
     }
 
-    handleScroll(deltaY: number) {
-        this.isAtRest = false;
-        this.scrollPosition += deltaY * this.scrollSpeed;
-        this.updatePanelPositions(false);
+    moveCard() {
+        const lastItem = this.shadowRoot?.querySelector("#zlides:last-child");
+
+        if (this.shadowRoot && lastItem) {
+            lastItem.style.display = "none"; // Hide the last item
+            const newItem = document.createElement("article");
+            newItem.className = lastItem.className; // Set the same class name
+            newItem.textContent = lastItem.textContent; // Copy the text content
+            this.shadowRoot?.insertBefore(newItem, this.shadowRoot?.firstChild); // Insert the new item at the beginning of the slider
+        }
     }
 
-    stopScrolling() {
-        this.isScrolling = false;
-        this.resetToActivePanel();
-    }
+    onScroll() {
+        console.log("onScroll");
+        let state = Flip.getState(".item");
 
-    resetToActivePanel() {
-        this.isAtRest = true;
-        this.activeIndex = Math.round(this.scrollPosition / this.zDistance) % this.totalPanels;
-        if (this.activeIndex < 0) this.activeIndex += this.totalPanels;
-        this.scrollPosition = this.activeIndex * this.zDistance;
-        this.updatePanelPositions(true);
-    }
+        this.moveCard();
 
-    updatePanelPositions(smooth: boolean) {
-        if (!this.panels) return;
-        this.tl.clear();
-
-        let zPos = ((1 * this.zDistance + this.scrollPosition) % (this.totalPanels * this.zDistance)) - (this.zDistance * (this.totalPanels - 1) / 2);
-        let scale = Math.max(0.5, 1 - Math.abs(zPos) / (this.zDistance * this.totalPanels));
-        let yPos = this.isAtRest ? 0 : -Math.abs(zPos) * 0.1 + 600;
-        let opacity = scale;
-        let xPos = 0; // Center horizontally
-        const panels = gsap.utils.toArray(this.panels) as Element[];
-
-        this.tl.to(panels, {
-            x: xPos,
-            y: yPos,
-            z: zPos,
-            scale: scale,
-            opacity: opacity,
-            duration: smooth ? 0.5 : 0.3,
-            ease: smooth ? "power2.out" : "power1.out",
+        Flip.from(state, {
+            targets: ".zlide",
+            ease: "sine.inOut",
+            absolute: true,
+            onEnter: (elements) => {
+                return gsap.from(elements, {
+                    yPercent: 20,
+                    opacity: 0,
+                    ease: "sine.out"
+                });
+            },
+            onLeave: (element) => {
+                return gsap.to(element, {
+                    yPercent: 20,
+                    xPercent: -20,
+                    transformOrigin: "bottom left",
+                    opacity: 0,
+                    ease: "sine.out",
+                    onComplete() {
+                        console.log("logging", element[0])
+                        this.shadowRoot?.removeChild(element[0]);
+                    }
+                });
+            }
         });
     }
 }
