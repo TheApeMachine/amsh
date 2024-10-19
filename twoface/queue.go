@@ -92,8 +92,15 @@ func (q *Queue) GetTopics() []string {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
-	topics := make([]string, 0, len(q.subscribers))
-	for topic := range q.subscribers {
+	topicSet := make(map[string]struct{})
+	for _, subscriber := range q.subscribers {
+		for topic := range subscriber.topics {
+			topicSet[topic] = struct{}{}
+		}
+	}
+
+	topics := make([]string, 0, len(topicSet))
+	for topic := range topicSet {
 		topics = append(topics, topic)
 	}
 
@@ -107,7 +114,7 @@ func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	errnie.Info("registering subscriber %s", ID)
+	errnie.Debug("registering subscriber %s", ID)
 
 	if _, exists := q.subscribers[ID]; exists {
 		return nil, errors.New("subscriber already exists")
@@ -125,7 +132,7 @@ func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
 
 // Subscribe adds a topic to a subscriber.
 func (q *Queue) Subscribe(ID string, topic string) error {
-	errnie.Info("subscribing %s to %s", ID, topic)
+	errnie.Debug("subscribing %s to %s", ID, topic)
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -143,7 +150,7 @@ func (q *Queue) Subscribe(ID string, topic string) error {
 Unsubscribe from a topic.
 */
 func (q *Queue) Unsubscribe(ID string, topic string) error {
-	errnie.Info("unsubscribing %s from %s", ID, topic)
+	errnie.Debug("unsubscribing %s from %s", ID, topic)
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -167,7 +174,7 @@ func (q *Queue) Publish(message *data.Artifact) error {
 		topic := message.Peek("scope")
 
 		if publisher == "" || topic == "" {
-			errnie.Warn("message %s not published, invalid origin or topic", message.Peek("id"))
+			errnie.Warn("message %s not published, invalid origin (%s) or topic (%s)", message.Peek("id"), publisher, topic)
 			return
 		}
 
@@ -206,8 +213,8 @@ func (q *Queue) Publish(message *data.Artifact) error {
 			q.Publish(message)
 		}
 
-		errnie.Info("%s -[%s]-> %s", message.Peek("origin"), message.Peek("role"), message.Peek("scope"))
-		errnie.Note("[PAYLOAD]\n%s\n[/PAYLOAD]", message.Peek("payload"))
+		errnie.Debug("%s -[%s]-> %s", message.Peek("origin"), message.Peek("role"), message.Peek("scope"))
+		errnie.Debug("[PAYLOAD]\n%s\n[/PAYLOAD]", message.Peek("payload"))
 	}()
 
 	return nil

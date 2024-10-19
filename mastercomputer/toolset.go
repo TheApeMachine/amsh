@@ -220,11 +220,11 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 	case "add_graph_memory":
 		if toolset.getArgPresent(args, "private") && toolset.getArgPresent(args, "cypher") {
 			longTerm := memory.NewLongTerm(ID)
-			private := args["private"].(bool)
+			_ = args["private"].(bool)
 			cypher := args["cypher"].(string)
 
 			// Implement the logic to add graph memory
-			result, err := longTerm.Query("graph", fmt.Sprintf("ADD %v %s", private, cypher))
+			result, err := longTerm.Write("graph", cypher)
 			if err != nil {
 				return openai.ToolMessage(toolCall.ID, "Error adding graph memory: "+err.Error()), nil
 			}
@@ -236,10 +236,10 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 		if toolset.getArgPresent(args, "cypher") && toolset.getArgPresent(args, "private") {
 			longTerm := memory.NewLongTerm(ID)
 			cypher := args["cypher"].(string)
-			private := args["private"].(bool)
+			_ = args["private"].(bool)
 
 			// Implement the logic to search graph memory
-			result, err := longTerm.Query("graph", fmt.Sprintf("SEARCH %s %v", cypher, private))
+			result, err := longTerm.Query("graph", cypher)
 			if err != nil {
 				return openai.ToolMessage(toolCall.ID, "Error searching graph memory: "+err.Error()), nil
 			}

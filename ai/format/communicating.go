@@ -21,13 +21,13 @@ func NewCommunicating() *Communicating {
 	return &Communicating{}
 }
 
-func (communicating *Communicating) Print(data []byte) error {
+func (communicating *Communicating) Print(data []byte) (isDone bool, err error) {
 	if err := errnie.Error(json.Unmarshal(data, communicating)); err != nil {
-		return err
+		return communicating.Done, err
 	}
 
 	fmt.Println(communicating.String())
-	return nil
+	return communicating.Done, nil
 }
 
 func (cp Communicating) String() string {

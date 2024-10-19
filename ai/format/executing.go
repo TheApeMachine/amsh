@@ -25,13 +25,13 @@ func NewExecuting() *Executing {
 	return &Executing{}
 }
 
-func (ep *Executing) Print(data []byte) error {
+func (ep *Executing) Print(data []byte) (isDone bool, err error) {
 	if err := errnie.Error(json.Unmarshal(data, ep)); err != nil {
-		return err
+		return false, err
 	}
 
 	fmt.Println(ep.String())
-	return nil
+	return ep.Done, nil
 }
 
 func (ep Executing) String() string {

@@ -19,13 +19,13 @@ func NewReasoning() *Reasoning {
 	return &Reasoning{}
 }
 
-func (r *Reasoning) Print(data []byte) error {
+func (r *Reasoning) Print(data []byte) (isDone bool, err error) {
 	if err := errnie.Error(json.Unmarshal(data, r)); err != nil {
-		return err
+		return false, err
 	}
 
 	fmt.Println(r.String())
-	return nil
+	return r.Done, nil
 }
 
 func (r Reasoning) String() string {

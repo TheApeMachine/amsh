@@ -19,24 +19,24 @@ type Strategy interface {
 }
 
 type Executor struct {
-	parentCtx    context.Context
 	ctx          context.Context
 	cancel       context.CancelFunc
 	queue        *twoface.Queue
+	worker       *Worker
 	toolset      *Toolset
 	task         *data.Artifact
 	conversation *Conversation
 	strategy     Strategy
 }
 
-func NewExecutor(pctx context.Context, task *data.Artifact) *Executor {
+func NewExecutor(worker *Worker, task *data.Artifact) *Executor {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Executor{
-		parentCtx:    pctx,
 		ctx:          ctx,
 		cancel:       cancel,
 		queue:        twoface.NewQueue(),
+		worker:       worker,
 		toolset:      NewToolset(),
 		task:         task,
 		conversation: NewConversation(task),
@@ -56,69 +56,82 @@ func (executor *Executor) Error(err error) *data.Artifact {
 }
 
 func (executor *Executor) Do() *data.Artifact {
-	errnie.Info("[%s] executing task", executor.task.Peek("origin"))
 	defer executor.Close()
 
-	params, err := executor.prepareParams()
-	if err != nil {
-		log.Printf("Error preparing parameters: %v", err)
-		return executor.Error(err)
+	iteration := 0
+
+	for {
+		params, err := executor.prepareParams(iteration)
+		if err != nil {
+			log.Printf("Error preparing parameters: %v", err)
+			return executor.Error(err)
+		}
+
+		response, err := executor.executeCompletion(params)
+		if err != nil {
+			log.Printf("Error executing completion: %v", err)
+			return executor.Error(err)
+		}
+
+		if isDone := executor.processResponse(response); isDone || iteration == 2 {
+			break
+		}
+
+		iteration++
 	}
 
-	response, err := executor.executeCompletion(params)
-	if err != nil {
-		log.Printf("Error executing completion: %v", err)
-		return executor.Error(err)
-	}
-
-	executor.processResponse(response)
-
-	executor.task.Poke("scope", "verifying")
 	return executor.task
 }
 
-func (executor *Executor) prepareParams() (openai.ChatCompletionNewParams, error) {
-	errnie.Info("[%s] preparing params", executor.task.Peek("origin"))
+func (executor *Executor) prepareParams(iteration int) (openai.ChatCompletionNewParams, error) {
 	messages := executor.conversation.Truncate()
+	messages = append(messages, openai.AssistantMessage("\n\n[ITERATION: "+strconv.Itoa(iteration+1)+" of 3]\n\n"))
 
-	responseFormat, err := executor.getResponseFormat(executor.task.Peek("scope"))
+	responseFormat, err := executor.getResponseFormat(executor.worker.buffer.Peek("workload"))
 	if err != nil {
 		return openai.ChatCompletionNewParams{}, err
 	}
 
 	// Convert the string to a float
-	temperature, err := strconv.ParseFloat(executor.task.Peek("temperature"), 64)
+	temperature, err := strconv.ParseFloat(executor.worker.buffer.Peek("temperature"), 64)
 	if err != nil {
 		return openai.ChatCompletionNewParams{}, err
 	}
 
-	errnie.Note("%s generating with temperature: %.1f", executor.task.Peek("origin"), temperature)
+	errnie.Debug(
+		"%s (%s) generating with temperature: %.1f",
+		executor.worker.name,
+		executor.worker.buffer.Peek("role"),
+		temperature,
+	)
 
-	return openai.ChatCompletionNewParams{
+	params := openai.ChatCompletionNewParams{
 		Messages:       openai.F(messages),
 		ResponseFormat: openai.F(responseFormat),
-		Tools:          openai.F(executor.toolset.Assign(executor.task.Peek("workload"))),
 		Model:          openai.F(openai.ChatModelGPT4oMini),
 		Temperature:    openai.Float(utils.ToFixed(temperature, 1)),
 		Store:          openai.F(true),
-	}, nil
+	}
+
+	if iteration > 0 {
+		params.Tools = openai.F(executor.toolset.Assign(executor.task.Peek("workload")))
+	}
+
+	return params, nil
 }
 
 var semaphore = make(chan struct{}, 1)
 
 func (executor *Executor) executeCompletion(params openai.ChatCompletionNewParams) (response *openai.ChatCompletion, err error) {
-	errnie.Info("[%s] waiting for semaphore", executor.task.Peek("origin"))
-
 	semaphore <- struct{}{}
 	defer func() { <-semaphore }()
 
-	errnie.Info("[%s] starting execution", executor.task.Peek("origin"))
 	completion := NewCompletion(executor.ctx)
 	return completion.Execute(executor.ctx, params)
 }
 
-func (executor *Executor) processResponse(response *openai.ChatCompletion) {
-	errnie.Info("[%s] processing response", executor.task.Peek("origin"))
+func (executor *Executor) processResponse(response *openai.ChatCompletion) (isDone bool) {
+	var err error
 
 	if len(response.Choices) == 0 {
 		log.Println("No response from OpenAI")
@@ -135,8 +148,10 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) {
 
 	content := message.Content
 	if content != "" {
-		if err := executor.printResponse(content); err != nil {
+		if isDone, err = executor.printResponse(content); err != nil {
 			errnie.Error(err)
+		} else if isDone {
+			return true
 		}
 	}
 
@@ -144,9 +159,11 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) {
 	for _, toolMessage := range toolMessages {
 		executor.conversation.Update(toolMessage)
 	}
+
+	return false
 }
 
-func (executor *Executor) printResponse(content string) error {
+func (executor *Executor) printResponse(content string) (isDone bool, err error) {
 	switch executor.strategy.(type) {
 	case format.Reasoning:
 		return format.NewReasoning().Print([]byte(content))
@@ -164,7 +181,7 @@ func (executor *Executor) printResponse(content string) error {
 		return format.NewManaging().Print([]byte(content))
 	}
 
-	return nil
+	return false, nil
 }
 
 func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) []openai.ChatCompletionMessageParamUnion {

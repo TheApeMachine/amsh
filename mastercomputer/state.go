@@ -4,7 +4,8 @@ package mastercomputer
 type WorkerState uint
 
 const (
-	WorkerStateCreating WorkerState = iota
+	WorkerStateUndefined WorkerState = iota
+	WorkerStateCreating
 	WorkerStateInitializing
 	WorkerStateReady
 	WorkerStateAcknowledged
@@ -52,6 +53,15 @@ func (worker *Worker) IsAllowed(state WorkerState) bool {
 		}
 	}
 	return false
+}
+
+func (worker *Worker) StateByKey(key string) WorkerState {
+	switch key {
+	case "busy":
+		return WorkerStateBusy
+	}
+
+	return WorkerState(0)
 }
 
 // String returns the string representation of the worker state.

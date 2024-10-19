@@ -1,58 +1,67 @@
 package mastercomputer
 
 import (
-	"strings"
+	"fmt"
 
-	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/data"
 )
 
+/*
+Messaging deals with updating messages, and sending them onto the queue.
+The definition of a message is as follows:
+
+- origin : the current sender of the message
+- role   : the role of the sender
+- scope  : the current intended recipient of the message (direct or topic/broadcast)
+- system : the current system prompt
+- user   : the current user prompt
+- payload: a continously updated log of events that took place
+- chain  : an ordered list of workers that have processed the message
+- stage  : the stage of the process we are in
+*/
 type Messaging struct {
-	worker *Worker
+	worker  *Worker
+	message *data.Artifact
 }
 
-func NewMessaging(worker *Worker) *Messaging {
-	return &Messaging{worker: worker}
+func NewMessaging(worker *Worker, message *data.Artifact) *Messaging {
+	return &Messaging{worker: worker, message: message}
 }
 
-func (messaging *Messaging) Reply(message *data.Artifact) {
-	filters := messaging.worker.buffer.Peek("filters")
-
-	// AI's should not act like schizos.
-	if message.Peek("origin") == messaging.worker.name {
-		return
-	}
-
-	if filters != "" && message.Peek("scope") != messaging.worker.buffer.Peek("origin") {
-		filters := strings.Split(filters, ",")
-		for _, filter := range filters {
-			if filter == message.Peek("scope") {
-				return
-			}
-		}
-	}
-
-	canAccept := messaging.worker.IsAllowed(WorkerStateAccepted)
-
-	out := "ACKNOWLEDGED - "
-
-	if canAccept {
-		out += "ACCEPTED"
-	} else {
-		out += "REJECTED"
-	}
-
-	reply := viper.GetViper().GetString("messaging.templates.reply")
-	reply = strings.ReplaceAll(reply, "{id}", message.Peek("id"))
-	reply = strings.ReplaceAll(reply, "{sender}", messaging.worker.name)
-	reply = strings.ReplaceAll(reply, "{message}", out)
-
-	payload := message.Peek("payload")
-	replyMsg := data.New(messaging.worker.name, "reply", message.Peek("origin"), []byte(
-		strings.Join([]string{payload, reply}, "\n\n"),
+func (messaging *Messaging) Process() *data.Artifact {
+	// Updating the chain keeps track of the workers that have processed the message.
+	messaging.message.Poke("chain", fmt.Sprintf(
+		"%s, %s", messaging.message.Peek("chain"), messaging.worker.name,
 	))
 
-	messaging.worker.queue.Publish(replyMsg)
-	messaging.worker.state = WorkerStateAccepted
-	messaging.worker.buffer.Poke("payload", message.Peek("payload"))
+	stateContext := scopeMap[messaging.message.Peek("scope")][messaging.message.Peek("stage")]
+
+	messaging.message.Poke("scope", stateContext["scope"])
+
+	// Prepare the message for the execution step.
+	for _, key := range []string{"origin", "role", "system", "user"} {
+		messaging.message.Poke(key, messaging.worker.buffer.Peek(key))
+	}
+
+	messaging.worker.NewState(
+		messaging.worker.StateByKey(stateContext["state"]),
+	)
+
+	messaging.message.Poke("stage", stateContext["stage"])
+	return messaging.message
+}
+
+var scopeMap = map[string]map[string]map[string]string{
+	"manager": {
+		"ingress": {
+			"scope": "verifier",
+			"state": "busy",
+			"stage": "executing",
+		},
+		"executing": {
+			"scope": "previous",
+			"state": "busy",
+			"stage": "verifying",
+		},
+	},
 }

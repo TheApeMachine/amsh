@@ -43,7 +43,7 @@ func (completion *Completion) Execute(
 	ctx context.Context, params openai.ChatCompletionNewParams,
 ) (response *openai.ChatCompletion, err error) {
 	maxRetries := 3
-	baseDelay := 3 * time.Second
+	baseDelay := 5 * time.Second
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		response, err := completion.executeWithStream(ctx, params)

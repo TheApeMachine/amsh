@@ -23,13 +23,13 @@ func NewWorking() *Working {
 	return &Working{}
 }
 
-func (wp *Working) Print(data []byte) error {
+func (wp *Working) Print(data []byte) (isDone bool, err error) {
 	if err := errnie.Error(json.Unmarshal(data, wp)); err != nil {
-		return err
+		return false, err
 	}
 
 	fmt.Println(wp.String())
-	return nil
+	return wp.Done, nil
 }
 
 func (wp Working) String() string {

@@ -63,6 +63,14 @@ func (n *Neo4j) Query(query string) ([]map[string]interface{}, error) {
 	return records, nil
 }
 
+func (n *Neo4j) Write(query string) (neo4j.ResultWithContext, error) {
+	ctx := context.Background()
+	session := n.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	defer session.Close(ctx)
+
+	return session.Run(ctx, query, nil)
+}
+
 // Close closes the Neo4j client connection.
 func (n *Neo4j) Close() error {
 	ctx := context.Background()

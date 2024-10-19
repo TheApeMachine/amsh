@@ -15,20 +15,19 @@ type Verifying struct {
 	Improvements      []Improvement     `json:"improvements" jsonschema:"description=Suggested improvements to the reasoning"`
 	Challenges        []VerifyChallenge `json:"challenges" jsonschema:"description=Challenges to the original reasoning"`
 	VerificationScore float64           `json:"verification_score" jsonschema:"description=Overall score of the verification (0.0 to 1.0)"`
-	Done              bool              `json:"done" jsonschema:"description=Indicates if the verification plan is complete;required=true"`
 }
 
 func NewVerifying() *Verifying {
 	return &Verifying{}
 }
 
-func (vp *Verifying) Print(data []byte) error {
+func (vp *Verifying) Print(data []byte) (isDone bool, err error) {
 	if err := errnie.Error(json.Unmarshal(data, vp)); err != nil {
-		return err
+		return true, err
 	}
 
 	fmt.Println(vp.String())
-	return nil
+	return true, nil
 }
 
 func (vp Verifying) String() string {
@@ -64,7 +63,6 @@ func (vp Verifying) String() string {
 	output += "\t" + utils.Muted("[/CHALLENGES]") + "\n"
 
 	output += "\t" + utils.Blue("Verification Score: ") + FloatToString(vp.VerificationScore) + "\n"
-	output += "\t" + utils.Red("Done: ") + BoolToString(vp.Done) + "\n"
 	output += utils.Dark("[/VERIFICATION PLAN]") + "\n"
 	return output
 }

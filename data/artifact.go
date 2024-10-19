@@ -50,7 +50,6 @@ Peek retrieves a value from the artifact, starting by looking for an existing fi
 and falling back to searching the attribute list.
 */
 func (artifact *Artifact) Peek(key string) string {
-	errnie.Trace(key)
 	var (
 		value string
 		data  []byte
@@ -83,6 +82,7 @@ func (artifact *Artifact) Peek(key string) string {
 		return errnie.Error(err).Error()
 	}
 
+	errnie.Debug("peeking artifact: %s -> %s", key, value)
 	return value
 }
 
@@ -91,6 +91,8 @@ Poke sets a value on the artifact, starting by looking for an existing field,
 and falling back to using the attribute list.
 */
 func (artifact *Artifact) Poke(key, value string) *Artifact {
+	errnie.Debug("poking artifact: %s -> %s", key, value)
+
 	var err error
 
 	switch key {

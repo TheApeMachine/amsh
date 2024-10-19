@@ -12,7 +12,12 @@ import (
 	"github.com/theapemachine/amsh/utils"
 )
 
-// Worker represents an agent that can perform tasks and communicate via the Queue.
+/*
+Worker represents a blank agent that can adopt any role or workload that is assigned to it.
+By setting the system prompt, user prompt, and assigning a toolset, the worker is flexible enough
+to be the only agentic type. Finally, given that a worker is also a tool, worker who are assigned
+the worker tool, can make their own workers and delegate work.
+*/
 type Worker struct {
 	parentCtx context.Context
 	ctx       context.Context
@@ -28,7 +33,10 @@ type Worker struct {
 	err       error
 }
 
-// NewWorker provides a minimal, uninitialized Worker object.
+/*
+NewWorker provides a minimal, uninitialized worker object. The buffer artifact is used to
+initialize the worker's configuration, and an essential part of data transfer.
+*/
 func NewWorker(ctx context.Context, buffer *data.Artifact, manager *Manager) *Worker {
 	return &Worker{
 		parentCtx: ctx,
@@ -41,18 +49,16 @@ func NewWorker(ctx context.Context, buffer *data.Artifact, manager *Manager) *Wo
 	}
 }
 
-// Initialize sets up the worker's context, queue registration, and starts the executor.
+/*
+Initialize sets up the worker's context, queue registration, and initializes the memory.
+This is the preparation phase for the worker to be ready to receive and process messages.
+*/
 func (worker *Worker) Initialize() *Worker {
-	errnie.Info("initializing %s %s (%s)", worker.buffer.Peek("role"), worker.buffer.Peek("id"), worker.name)
-
-	// Generate a random float from 0.0 to 2.0, rounded to 1 decimal place
-	temperature := utils.ToFixed(rand.Float64()*1.0, 1)
-
-	// Store as a string inside the buffer.
-	worker.buffer.Poke("temperature", fmt.Sprintf("%.1f", temperature))
-
 	worker.state = WorkerStateInitializing
 	worker.ctx, worker.cancel = context.WithCancel(worker.parentCtx)
+
+	temperature := utils.ToFixed(rand.Float64()*1.0, 1)
+	worker.buffer.Poke("temperature", fmt.Sprintf("%.1f", temperature))
 
 	worker.memory = ai.NewMemory(worker.buffer.Peek("id"))
 	worker.inbox, worker.err = worker.queue.Register(worker.name)
@@ -63,11 +69,8 @@ func (worker *Worker) Initialize() *Worker {
 	}
 
 	worker.queue.Subscribe(worker.name, worker.buffer.Peek("workload"))
-
 	worker.manager.AddWorker(worker)
 	worker.state = WorkerStateReady
-
-	errnie.Note("worker %s initialized", worker.name)
 
 	return worker
 }
@@ -104,21 +107,13 @@ func (worker *Worker) Start() {
 					continue
 				}
 
-				errnie.Note("%s <-[%s]- %s\n%s", worker.name, msg.Peek("role"), msg.Peek("scope"), msg.Peek("payload"))
+				errnie.Debug("%s <-[%s]- %s\n%s", worker.name, msg.Peek("role"), msg.Peek("scope"), msg.Peek("payload"))
 
-				switch msg.Peek("role") {
-				case "task":
-					if worker.IsAllowed(WorkerStateAccepted) {
-						msg.Poke("system", worker.buffer.Peek("system"))
-						msg.Poke("user", worker.buffer.Peek("user"))
-						msg.Poke("origin", worker.name)
-						msg.Poke("temperature", worker.buffer.Peek("temperature"))
-
-						worker.queue.PubCh <- NewExecutor(worker.ctx, msg).Do()
-					}
-				case "unregister":
-					worker.state = WorkerStateZombie
+				if msg := NewMessaging(worker, msg).Process(); msg != nil {
+					worker.queue.PubCh <- NewExecutor(worker, msg).Do()
 				}
+
+				worker.NewState(worker.StateByKey("ready"))
 			}
 		}
 	}()

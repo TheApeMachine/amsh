@@ -24,13 +24,13 @@ func NewReviewing() *Reviewing {
 	return &Reviewing{}
 }
 
-func (rp *Reviewing) Print(data []byte) error {
+func (rp *Reviewing) Print(data []byte) (isDone bool, err error) {
 	if err := errnie.Error(json.Unmarshal(data, rp)); err != nil {
-		return err
+		return false, err
 	}
 
 	fmt.Println(rp.String())
-	return nil
+	return rp.Done, nil
 }
 
 func (rp Reviewing) String() string {
