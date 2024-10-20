@@ -11,7 +11,6 @@ import (
 const version = "0.0.1"
 
 func Empty() *Artifact {
-	errnie.Trace()
 	return New("new", "new", "new", []byte{})
 }
 
@@ -37,10 +36,23 @@ func New(origin, role, scope string, data []byte) *Artifact {
 	artifact.SetVersion(version)
 	artifact.SetId(uuid.New().String())
 
-	errnie.Error(artifact.SetOrigin(origin))
-	errnie.Error(artifact.SetRole(role))
-	errnie.Error(artifact.SetScope(scope))
-	errnie.Error(artifact.SetPayload(data))
+	// Error handling: if setting any required field fails, return Empty()
+	if err := artifact.SetOrigin(origin); err != nil {
+		errnie.Error(err)
+		return Empty()
+	}
+	if err := artifact.SetRole(role); err != nil {
+		errnie.Error(err)
+		return Empty()
+	}
+	if err := artifact.SetScope(scope); err != nil {
+		errnie.Error(err)
+		return Empty()
+	}
+	if err := artifact.SetPayload(data); err != nil {
+		errnie.Error(err)
+		return Empty()
+	}
 
 	return &artifact
 }
@@ -49,6 +61,7 @@ func New(origin, role, scope string, data []byte) *Artifact {
 Peek retrieves a value from the artifact, starting by looking for an existing field,
 and falling back to searching the attribute list.
 */
+// Peek returns (value, exists)
 func (artifact *Artifact) Peek(key string) string {
 	var (
 		value string
@@ -79,20 +92,15 @@ func (artifact *Artifact) Peek(key string) string {
 	}
 
 	if err != nil {
-		return errnie.Error(err).Error()
+		errnie.Error(err)
+		return err.Error()
 	}
 
-	errnie.Debug("peeking artifact: %s -> %s", key, value)
 	return value
 }
 
-/*
-Poke sets a value on the artifact, starting by looking for an existing field,
-and falling back to using the attribute list.
-*/
-func (artifact *Artifact) Poke(key, value string) *Artifact {
-	errnie.Debug("poking artifact: %s -> %s", key, value)
-
+// Poke sets a value and returns a boolean indicating success
+func (artifact *Artifact) Poke(key, value string) {
 	var err error
 
 	switch key {
@@ -111,15 +119,13 @@ func (artifact *Artifact) Poke(key, value string) *Artifact {
 	case "payload":
 		err = artifact.SetPayload([]byte(value))
 	default:
-		// Add the attribute and verify that it was correctly added
-		err = artifact.addAttribute(key, value)
+		// Check if the attribute already exists and update it, or add a new one
+		err = artifact.updateOrAddAttribute(key, value)
 	}
 
 	if err != nil {
-		errnie.Warn("error poking artifact: %v", err)
+		errnie.Error(err)
 	}
-
-	return artifact
 }
 
 // getAttributeValue searches the attribute list for the given key.
@@ -183,4 +189,29 @@ func (artifact *Artifact) addAttribute(key, value string) error {
 	}
 
 	return nil
+}
+
+// updateOrAddAttribute updates an existing attribute or adds a new one if it doesn't exist
+func (artifact *Artifact) updateOrAddAttribute(key, value string) error {
+	attrs, err := artifact.Attributes()
+	if err != nil {
+		return errnie.Error(err)
+	}
+
+	// Check if the attribute already exists
+	for i := 0; i < attrs.Len(); i++ {
+		attr := attrs.At(i)
+		attrKey, err := attr.Key()
+		if err != nil {
+			return errnie.Error(err)
+		}
+
+		if attrKey == key {
+			// Update existing attribute
+			return attr.SetValue(value)
+		}
+	}
+
+	// If the attribute doesn't exist, add a new one
+	return artifact.addAttribute(key, value)
 }

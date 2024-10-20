@@ -7,6 +7,7 @@ toolchain go1.22.5
 require (
 	capnproto.org/go/capnp/v3 v3.0.1-alpha.2
 	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2
+	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/charmbracelet/bubbles v0.19.0
 	github.com/charmbracelet/bubbletea v0.27.0
 	github.com/charmbracelet/lipgloss v0.12.1
@@ -144,7 +145,6 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2
 	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
-	github.com/qdrant/go-client v1.12.0
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sashabaranov/go-openai v1.29.1
 	github.com/slack-go/slack v0.14.0

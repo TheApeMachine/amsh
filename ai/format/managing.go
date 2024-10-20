@@ -20,7 +20,6 @@ func NewManaging() *Managing {
 
 func (mp *Managing) Print(data []byte) (isDone bool, err error) {
 	if err := errnie.Error(json.Unmarshal(data, mp)); err != nil {
-		errnie.Debug("unmarshalling managing: %s", string(data))
 		return false, err
 	}
 

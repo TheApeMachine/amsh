@@ -36,13 +36,10 @@ func runTest(cmd *cobra.Command, args []string) error {
 		worker.Start()
 	}
 
-	// Simulate an external prompt being broadcasted
-	externalPrompt := data.New(utils.NewName(), "manager", "managing", []byte{})
-	externalPrompt.Poke("stage", "ingress")
-	externalPrompt.Poke("id", utils.NewID())
-	externalPrompt.Poke("payload", "What are things about large language models that have not been discovered yet?")
+	message := data.New(utils.NewName(), "task", "managing", []byte("Why does Deep Thought claim the answer to life the universe and everything is 42?"))
+	message.Poke("chain", "test")
 
-	queue.Publish(externalPrompt)
+	queue.PubCh <- *message
 
 	log.Println("Waiting for workers to finish...")
 	builder.Wait()

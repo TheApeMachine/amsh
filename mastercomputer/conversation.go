@@ -9,6 +9,7 @@ import (
 )
 
 type Conversation struct {
+	task             *data.Artifact
 	context          []openai.ChatCompletionMessageParamUnion
 	maxContextTokens int
 	tokenCounts      []int64
@@ -16,6 +17,7 @@ type Conversation struct {
 
 func NewConversation(task *data.Artifact) *Conversation {
 	return &Conversation{
+		task: task,
 		context: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(task.Peek("system")),
 			openai.UserMessage(task.Peek("user") + "\n\n" + task.Peek("payload")),
@@ -30,7 +32,7 @@ func (conversation *Conversation) Update(message openai.ChatCompletionMessagePar
 }
 
 func (conversation *Conversation) Truncate() []openai.ChatCompletionMessageParamUnion {
-	maxTokens := conversation.maxContextTokens - 500 // Reserve tokens for response
+	maxTokens := conversation.maxContextTokens - 1024 // Reserve tokens for response
 	totalTokens := 0
 	var truncatedMessages []openai.ChatCompletionMessageParamUnion
 

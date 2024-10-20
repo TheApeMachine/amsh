@@ -8,31 +8,18 @@ const (
 	WorkerStateCreating
 	WorkerStateInitializing
 	WorkerStateReady
-	WorkerStateAcknowledged
-	WorkerStateAccepted
-	WorkerStateRejected
 	WorkerStateBusy
-	WorkerStateWaiting
-	WorkerStateDone
 	WorkerStateError
-	WorkerStateFinished
 	WorkerStateZombie
-	WorkerStateNotOK
 )
 
 var transitions = map[WorkerState][]WorkerState{
 	WorkerStateCreating:     {WorkerStateInitializing},
 	WorkerStateInitializing: {WorkerStateReady},
-	WorkerStateReady:        {WorkerStateAcknowledged, WorkerStateAccepted},
-	WorkerStateAcknowledged: {WorkerStateAccepted},
-	WorkerStateAccepted:     {WorkerStateBusy, WorkerStateWaiting},
-	WorkerStateBusy:         {WorkerStateWaiting, WorkerStateDone},
-	WorkerStateWaiting:      {WorkerStateBusy, WorkerStateReady},
-	WorkerStateDone:         {WorkerStateFinished},
-	WorkerStateError:        {WorkerStateFinished},
-	WorkerStateFinished:     {},
+	WorkerStateReady:        {WorkerStateBusy},
+	WorkerStateBusy:         {WorkerStateReady},
+	WorkerStateError:        {WorkerStateZombie},
 	WorkerStateZombie:       {},
-	WorkerStateNotOK:        {},
 }
 
 // NewState transitions the worker to a new state if allowed.
@@ -57,8 +44,18 @@ func (worker *Worker) IsAllowed(state WorkerState) bool {
 
 func (worker *Worker) StateByKey(key string) WorkerState {
 	switch key {
+	case "creating":
+		return WorkerStateCreating
+	case "initializing":
+		return WorkerStateInitializing
 	case "busy":
 		return WorkerStateBusy
+	case "ready":
+		return WorkerStateReady
+	case "error":
+		return WorkerStateError
+	case "zombie":
+		return WorkerStateZombie
 	}
 
 	return WorkerState(0)
@@ -73,22 +70,10 @@ func (state WorkerState) String() string {
 		return "initializing"
 	case WorkerStateReady:
 		return "ready"
-	case WorkerStateAcknowledged:
-		return "acknowledged"
-	case WorkerStateAccepted:
-		return "accepted"
-	case WorkerStateRejected:
-		return "rejected"
 	case WorkerStateBusy:
 		return "busy"
-	case WorkerStateWaiting:
-		return "waiting"
-	case WorkerStateDone:
-		return "done"
 	case WorkerStateError:
 		return "error"
-	case WorkerStateFinished:
-		return "finished"
 	case WorkerStateZombie:
 		return "zombie"
 	}

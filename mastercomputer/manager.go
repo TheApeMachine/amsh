@@ -2,6 +2,8 @@ package mastercomputer
 
 import (
 	"sync"
+
+	"github.com/theapemachine/amsh/ai"
 )
 
 var managerInstance *Manager
@@ -12,6 +14,7 @@ type Manager struct {
 	wg      sync.WaitGroup
 	workers map[string]*Worker
 	mu      sync.Mutex
+	memory  *ai.Memory
 }
 
 // NewWorkerManager creates a new WorkerManager.
@@ -19,6 +22,7 @@ func NewManager() *Manager {
 	managerOnce.Do(func() {
 		managerInstance = &Manager{
 			workers: make(map[string]*Worker),
+			memory:  ai.NewMemory("hive"),
 		}
 	})
 	return managerInstance
@@ -28,8 +32,14 @@ func NewManager() *Manager {
 func (manager *Manager) AddWorker(worker *Worker) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
-	manager.workers[worker.buffer.Peek("id")] = worker
+	manager.workers[worker.buffer.Peek("origin")] = worker
 	manager.wg.Add(1)
+}
+
+func (manager *Manager) GetWorker(workerID string) *Worker {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	return manager.workers[workerID]
 }
 
 // RemoveWorker removes a worker from the manager and decrements the WaitGroup.

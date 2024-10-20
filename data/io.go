@@ -54,6 +54,21 @@ func (artifact *Artifact) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+func (artifact *Artifact) Append(str string) error {
+	payload, err := artifact.Payload()
+	if err != nil {
+		return errnie.Error(err)
+	}
+
+	buf := bufpool.Get().([]byte)
+	defer bufpool.Put(buf)
+
+	buf = append(buf[:0], payload...)
+	buf = append(buf, str...)
+
+	return errnie.Error(artifact.SetPayload(buf))
+}
+
 /*
 Close implements the io.Closer interface for the Artifact.
 */

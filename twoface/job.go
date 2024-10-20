@@ -7,7 +7,7 @@ Job is an interface any type can implement if they want to be able to use the
 generics goroutine pool.
 */
 type Job interface {
-	Do() *data.Artifact
+	Do() data.Artifact
 }
 
 /*

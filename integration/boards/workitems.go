@@ -66,7 +66,7 @@ func NewCreateWorkitemSrv(ctx context.Context, projectName string) (*CreateWorki
 		return nil, errnie.Error(err)
 	}
 
-	return &CreateWorkitemSrv{conn: conn}, nil
+	return &CreateWorkitemSrv{conn: conn, projectName: "playground"}, nil
 }
 
 func (srv *CreateWorkitemSrv) CreateWorkitem(

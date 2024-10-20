@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -18,7 +19,7 @@ type Queue struct {
 	cancel      context.CancelFunc
 	mu          sync.RWMutex
 	subscribers map[string]*Subscriber
-	PubCh       chan *data.Artifact
+	PubCh       chan data.Artifact
 }
 
 /*
@@ -26,7 +27,7 @@ Subscriber describes an agent connected to the queue.
 */
 type Subscriber struct {
 	ID     string
-	inbox  chan *data.Artifact
+	inbox  chan data.Artifact
 	topics map[string]struct{}
 }
 
@@ -43,7 +44,7 @@ func NewQueue() *Queue {
 			ctx:         ctx,
 			cancel:      cancel,
 			subscribers: make(map[string]*Subscriber),
-			PubCh:       make(chan *data.Artifact, 128),
+			PubCh:       make(chan data.Artifact, 128),
 		}
 		queueInstance.Start()
 	})
@@ -110,17 +111,15 @@ func (q *Queue) GetTopics() []string {
 /*
 Register adds a new subscriber to the queue.
 */
-func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
+func (q *Queue) Register(ID string) (chan data.Artifact, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-
-	errnie.Debug("registering subscriber %s", ID)
 
 	if _, exists := q.subscribers[ID]; exists {
 		return nil, errors.New("subscriber already exists")
 	}
 
-	inbox := make(chan *data.Artifact, 128)
+	inbox := make(chan data.Artifact, 128)
 	q.subscribers[ID] = &Subscriber{
 		ID:     ID,
 		inbox:  inbox,
@@ -132,8 +131,6 @@ func (q *Queue) Register(ID string) (chan *data.Artifact, error) {
 
 // Subscribe adds a topic to a subscriber.
 func (q *Queue) Subscribe(ID string, topic string) error {
-	errnie.Debug("subscribing %s to %s", ID, topic)
-
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -150,8 +147,6 @@ func (q *Queue) Subscribe(ID string, topic string) error {
 Unsubscribe from a topic.
 */
 func (q *Queue) Unsubscribe(ID string, topic string) error {
-	errnie.Debug("unsubscribing %s from %s", ID, topic)
-
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -165,57 +160,35 @@ func (q *Queue) Unsubscribe(ID string, topic string) error {
 }
 
 // Publish sends a message to all relevant subscribers.
-func (q *Queue) Publish(message *data.Artifact) error {
-	go func() {
-		q.mu.RLock()
-		defer q.mu.RUnlock()
+func (q *Queue) Publish(message data.Artifact) error {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
 
-		publisher := message.Peek("origin")
-		topic := message.Peek("scope")
+	publisher := message.Peek("origin")
+	topic := message.Peek("scope")
 
-		if publisher == "" || topic == "" {
-			errnie.Warn("message %s not published, invalid origin (%s) or topic (%s)", message.Peek("id"), publisher, topic)
-			return
-		}
+	if publisher == "" || topic == "" {
+		spew.Dump(message)
+		return errnie.Error(errors.New(
+			"message not published, invalid origin or topic",
+		))
+	}
 
-		sent := false
-		for _, subscriber := range q.subscribers {
-			if topic == "broadcast" || subscriber.ID == topic {
-				sent = true
-				select {
-				case subscriber.inbox <- message:
-				default:
-					errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
-				}
-			} else if _, subscribed := subscriber.topics[topic]; subscribed {
-				sent = true
-				select {
-				case subscriber.inbox <- message:
-				default:
-					errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
-				}
+	for _, subscriber := range q.subscribers {
+		if topic == "broadcast" || subscriber.ID == topic {
+			select {
+			case subscriber.inbox <- message:
+			default:
+				errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
+			}
+		} else if _, subscribed := subscriber.topics[topic]; subscribed {
+			select {
+			case subscriber.inbox <- message:
+			default:
+				errnie.Warn("message %s not delivered to %s", message.Peek("id"), subscriber.ID)
 			}
 		}
-
-		if !sent {
-			// Create the new topic and subscribe the sender
-			q.mu.RUnlock()
-			q.mu.Lock()
-			q.Subscribe(publisher, topic)
-			q.mu.Unlock()
-			q.mu.RLock()
-
-			// Send a broadcast message about the new topic
-			broadcastMsg := data.New(publisher, "system", "broadcast", []byte("New topic created: "+topic))
-			q.Publish(broadcastMsg)
-
-			// Publish the original message to the new topic
-			q.Publish(message)
-		}
-
-		errnie.Debug("%s -[%s]-> %s", message.Peek("origin"), message.Peek("role"), message.Peek("scope"))
-		errnie.Debug("[PAYLOAD]\n%s\n[/PAYLOAD]", message.Peek("payload"))
-	}()
+	}
 
 	return nil
 }

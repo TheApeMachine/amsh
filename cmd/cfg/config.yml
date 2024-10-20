@@ -77,6 +77,7 @@ messaging:
       [/REPLY]
 ai:
   max_context_tokens: 128000
+  max_iterations: 5
   config:
     verifier:
       filters: "verification"

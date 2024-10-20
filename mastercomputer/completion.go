@@ -6,14 +6,13 @@ import (
 	"math"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/errnie"
 )
 
 func GenerateSchema[T any]() interface{} {
-	errnie.Trace()
-
 	// Structured Outputs uses a subset of JSON schema
 	// These flags are necessary to comply with the subset
 	reflector := jsonschema.Reflector{
@@ -31,8 +30,6 @@ type Completion struct {
 }
 
 func NewCompletion(ctx context.Context) *Completion {
-	errnie.Info("new completion")
-
 	return &Completion{
 		ctx:    ctx,
 		client: openai.NewClient(),
@@ -57,7 +54,6 @@ func (completion *Completion) Execute(
 		}
 
 		delay := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
-		errnie.Info("retry attempt %d failed, retrying in %v: %v", attempt+1, delay, err)
 		time.Sleep(delay)
 	}
 
@@ -70,6 +66,7 @@ func (completion *Completion) executeWithStream(
 	response, err := completion.client.Chat.Completions.New(ctx, params)
 
 	if errnie.Error(err) != nil {
+		spew.Dump(params)
 		return nil, err
 	}
 

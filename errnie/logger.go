@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/acarl005/stripansi"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
 	"github.com/davecgh/go-spew/spew"
@@ -163,7 +164,20 @@ func Raw(obj any) {
 Debug logs a debug message with the appropriate symbol
 */
 func Debug(format string, v ...interface{}) {
-	logger.Debug(fmt.Sprintf(format, v...))
+	pc := make([]uintptr, 10)
+	runtime.Callers(2, pc)
+	f := runtime.FuncForPC(pc[0])
+	_, line := f.FileLine(pc[0])
+	formatted := fmt.Sprintf("%d", line)
+
+	// Print the method name with arguments
+	fn := f.Name()
+	for _, arg := range v {
+		fn += fmt.Sprintf(" %v", arg)
+	}
+
+	logger.Debug("fn", "fn", fn, "line", formatted, "format", fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf("%s %s", fn, formatted))
 	writeToLog(fmt.Sprintf(format, v...))
 }
 
@@ -203,9 +217,13 @@ func Error(err error) error {
 }
 
 func writeToLog(message string) {
+	if message == "" {
+		return
+	}
+
 	logFileMu.Lock()
 	defer logFileMu.Unlock()
-	_, err := logFile.WriteString(message + "\n")
+	_, err := logFile.WriteString(stripansi.Strip(message) + "\n")
 	if err != nil {
 		fmt.Printf("Failed to write to log file: %v\n", err)
 	}

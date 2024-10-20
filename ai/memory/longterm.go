@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/tmc/langchaingo/schema"
 )
 
 // LongTerm represents the long-term memory of a worker.
@@ -29,6 +30,10 @@ func (lt *LongTerm) Query(storeType string, query string) ([]map[string]interfac
 	default:
 		return nil, errors.New("invalid long-term memory store type")
 	}
+}
+
+func (lt *LongTerm) AddDocuments(docs []schema.Document) error {
+	return lt.qdrantClient.AddDocuments(docs)
 }
 
 func (lt *LongTerm) Write(storeType string, query string) (neo4j.ResultWithContext, error) {

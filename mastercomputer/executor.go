@@ -2,11 +2,11 @@ package mastercomputer
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strconv"
 
 	"github.com/openai/openai-go"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/format"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
@@ -44,65 +44,62 @@ func NewExecutor(worker *Worker, task *data.Artifact) *Executor {
 }
 
 func (executor *Executor) Close() {
-	errnie.Info("[%s] closing execution", executor.task.Peek("origin"))
-
 	if executor.cancel != nil {
 		executor.cancel()
 	}
 }
 
-func (executor *Executor) Error(err error) *data.Artifact {
-	return data.New(executor.worker.buffer.Peek("origin"), executor.worker.buffer.Peek("role"), "error", []byte(err.Error()))
-}
+func (executor *Executor) Do(maxIterations int) bool {
+	executor.worker.state = WorkerStateBusy
 
-func (executor *Executor) Do() *data.Artifact {
 	defer executor.Close()
 
 	iteration := 0
 
 	for {
-		params, err := executor.prepareParams(iteration)
-		if err != nil {
-			log.Printf("Error preparing parameters: %v", err)
-			return executor.Error(err)
+		iteration++
+		isDone := false
+
+		if params, err := executor.prepareParams(iteration, maxIterations); errnie.Error(err) == nil {
+			if response, err := executor.executeCompletion(params); errnie.Error(err) == nil {
+				isDone = executor.processResponse(response)
+			}
 		}
 
-		response, err := executor.executeCompletion(params)
-		if err != nil {
-			log.Printf("Error executing completion: %v", err)
-			return executor.Error(err)
-		}
-
-		if isDone := executor.processResponse(response); isDone || iteration == 2 {
+		if isDone || iteration >= maxIterations {
 			break
 		}
 
-		iteration++
+		errnie.Debug("\n\n---PAYLOAD---\n\n%s\n\n---/PAYLOAD--\n\n", executor.task.Peek("payload"))
 	}
 
-	return executor.task
+	return true
 }
 
-func (executor *Executor) prepareParams(iteration int) (openai.ChatCompletionNewParams, error) {
+func (executor *Executor) prepareParams(iteration, maxIterations int) (openai.ChatCompletionNewParams, error) {
 	messages := executor.conversation.Truncate()
-	messages = append(messages, openai.AssistantMessage("\n\n[ITERATION: "+strconv.Itoa(iteration+1)+" of 3]\n\n"))
+	iterationMsg := "\n\n[ITERATION: " + strconv.Itoa(iteration) + " of " + strconv.Itoa(maxIterations) + "]\n\n"
+	executor.task.Append(iterationMsg)
+	messages = append(messages, openai.AssistantMessage(iterationMsg))
 
-	responseFormat, err := executor.getResponseFormat(executor.worker.buffer.Peek("workload"))
-	if err != nil {
+	responseFormat, err := executor.getResponseFormat(executor.worker.buffer.Peek("role"))
+	if errnie.Error(err) != nil {
 		return openai.ChatCompletionNewParams{}, err
 	}
 
 	// Convert the string to a float
 	temperature, err := strconv.ParseFloat(executor.worker.buffer.Peek("temperature"), 64)
-	if err != nil {
+	if errnie.Error(err) != nil {
 		return openai.ChatCompletionNewParams{}, err
 	}
 
-	errnie.Debug(
-		"%s (%s) generating with temperature: %.1f",
+	errnie.Note(
+		"%s (%s) generating with temperature: %.1f [ITERATION: %d of %d]",
 		executor.worker.name,
 		executor.worker.buffer.Peek("role"),
 		temperature,
+		iteration,
+		viper.GetViper().GetInt("ai.max_iterations"),
 	)
 
 	params := openai.ChatCompletionNewParams{
@@ -113,8 +110,9 @@ func (executor *Executor) prepareParams(iteration int) (openai.ChatCompletionNew
 		Store:          openai.F(true),
 	}
 
-	if iteration > 0 {
-		params.Tools = openai.F(executor.toolset.Assign(executor.task.Peek("workload")))
+	// Make sure it doesn't just straight to tool calling, but always starts with reasoning.
+	if iteration > 1 {
+		params.Tools = openai.F(executor.toolset.Assign(executor.worker.buffer.Peek("role")))
 	}
 
 	return params, nil
@@ -143,11 +141,12 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) (isDo
 	}
 
 	message := response.Choices[0].Message
-	executor.conversation.Update(message)
-	executor.task.Write([]byte(message.Content))
 
 	content := message.Content
 	if content != "" {
+		executor.conversation.Update(message)
+		executor.task.Append(message.Content)
+
 		if isDone, err = executor.printResponse(content); err != nil {
 			errnie.Error(err)
 		} else if isDone {
@@ -158,6 +157,12 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) (isDo
 	toolMessages := executor.handleToolCalls(response)
 	for _, toolMessage := range toolMessages {
 		executor.conversation.Update(toolMessage)
+		switch msg := toolMessage.(type) {
+		case openai.ChatCompletionMessage:
+			executor.task.Append(msg.Content)
+		case openai.ChatCompletionToolMessageParam:
+			executor.task.Append(msg.Content.String())
+		}
 	}
 
 	return false
@@ -188,7 +193,6 @@ func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) []ope
 	message := response.Choices[0].Message
 
 	if message.ToolCalls == nil || len(message.ToolCalls) == 0 {
-		errnie.Info("no tool calls")
 		return nil
 	}
 
@@ -196,16 +200,15 @@ func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) []ope
 
 	for _, toolCall := range message.ToolCalls {
 		errnie.Note("TOOL CALL: %s - %v", toolCall.Function.Name, toolCall.Function.Arguments)
-		result, err := executor.toolset.Use(executor.task.Peek("origin"), toolCall)
+		result := executor.toolset.Use(executor.task.Peek("origin"), toolCall)
 
-		if err != nil {
-			errnie.Error(err)
-			return nil
-		}
-
-		fmt.Println("[TOOL RESULT]\n" + result.Content.String() + "\n[/TOOL RESULT]\n")
+		errnie.Note("[TOOL RESULT %s]\n%s\n[/TOOL RESULT]\n", toolCall.ID, result.Content.String())
 
 		results = append(results, result)
+	}
+
+	if len(results) > 0 {
+		results = append([]openai.ChatCompletionMessageParamUnion{message}, results...)
 	}
 
 	return results
@@ -217,27 +220,30 @@ func (executor *Executor) getResponseFormat(workload string) (
 	var schema interface{}
 
 	switch workload {
-	case "reasoning":
+	case "reasoner":
 		executor.strategy = format.Reasoning{}
 		schema = GenerateSchema[format.Reasoning]()
-	case "working":
+	case "researcher":
 		executor.strategy = format.Working{}
 		schema = GenerateSchema[format.Working]()
-	case "reviewing":
+	case "reviewer":
 		executor.strategy = format.Reviewing{}
 		schema = GenerateSchema[format.Reviewing]()
-	case "verifying":
+	case "verifier":
 		executor.strategy = format.Verifying{}
 		schema = GenerateSchema[format.Verifying]()
-	case "executing":
+	case "executor":
 		executor.strategy = format.Executing{}
 		schema = GenerateSchema[format.Executing]()
-	case "communicating":
+	case "communicator":
 		executor.strategy = format.Communicating{}
 		schema = GenerateSchema[format.Communicating]()
-	case "managing":
+	case "manager":
 		executor.strategy = format.Managing{}
 		schema = GenerateSchema[format.Managing]()
+	default:
+		executor.strategy = format.Working{}
+		schema = GenerateSchema[format.Working]()
 	}
 
 	return openai.ResponseFormatJSONSchemaParam{

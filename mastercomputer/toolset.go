@@ -13,12 +13,12 @@ import (
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/memory"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/boards"
 	"github.com/theapemachine/amsh/integration/comms"
 	"github.com/theapemachine/amsh/integration/git"
 	"github.com/theapemachine/amsh/integration/trengo"
 	"github.com/theapemachine/amsh/twoface"
+	"github.com/tmc/langchaingo/schema"
 )
 
 var toolsetInstance *Toolset
@@ -52,12 +52,12 @@ func NewToolset() *Toolset {
 				"delete_graph_memory",
 			},
 			workloads: map[string][]string{
-				"managing": {
+				"manager": {
 					"search_work_items",
 					"get_work_item",
 					"manage_work_item",
 				},
-				"researching": {
+				"researcher": {
 					"search_github_code",
 					"search_slack_messages",
 					"search_helpdesk_tickets",
@@ -65,16 +65,16 @@ func NewToolset() *Toolset {
 					"get_helpdesk_messages",
 					"get_helpdesk_message",
 				},
-				"executing": {
+				"executor": {
 					"start_environment",
 					"search_github_code",
 					"add_helpdesk_labels",
 					"get_helpdesk_labels",
 				},
-				"reviewing": {
+				"reviewer": {
 					"add_code_review",
 				},
-				"communicating": {
+				"communicator": {
 					"search_slack_messages",
 					"send_slack_channel_message",
 					"send_slack_user_message",
@@ -118,76 +118,91 @@ func (toolset *Toolset) getArgPresent(args map[string]any, arg string) (out bool
 /*
 Use a tool, based on the tool call passed in.
 */
-func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageToolCall) (out openai.ChatCompletionToolMessageParam, err error) {
+func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageToolCall) (out openai.ChatCompletionToolMessageParam) {
 	args := map[string]any{}
+	var err error
 
 	if err = json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-		return out, errnie.Error(err)
+		return openai.ToolMessage(toolCall.ID, err.Error())
 	}
 
 	switch toolCall.Function.Name {
 	case "get_topics":
 		topics := twoface.NewQueue().GetTopics()
-		return openai.ToolMessage(toolCall.ID, "[TOPICS]\n"+strings.Join(topics, "\n")+"\n[/TOPICS]\n"), nil
+		return openai.ToolMessage(toolCall.ID, "[TOPICS]\n"+strings.Join(topics, "\n")+"\n[/TOPICS]\n")
 	case "topic":
 		// Check if we are subscribing or unsubscribing
 		if toolset.getArgPresent(args, "action") && toolset.getArgPresent(args, "topic_channel") {
 			if args["action"] == "subscribe" {
 				twoface.NewQueue().Subscribe(ID, args["topic_channel"].(string))
-				return openai.ToolMessage(toolCall.ID, "subscribed to "+args["topic_channel"].(string)), nil
+				return openai.ToolMessage(toolCall.ID, "subscribed to "+args["topic_channel"].(string))
 			} else if args["action"] == "unsubscribe" {
 				twoface.NewQueue().Unsubscribe(ID, args["topic_channel"].(string))
-				return openai.ToolMessage(toolCall.ID, "unsubscribed from "+args["topic_channel"].(string)), nil
+				return openai.ToolMessage(toolCall.ID, "unsubscribed from "+args["topic_channel"].(string))
 			}
 		}
 
-		return openai.ToolMessage(toolCall.ID, "something went wrong"), nil
+		return openai.ToolMessage(toolCall.ID, "something went wrong")
 	case "send_message":
 		if toolset.getArgPresent(args, "to") && toolset.getArgPresent(args, "subject") && toolset.getArgPresent(args, "message") {
-			twoface.NewQueue().PubCh <- data.New(ID, args["subject"].(string), args["to"].(string), []byte(args["message"].(string)))
-			return openai.ToolMessage(toolCall.ID, "message sent"), nil
+			twoface.NewQueue().PubCh <- *data.New(ID, args["subject"].(string), args["to"].(string), []byte(args["message"].(string)))
+			return openai.ToolMessage(toolCall.ID, "message sent")
 		}
 
-		return openai.ToolMessage(toolCall.ID, "something went wrong"), nil
+		return openai.ToolMessage(toolCall.ID, "something went wrong")
 	case "broadcast_message":
 		if toolset.getArgPresent(args, "subject") && toolset.getArgPresent(args, "message") {
-			twoface.NewQueue().PubCh <- data.New(ID, args["subject"].(string), "broadcast", []byte(args["message"].(string)))
-			return openai.ToolMessage(toolCall.ID, "message broadcasted"), nil
+			twoface.NewQueue().PubCh <- *data.New(ID, "message", "broadcast", []byte(args["subject"].(string)+"\n\n"+args["message"].(string)))
+			return openai.ToolMessage(toolCall.ID, "message broadcasted")
 		}
 
-		return openai.ToolMessage(toolCall.ID, "something went wrong"), nil
+		return openai.ToolMessage(toolCall.ID, "something went wrong")
 	case "publish_message":
 		if toolset.getArgPresent(args, "channel") && toolset.getArgPresent(args, "subject") && toolset.getArgPresent(args, "message") {
-			twoface.NewQueue().PubCh <- data.New(ID, args["subject"].(string), args["channel"].(string), []byte(args["message"].(string)))
-			return openai.ToolMessage(toolCall.ID, "message published"), nil
+			twoface.NewQueue().PubCh <- *data.New(ID, args["subject"].(string), args["channel"].(string), []byte(args["message"].(string)))
+			return openai.ToolMessage(toolCall.ID, "message published")
 		}
 
-		return openai.ToolMessage(toolCall.ID, "something went wrong"), nil
+		return openai.ToolMessage(toolCall.ID, "something went wrong")
 	case "worker":
 		if toolset.getArgPresent(args, "system_prompt") && toolset.getArgPresent(args, "user_prompt") && toolset.getArgPresent(args, "toolset") {
 			builder := NewBuilder()
 			worker := builder.NewWorker(builder.GetRole(args["toolset"].(string)))
 			worker.Start()
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("%s (%s) created", worker.buffer.Peek("role"), worker.name)), nil
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("%s (%s) created", worker.buffer.Peek("role"), worker.name))
 		}
 
-		return openai.ToolMessage(toolCall.ID, "something went wrong"), nil
+		return openai.ToolMessage(toolCall.ID, "something went wrong")
 	case "add_vector_memory":
 		if toolset.getArgPresent(args, "content") && toolset.getArgPresent(args, "private") {
-			longTerm := memory.NewLongTerm(ID)
+			manager := NewManager()
+			worker := manager.GetWorker(ID)
 			content := args["content"].(string)
 			private := args["private"].(bool)
+			store := worker.memory.LongTerm
+
+			if !private {
+				store = manager.memory.LongTerm
+			}
 
 			// Implement the logic to add vector memory
 			// This is a placeholder implementation
-			result, err := longTerm.Query("vector", fmt.Sprintf("ADD %s %v", content, private))
-			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error adding vector memory: "+err.Error()), nil
+			if err = store.AddDocuments([]schema.Document{
+				{
+					PageContent: content,
+					Metadata: map[string]any{
+						"worker": worker.buffer.Peek("origin"),
+						"role":   worker.buffer.Peek("role"),
+					},
+				},
+			}); err != nil {
+				return openai.ToolMessage(toolCall.ID, "Error adding vector memory: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Vector memory added: %v", result)), nil
-		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_vector_memory"), nil
 
+			return openai.ToolMessage(toolCall.ID, "vector memory added")
+		}
+
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_vector_memory")
 	case "search_vector_memory":
 		if toolset.getArgPresent(args, "question") && toolset.getArgPresent(args, "private") {
 			longTerm := memory.NewLongTerm(ID)
@@ -197,11 +212,11 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 			// Implement the logic to search vector memory
 			result, err := longTerm.Query("vector", fmt.Sprintf("SEARCH %s %v", question, private))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error searching vector memory: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error searching vector memory: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Vector memory search results: %v", result)), nil
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Vector memory search results: %v", result))
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_vector_memory"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_vector_memory")
 
 	case "delete_vector_memory":
 		if toolset.getArgPresent(args, "id") {
@@ -211,11 +226,11 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 			// Implement the logic to delete vector memory
 			result, err := longTerm.Query("vector", fmt.Sprintf("DELETE %s", id))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error deleting vector memory: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error deleting vector memory: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Vector memory deleted: %v", result)), nil
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Vector memory deleted: %v", result))
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for delete_vector_memory"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for delete_vector_memory")
 
 	case "add_graph_memory":
 		if toolset.getArgPresent(args, "private") && toolset.getArgPresent(args, "cypher") {
@@ -226,11 +241,11 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 			// Implement the logic to add graph memory
 			result, err := longTerm.Write("graph", cypher)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error adding graph memory: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error adding graph memory: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory added: %v", result)), nil
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory added: %v", result))
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_graph_memory"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_graph_memory")
 
 	case "search_graph_memory":
 		if toolset.getArgPresent(args, "cypher") && toolset.getArgPresent(args, "private") {
@@ -241,11 +256,11 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 			// Implement the logic to search graph memory
 			result, err := longTerm.Query("graph", cypher)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error searching graph memory: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error searching graph memory: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory search results: %v", result)), nil
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory search results: %v", result))
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_graph_memory"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_graph_memory")
 
 	case "delete_graph_memory":
 		if toolset.getArgPresent(args, "cypher") {
@@ -255,45 +270,45 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 			// Implement the logic to delete graph memory
 			result, err := longTerm.Query("graph", fmt.Sprintf("DELETE %s", cypher))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error deleting graph memory: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error deleting graph memory: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory deleted: %v", result)), nil
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory deleted: %v", result))
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for delete_graph_memory"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for delete_graph_memory")
 	case "search_work_items":
 		if toolset.getArgPresent(args, "query") {
 			query := args["query"].(string)
 			ctx := context.Background()
 			searchSrv, err := boards.NewSearchWorkitemsSrv(ctx, "your_project_name")
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error creating search service: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error creating search service: "+err.Error())
 			}
 			result, err := searchSrv.SearchWorkitems(ctx, query)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error searching work items: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error searching work items: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, result), nil
+			return openai.ToolMessage(toolCall.ID, result)
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_work_items"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_work_items")
 
 	case "get_work_item":
 		if toolset.getArgPresent(args, "id") {
 			id, err := strconv.Atoi(args["id"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid work item ID: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Invalid work item ID: "+err.Error())
 			}
 			ctx := context.Background()
 			getSrv, err := boards.NewGetWorkItemSrv(ctx, os.Getenv("AZDO_ORG_URL"), os.Getenv("AZDO_PAT"))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error creating get service: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error creating get service: "+err.Error())
 			}
 			result, err := getSrv.GetWorkitem(ctx, id)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error getting work item: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error getting work item: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, result), nil
+			return openai.ToolMessage(toolCall.ID, result)
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_work_item"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_work_item")
 
 	case "manage_work_item":
 		if toolset.getArgPresent(args, "action") && toolset.getArgPresent(args, "title") && toolset.getArgPresent(args, "description") {
@@ -306,48 +321,48 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 			case "create":
 				createSrv, err := boards.NewCreateWorkitemSrv(ctx, "playground")
 				if err != nil {
-					return openai.ToolMessage(toolCall.ID, "Error creating create service: "+err.Error()), nil
+					return openai.ToolMessage(toolCall.ID, "Error creating create service: "+err.Error())
 				}
 				result, err := createSrv.CreateWorkitem(ctx, title, description)
 				if err != nil {
-					return openai.ToolMessage(toolCall.ID, "Error creating work item: "+err.Error()), nil
+					return openai.ToolMessage(toolCall.ID, "Error creating work item: "+err.Error())
 				}
-				return openai.ToolMessage(toolCall.ID, result), nil
+				return openai.ToolMessage(toolCall.ID, result)
 			case "update":
 				if !toolset.getArgPresent(args, "id") {
-					return openai.ToolMessage(toolCall.ID, "ID is required for updating a work item"), nil
+					return openai.ToolMessage(toolCall.ID, "ID is required for updating a work item")
 				}
 				id, err := strconv.Atoi(args["id"].(string))
 				if err != nil {
-					return openai.ToolMessage(toolCall.ID, "Invalid work item ID: "+err.Error()), nil
+					return openai.ToolMessage(toolCall.ID, "Invalid work item ID: "+err.Error())
 				}
 				updateSrv, err := boards.NewUpdateWorkitemSrv(ctx, "playground")
 				if err != nil {
-					return openai.ToolMessage(toolCall.ID, "Error creating update service: "+err.Error()), nil
+					return openai.ToolMessage(toolCall.ID, "Error creating update service: "+err.Error())
 				}
 				result, err := updateSrv.UpdateWorkitem(ctx, id, title, description)
 				if err != nil {
-					return openai.ToolMessage(toolCall.ID, "Error updating work item: "+err.Error()), nil
+					return openai.ToolMessage(toolCall.ID, "Error updating work item: "+err.Error())
 				}
-				return openai.ToolMessage(toolCall.ID, result), nil
+				return openai.ToolMessage(toolCall.ID, result)
 			default:
-				return openai.ToolMessage(toolCall.ID, "Invalid action for manage_work_item"), nil
+				return openai.ToolMessage(toolCall.ID, "Invalid action for manage_work_item")
 			}
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for manage_work_item"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for manage_work_item")
 
 	case "search_helpdesk_tickets":
 		if toolset.getArgPresent(args, "query") && toolset.getArgPresent(args, "page") {
 			query := args["query"].(string)
 			page, err := strconv.Atoi(args["page"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid page number: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Invalid page number: "+err.Error())
 			}
 
 			ticketService := trengo.NewTicketService()
 			tickets, err := ticketService.ListTickets(context.Background(), page)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error searching helpdesk tickets: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error searching helpdesk tickets: "+err.Error())
 			}
 
 			// Format the results for the AI
@@ -357,21 +372,21 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 					ticket.ID, ticket.Subject, ticket.Status, ticket.CreatedAt, ticket.UpdatedAt, ticket.AssignedTo, ticket.LastMessage)
 			}
 
-			return openai.ToolMessage(toolCall.ID, formattedResults), nil
+			return openai.ToolMessage(toolCall.ID, formattedResults)
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_helpdesk_tickets"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_helpdesk_tickets")
 
 	case "get_helpdesk_messages":
 		if toolset.getArgPresent(args, "ticket_id") {
 			ticketID, err := strconv.Atoi(args["ticket_id"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error())
 			}
 
 			messageService := trengo.NewMessageService(os.Getenv("TRENGO_BASE_URL"), os.Getenv("TRENGO_API_TOKEN"))
 			messages, err := messageService.ListMessages(context.Background(), ticketID)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error getting helpdesk messages: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error getting helpdesk messages: "+err.Error())
 			}
 
 			// Format the results for the AI
@@ -381,104 +396,104 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 					message.ID, message.Body, message.CreatedAt, message.User.Name, message.User.ID)
 			}
 
-			return openai.ToolMessage(toolCall.ID, formattedResults), nil
+			return openai.ToolMessage(toolCall.ID, formattedResults)
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_helpdesk_messages"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_helpdesk_messages")
 
 	case "get_helpdesk_message":
 		if toolset.getArgPresent(args, "ticket_id") && toolset.getArgPresent(args, "message_id") {
 			ticketID, err := strconv.Atoi(args["ticket_id"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error())
 			}
 			messageID, err := strconv.Atoi(args["message_id"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid message ID: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Invalid message ID: "+err.Error())
 			}
 
 			messageService := trengo.NewMessageService(os.Getenv("TRENGO_BASE_URL"), os.Getenv("TRENGO_API_TOKEN"))
 			message, err := messageService.FetchMessage(context.Background(), ticketID, messageID)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error getting helpdesk message: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error getting helpdesk message: "+err.Error())
 			}
 
 			// Format the result for the AI
 			formattedResult := fmt.Sprintf("Helpdesk Message (Ticket %d, Message %d):\n\nBody: %s\nCreated At: %s\nUser: %s (ID: %d)",
 				ticketID, messageID, message.Body, message.CreatedAt, message.User.Name, message.User.ID)
 
-			return openai.ToolMessage(toolCall.ID, formattedResult), nil
+			return openai.ToolMessage(toolCall.ID, formattedResult)
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_helpdesk_message"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_helpdesk_message")
 
 	case "get_helpdesk_labels":
 		ctx := context.Background()
 		listLabels := trengo.NewListLabels()
 		labels, err := listLabels.List(ctx)
 		if err != nil {
-			return openai.ToolMessage(toolCall.ID, "Error getting helpdesk labels: "+err.Error()), nil
+			return openai.ToolMessage(toolCall.ID, "Error getting helpdesk labels: "+err.Error())
 		}
 		labelsJSON, err := json.Marshal(labels)
 		if err != nil {
-			return openai.ToolMessage(toolCall.ID, "Error marshaling labels: "+err.Error()), nil
+			return openai.ToolMessage(toolCall.ID, "Error marshaling labels: "+err.Error())
 		}
-		return openai.ToolMessage(toolCall.ID, string(labelsJSON)), nil
+		return openai.ToolMessage(toolCall.ID, string(labelsJSON))
 	case "add_helpdesk_labels":
 		if toolset.getArgPresent(args, "ticket_id") && toolset.getArgPresent(args, "label_id") {
 			ticketID, err := strconv.Atoi(args["ticket_id"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error())
 			}
 			labelID, err := strconv.Atoi(args["label_id"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid label ID: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Invalid label ID: "+err.Error())
 			}
 			ctx := context.Background()
 			assignLabels := trengo.NewAssignLabels()
 			err = assignLabels.Attach(ctx, labelID, ticketID)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error adding helpdesk label: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error adding helpdesk label: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, "Label successfully added to the ticket"), nil
+			return openai.ToolMessage(toolCall.ID, "Label successfully added to the ticket")
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_helpdesk_labels"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_helpdesk_labels")
 	case "search_slack_messages":
 		if toolset.getArgPresent(args, "query") {
 			search := comms.NewSearch()
 			messages, err := search.SearchMessages(context.Background(), args["query"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error searching Slack messages: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error searching Slack messages: "+err.Error())
 			}
 			result, _ := json.Marshal(messages)
-			return openai.ToolMessage(toolCall.ID, string(result)), nil
+			return openai.ToolMessage(toolCall.ID, string(result))
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_slack_messages"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_slack_messages")
 	case "send_slack_channel_message":
 		if toolset.getArgPresent(args, "channel") && toolset.getArgPresent(args, "message") {
 			msg := comms.NewMessage(args["channel"].(string), args["message"].(string))
 			err := msg.Post(context.Background())
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error sending Slack channel message: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error sending Slack channel message: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, "Slack channel message sent successfully"), nil
+			return openai.ToolMessage(toolCall.ID, "Slack channel message sent successfully")
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for send_slack_channel_message"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for send_slack_channel_message")
 	case "send_slack_user_message":
 		if toolset.getArgPresent(args, "user") && toolset.getArgPresent(args, "message") {
 			// Note: This assumes the user ID is provided. You might need to look up the user ID from the username if that's what's provided.
 			msg := comms.NewMessage(args["user"].(string), args["message"].(string))
 			err := msg.Post(context.Background())
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error sending Slack user message: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error sending Slack user message: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, "Slack user message sent successfully"), nil
+			return openai.ToolMessage(toolCall.ID, "Slack user message sent successfully")
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for send_slack_user_message"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for send_slack_user_message")
 	case "search_github_code":
 		if toolset.getArgPresent(args, "query") {
 			hub := git.NewHub()
 			results, err := hub.SearchCode(context.Background(), args["query"].(string))
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error searching GitHub code: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error searching GitHub code: "+err.Error())
 			}
 
 			// Format the results for the AI
@@ -488,26 +503,26 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 					result.Repository, result.Path, result.Content)
 			}
 
-			return openai.ToolMessage(toolCall.ID, formattedResults), nil
+			return openai.ToolMessage(toolCall.ID, formattedResults)
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_github_code"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_github_code")
 	case "add_code_review":
-		return openai.ToolMessage(toolCall.ID, "tool not implemented"), nil
+		return openai.ToolMessage(toolCall.ID, "tool not implemented")
 	case "use_browser":
 		if toolset.getArgPresent(args, "url") && toolset.getArgPresent(args, "javascript") {
 			browser := NewBrowser()
 			result, err := browser.Run(args)
 			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error using browser: "+err.Error()), nil
+				return openai.ToolMessage(toolCall.ID, "Error using browser: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, result), nil
+			return openai.ToolMessage(toolCall.ID, result)
 		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for use_browser"), nil
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for use_browser")
 	case "start_environment":
-		return openai.ToolMessage(toolCall.ID, "tool not implemented"), nil
+		return openai.ToolMessage(toolCall.ID, "tool not implemented")
 	}
 
-	return openai.ChatCompletionToolMessageParam{}, err
+	return openai.ToolMessage(toolCall.ID, "Tool not implemented")
 }
 
 func (toolset *Toolset) makeTools() {
@@ -596,10 +611,10 @@ func (toolset *Toolset) makeTools() {
 
 	toolset.toolMap["add_graph_memory"] = toolset.makeSchema(
 		"add_graph_memory",
-		"Add a memory to the graph store. Useful for storing memories as connected relationships.",
+		"Add a memory to the graph store. Useful for storing memories as connected relationships. Make sure you have at least one relationship defined in your cypher query.",
 		map[string]interface{}{
 			"private": toolset.makeBoolParam("Whether this is a private memory or not."),
-			"cypher":  toolset.makeStringParam("The cypher query to add to the graph store."),
+			"cypher":  toolset.makeStringParam("The cypher query to add new nodes and edges to the graph store."),
 		},
 	)
 
@@ -638,11 +653,11 @@ func (toolset *Toolset) makeTools() {
 
 	toolset.toolMap["manage_work_item"] = toolset.makeSchema(
 		"manage_work_item",
-		"Manage a work item. Useful for creating, updating, and deleting work items in the project management system.",
+		"Manage a work item. Useful for creating or updating work items in the project management system.",
 		map[string]interface{}{
 			"action":      toolset.makeEnumParam("The action to perform on the work item.", []string{"create", "update"}),
 			"title":       toolset.makeStringParam("The title of the work item."),
-			"description": toolset.makeStringParam("The description of the work item."),
+			"description": toolset.makeStringParam("Gherkin description of the work item."),
 			"priority":    toolset.makeEnumParam("The priority of the work item.", []string{"low", "normal", "high"}),
 			"tags":        toolset.makeArrayParam("The tags of the work item."),
 		},
@@ -787,6 +802,7 @@ func (toolset *Toolset) makeArrayParam(description string) map[string]interface{
 	return map[string]interface{}{
 		"type":        "array",
 		"description": description,
+		"items":       toolset.makeStringParam("The items in the array."),
 	}
 }
 
