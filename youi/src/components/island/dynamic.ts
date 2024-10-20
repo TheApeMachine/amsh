@@ -5,30 +5,13 @@ import "@/components/ui/button";
 gsap.registerPlugin(Flip);
 
 export class DynamicIsland extends HTMLElement {
+    private template = document.createElement('template');
     private island: HTMLElement | null = null;
-    private contentElement: HTMLElement | null = null;
-    private currentState: string = 'closed';
-    private states: Record<string, any> = {};
+    private state: any = null;
 
     constructor() {
         super();
-        this.attachShadow({ mode: 'open' });
-    }
-
-    connectedCallback() {
-        this.island = this.shadowRoot!.querySelector('#island') as HTMLElement;
-        this.setupStates();
-
-        this.render();
-        ["closed", "button", "closed"].forEach((state) => {
-            setTimeout(() => {
-                this.morphTo(state);
-            }, 3000);
-        });
-    }
-
-    private render() {
-        this.shadowRoot!.innerHTML = `
+        this.template.innerHTML = `
             <style>
                 :host {
                     display: block;
@@ -45,6 +28,59 @@ export class DynamicIsland extends HTMLElement {
                         "sidebar footer flyout";
                     width: 100%;
                     height: 100%;
+
+                    &.button {
+                        display: inline-grid;
+                        width: unset;
+                        height: unset;
+
+                        > main {
+                            box-shadow: 0px 0px 0px 3px #FFF;
+                            padding: 0.25rem 1rem;
+                            font-size: 1rem;
+                            cursor: pointer;
+                            border-radius: .125rem;
+                            outline: 2px solid rgba(0, 0, 0, 1);
+                            background: #FFF;
+                            color: #333;
+                        }
+                    }
+                    
+                    &.card {
+                        display: inline-grid;
+                        width: 50%;
+                        height: 50%;
+                        
+                        > main {
+                            height: 100%;
+                            box-shadow: 0px 0px 0px 3px #FFF;
+                            padding: 0.25rem 1rem;
+                            font-size: 1rem;
+                            cursor: pointer;
+                            border-radius: .125rem;
+                            outline: 2px solid rgba(0, 0, 0, 1);
+                            background: #FFF;
+                            color: #333;
+                        }
+                    }
+                    &.modal {
+                        display: inline-grid;
+                        width: 50%;
+                        height: 50%;
+                        box-shadow: rgba(220, 220, 220, 0.2) 0px 60px 40px -7px;
+                        
+                        > main {
+                            height: 100%;
+                            box-shadow: 0px 0px 0px 3px #FFF;
+                            padding: 0.25rem 1rem;
+                            font-size: 1rem;
+                            cursor: pointer;
+                            border-radius: .125rem;
+                            outline: 2px solid rgba(0, 0, 0, 1);
+                            background: #FFF;
+                            color: #333;
+                        }
+                    }
                 }
                 header {
                     grid-area: header;
@@ -66,69 +102,58 @@ export class DynamicIsland extends HTMLElement {
                     grid-area: flyout;
                 }
             </style>
-            <div id="island">
+            <div id="island" class="button">
                 <header></header>
                 <aside></aside>
-                <main></main>
+                <main>test</main>
                 <article></article>
                 <footer></footer>
             </div>
         `;
+
+        this.attachShadow({ mode: 'open' });
     }
 
-    private setupStates() {
-        // Define your states here
-        this.states = {
-            closed: { content: '' },
-            button: { content: '<youi-button>Click me</youi-button>' },
-            // ... other states ...
-        };
-    }
-
-    public morphTo(state: string) {
-        console.log('morphTo', state);
-        if (this.states.hasOwnProperty(state) && this.island && this.contentElement) {
-            const config = this.states[state];
-
-            // Capture the current state
-            const state = Flip.getState(this.island);
-
-            // Update content
-            this.contentElement.innerHTML = config.content;
-
-            // Update styles
-            Object.assign(this.island.style, {
-                width: config.width,
-                height: config.height,
-                // ... other style properties ...
-            });
-
-            // Animate the change
-            Flip.from(state, {
-                duration: 0.5,
-                ease: "power1.inOut",
-                onComplete: () => {
-                    this.currentState = state;
-                    this.dispatchEvent(new CustomEvent('stateChanged', { detail: { newState: state }, bubbles: true, composed: true }));
-                }
-            });
-
-            // If we're transitioning to a component with enter animation (like our button)
-            const component = this.contentElement.firstElementChild as any;
-            if (component && typeof component.playEnterAnimation === 'function') {
-                component.playEnterAnimation();
-            }
+    connectedCallback() {
+        this.shadowRoot?.appendChild(this.template.content.cloneNode(true));
+        this.island = this.shadowRoot!.querySelector('#island') as HTMLElement;
+        
+        // Ensure the element is in the DOM before animating
+        if (this.island) {
+            // Delay the animation slightly to ensure DOM is ready
+            setTimeout(() => {
+                this.animateIsland();
+            }, 0);
+        } else {
+            console.error('Island element not found');
         }
     }
 
-    public async transitionFrom(state: string) {
-        if (this.currentState === state && this.contentElement) {
-            const component = this.contentElement.firstElementChild as any;
-            if (component && typeof component.playExitAnimation === 'function') {
-                await component.playExitAnimation();
-            }
-        }
+    private animateIsland() {
+        this.state = Flip.getState(this.island);
+        this.island!.classList.remove('button');
+        this.island!.classList.add('card');
+        Flip.from(this.state, {
+            duration: 1,
+            ease: "back.inOut(1)",
+            absolute: true,
+            onComplete: () => {
+                console.log('complete');
+            },
+        });
+        this.state = Flip.getState(this.island);
+        this.island!.classList.remove('card');
+        this.island!.classList.add('modal');
+        Flip.from(this.state, {
+            duration: 1,
+            ease: "back.inOut(1)",
+            absolute: true,
+            onComplete: () => {
+                console.log('complete');
+            },
+        });
     }
+
 }
 
 customElements.define('dynamic-island', DynamicIsland);

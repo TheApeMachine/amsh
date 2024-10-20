@@ -93,14 +93,8 @@ func (keyboard *Keyboard) HandleInput(b byte) {
 func (keyboard *Keyboard) handleModeChange(modeSub <-chan *data.Artifact) {
 	errnie.Trace()
 	for artifact := range modeSub {
-		scope, err := artifact.Scope()
-		if err != nil {
-			errnie.Error(err)
-			continue
-		}
-
 		var newMode Mode
-		switch scope {
+		switch artifact.Peek("scope") {
 		case "NormalMode":
 			newMode = &Normal{}
 		case "InsertMode":
@@ -108,7 +102,7 @@ func (keyboard *Keyboard) handleModeChange(modeSub <-chan *data.Artifact) {
 		case "CommandMode":
 			newMode = &Command{}
 		default:
-			errnie.Warn("Unknown mode: %s", scope)
+			errnie.Warn("Unknown mode: %s", artifact.Peek("scope"))
 			continue
 		}
 

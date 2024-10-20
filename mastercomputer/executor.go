@@ -52,7 +52,7 @@ func (executor *Executor) Close() {
 }
 
 func (executor *Executor) Error(err error) *data.Artifact {
-	return data.New(executor.task.Peek("origin"), executor.task.Peek("role"), "error", []byte(err.Error()))
+	return data.New(executor.worker.buffer.Peek("origin"), executor.worker.buffer.Peek("role"), "error", []byte(err.Error()))
 }
 
 func (executor *Executor) Do() *data.Artifact {

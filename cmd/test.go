@@ -40,7 +40,7 @@ func runTest(cmd *cobra.Command, args []string) error {
 	externalPrompt := data.New(utils.NewName(), "manager", "managing", []byte{})
 	externalPrompt.Poke("stage", "ingress")
 	externalPrompt.Poke("id", utils.NewID())
-	externalPrompt.Poke("payload", "We need to design a new testing methodology to measure employee wellbeing in the workplace. It has to both highly robust, but also engaging, becausee surveys are not proving to be very effective.")
+	externalPrompt.Poke("payload", "What are things about large language models that have not been discovered yet?")
 
 	queue.Publish(externalPrompt)
 

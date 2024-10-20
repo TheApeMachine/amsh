@@ -64,31 +64,7 @@ export const render = async () => {
             return html`
                 <slides-component>
                     <section>
-                        <zlide-component>
-                            <article class="zlide">
-                                <h1>Hello World</h1>
-                                <youi-popover></youi-popover>
-                                <youi-progress></youi-progress>
-                            </article>
-                            <article class="zlide">
-                                <h1>Hello World</h1>
-                            </article>
-                            <article class="zlide">
-                                <h1>Hello World</h1>
-                            </article>
-                            <article class="zlide">
-                                <h1>Hello World</h1>
-                            </article>
-                            <article class="zlide">
-                                <h1>Hello World</h1>
-                            </article>
-                            <article class="zlide">
-                                <h1>Hello World</h1>
-                            </article>
-                            <article class="zlide">
-                                <h1>Hello World</h1>
-                            </article>
-                        </zlide-component>
+                        <dynamic-island></dynamic-island>
                     </section>
                 </slides-component>
             `

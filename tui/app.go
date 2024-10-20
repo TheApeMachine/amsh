@@ -45,7 +45,6 @@ func (app *App) Initialize() *App {
 
 	app.running = true
 
-	Render() // Get terminal size
 	app.width, app.height, _ = term.GetSize(int(os.Stdout.Fd()))
 	app.context = core.NewContext(
 		core.NewQueue(),

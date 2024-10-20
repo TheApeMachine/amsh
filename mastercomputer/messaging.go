@@ -34,9 +34,11 @@ func (messaging *Messaging) Process() *data.Artifact {
 		"%s, %s", messaging.message.Peek("chain"), messaging.worker.name,
 	))
 
-	stateContext := scopeMap[messaging.message.Peek("scope")][messaging.message.Peek("stage")]
+	stateContext := scopeMap[messaging.message.Peek("role")][messaging.message.Peek("stage")]
 
-	messaging.message.Poke("scope", stateContext["scope"])
+	if stateContext["scope"] != "" {
+		messaging.message.Poke("scope", stateContext["scope"])
+	}
 
 	// Prepare the message for the execution step.
 	for _, key := range []string{"origin", "role", "system", "user"} {

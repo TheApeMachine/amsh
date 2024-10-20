@@ -3,6 +3,9 @@ from swarm.repl import run_demo_loop
 
 client = Swarm()
 
+def store_memory() -> str:
+    
+
 def build_agent(name: str, instructions: str) -> Agent:
     """Builds a component.
 

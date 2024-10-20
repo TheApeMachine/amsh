@@ -63,13 +63,13 @@ func (q *Queue) Start() {
 			case message := <-q.PubCh:
 				switch message.Peek("role") {
 				case "register":
-					q.Register(message.Peek("name"))
+					q.Register(message.Peek("origin"))
 				case "unregister":
-					q.Unregister(message.Peek("name"))
+					q.Unregister(message.Peek("origin"))
 				case "subscribe":
-					q.Subscribe(message.Peek("name"), message.Peek("scope"))
+					q.Subscribe(message.Peek("origin"), message.Peek("scope"))
 				case "unsubscribe":
-					q.Unsubscribe(message.Peek("name"), message.Peek("scope"))
+					q.Unsubscribe(message.Peek("origin"), message.Peek("scope"))
 				default:
 					q.Publish(message)
 				}

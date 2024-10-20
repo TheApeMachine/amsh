@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
@@ -108,7 +109,7 @@ func (worker *Worker) Start() {
 				}
 
 				errnie.Debug("%s <-[%s]- %s\n%s", worker.name, msg.Peek("role"), msg.Peek("scope"), msg.Peek("payload"))
-
+				spew.Dump(msg.Peek("role"))
 				if msg := NewMessaging(worker, msg).Process(); msg != nil {
 					worker.queue.PubCh <- NewExecutor(worker, msg).Do()
 				}

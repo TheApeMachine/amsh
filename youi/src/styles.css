@@ -2,6 +2,7 @@
 @import url("./assets/dracula.css");
 @import url("./assets/reset.css");
 @import url("./assets/root.css");
+@import url("./components/ui/youi.css");
 
 html, body {
     margin: 0;
