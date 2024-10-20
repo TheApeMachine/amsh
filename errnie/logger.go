@@ -33,6 +33,7 @@ var (
 	logFile     *os.File
 	logFileMu   sync.Mutex
 	logFilePath string
+	nonofile    bool = true
 
 	logger = log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
@@ -217,7 +218,7 @@ func Error(err error) error {
 }
 
 func writeToLog(message string) {
-	if message == "" {
+	if message == "" || nonofile {
 		return
 	}
 

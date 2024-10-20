@@ -34,6 +34,7 @@ It may only update the worker's process flow if the worker is ready.
 func (messaging *Messaging) Process() bool {
 	// Check if the worker is ready.
 	if messaging.worker.state != WorkerStateReady {
+
 		return false
 	}
 

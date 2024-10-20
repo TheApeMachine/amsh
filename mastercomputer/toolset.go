@@ -315,6 +315,7 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 			action := args["action"].(string)
 			title := args["title"].(string)
 			description := args["description"].(string)
+			workItemType := args["workitem_type"].(string)
 			ctx := context.Background()
 
 			switch action {
@@ -323,7 +324,7 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 				if err != nil {
 					return openai.ToolMessage(toolCall.ID, "Error creating create service: "+err.Error())
 				}
-				result, err := createSrv.CreateWorkitem(ctx, title, description)
+				result, err := createSrv.CreateWorkitem(ctx, title, description, workItemType)
 				if err != nil {
 					return openai.ToolMessage(toolCall.ID, "Error creating work item: "+err.Error())
 				}
@@ -655,11 +656,10 @@ func (toolset *Toolset) makeTools() {
 		"manage_work_item",
 		"Manage a work item. Useful for creating or updating work items in the project management system.",
 		map[string]interface{}{
-			"action":      toolset.makeEnumParam("The action to perform on the work item.", []string{"create", "update"}),
-			"title":       toolset.makeStringParam("The title of the work item."),
-			"description": toolset.makeStringParam("Gherkin description of the work item."),
-			"priority":    toolset.makeEnumParam("The priority of the work item.", []string{"low", "normal", "high"}),
-			"tags":        toolset.makeArrayParam("The tags of the work item."),
+			"action":        toolset.makeEnumParam("The action to perform on the work item.", []string{"create", "update"}),
+			"workitem_type": toolset.makeEnumParam("The type of work item to create.", []string{"Epic", "Issue", "Task"}),
+			"title":         toolset.makeStringParam("The title of the work item."),
+			"description":   toolset.makeStringParam("Gherkin description of the work item."),
 		},
 	)
 

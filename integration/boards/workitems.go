@@ -70,7 +70,7 @@ func NewCreateWorkitemSrv(ctx context.Context, projectName string) (*CreateWorki
 }
 
 func (srv *CreateWorkitemSrv) CreateWorkitem(
-	ctx context.Context, title, description string,
+	ctx context.Context, title, description, workitemType string,
 ) (out string, err error) {
 	var (
 		responseValue *workitemtracking.WorkItem
@@ -90,6 +90,7 @@ func (srv *CreateWorkitemSrv) CreateWorkitem(
 	responseValue, err = srv.conn.CreateWorkItem(ctx, workitemtracking.CreateWorkItemArgs{
 		Project:  &srv.projectName,
 		Document: &doc,
+		Type:     &workitemType,
 	})
 
 	if err != nil {
