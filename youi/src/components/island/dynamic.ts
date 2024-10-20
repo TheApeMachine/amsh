@@ -28,6 +28,7 @@ export class DynamicIsland extends HTMLElement {
                         "sidebar footer flyout";
                     width: 100%;
                     height: 100%;
+                    box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px, rgba(0, 0, 0, 0.3) 0px 7px 13px -3px, rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
 
                     &.button {
                         display: inline-grid;
@@ -94,6 +95,16 @@ export class DynamicIsland extends HTMLElement {
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
+
+                    > span {
+                        padding: 0.25rem 1rem;
+                        border-radius: 0.125rem;
+                        font-size: 1rem;
+                        box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px, rgba(0, 0, 0, 0.3) 0px 7px 13px -3px, rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
+                        &:hover {
+                            box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px, rgba(0, 0, 0, 0.3) 0px 7px 13px -3px, rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
+                        }
+                    }
                 }
                 footer {
                     grid-area: footer;
@@ -105,7 +116,7 @@ export class DynamicIsland extends HTMLElement {
             <div id="island" class="button">
                 <header></header>
                 <aside></aside>
-                <main>test</main>
+                <main><span>test</span></main>
                 <article></article>
                 <footer></footer>
             </div>

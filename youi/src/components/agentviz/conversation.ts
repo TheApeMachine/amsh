@@ -112,21 +112,20 @@ class ConversationVisualizer extends HTMLElement {
     setupWebSocket() {
         this.ws = new WebSocket("ws://localhost:8567/ws");
         this.ws.onmessage = (event) => {
-            try {
-                const chunk = JSON.parse(event.data);
-                this.processChunk(chunk);
-            } catch (e) {
-                console.error('Failed to parse WebSocket message:', e);
-            }
+            // Handle incoming messages
         };
+    
+        this.ws.onopen = () => {
+            setInterval(() => {
+                if (this.ws?.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 30000); // 30 seconds ping interval
+        };
+
         this.ws.onerror = (error) => {
             console.error("WebSocket error:", error);
             this.showNotification('WebSocket error occurred. Please check the connection.', 'error');
-        };
-        this.ws.onclose = () => {
-            console.warn("WebSocket connection closed, attempting to reconnect...");
-            this.showNotification('WebSocket connection lost. Reconnecting...', 'warning');
-            setTimeout(() => this.setupWebSocket(), 1000);
         };
     }
 

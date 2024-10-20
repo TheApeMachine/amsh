@@ -1,47 +1,41 @@
 package service
 
 import (
+	"net/http"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/sockpuppet"
 )
 
-func NewWebSocketHandler() func(c *sockpuppet.WebsocketConn) {
-	return func(c *sockpuppet.WebsocketConn) {
-		defer c.Close()
+func NewWebSocketHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Upgrade HTTP connection to WebSocket
+		conn, _, _, err := ws.UpgradeHTTP(r, w)
+		if err != nil {
+			errnie.Error(err)
+			return
+		}
 
 		errnie.Debug("WebSocket connection established")
 
-		inChan := make(chan string)
-		writeChan := make(chan []byte)
-		defer close(writeChan)
-		defer close(inChan)
-
-		// Reader goroutine
 		go func() {
-			errnie.Info("Reader goroutine started")
-
-			var (
-				msg []byte
-				err error
-			)
+			defer conn.Close()
 
 			for {
-				if _, msg, err = c.ReadMessage(); err != nil {
+				msg, op, err := wsutil.ReadClientData(conn)
+				if err != nil {
 					errnie.Error(err)
 					break
 				}
 
 				errnie.Info("Received message: " + string(msg))
-				inChan <- string(msg)
-			}
-		}()
 
-		// Writer goroutine
-		go func() {
-			errnie.Info("Writer goroutine started")
+				// Process the message (you can add your custom logic here)
+				response := []byte("Acknowledged: " + string(msg))
 
-			for msg := range writeChan {
-				if err := c.WriteMessage(sockpuppet.TextMessage, msg); err != nil {
+				err = wsutil.WriteServerMessage(conn, op, response)
+				if err != nil {
 					errnie.Error(err)
 					break
 				}

@@ -2,7 +2,7 @@ import { loader } from "@/lib/loader"
 import { html } from "@/lib/template"
 import { match } from "@/lib/match"
 import { blurIn, blurOut, sequence, Transition } from "@/lib/transition"
-import "@/components/slides/zlide"
+import "@/components/agentviz/conversation"
 
 export const render = async () => {
 
@@ -14,7 +14,13 @@ export const render = async () => {
             return html`<div>Error: ${error}</div>`
         },
         success: (_: any) => {
-            return html`<youi-zlide></youi-zlide>`
+            return html`
+                <slides-component>
+                    <section>
+                        <conversation-visualizer></conversation-visualizer>
+                    </section>
+                </slides-component>
+            `
         }
     }), {
         enter: sequence(blurIn),

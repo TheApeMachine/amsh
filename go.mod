@@ -57,6 +57,8 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/gobwas/httphead v0.1.0 // indirect
+	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -131,6 +133,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fatih/color v1.17.0 // indirect
 	github.com/go-rod/rod v0.116.2
+	github.com/gobwas/ws v1.4.0
 	github.com/goccy/go-json v0.10.3
 	github.com/gofiber/fiber/v3 v3.0.0-beta.3
 	github.com/gorilla/websocket v1.5.3 // indirect

@@ -2,16 +2,21 @@ package service
 
 import (
 	"context"
+	"net/http"
+	"sync"
+
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/favicon"
 	"github.com/gofiber/fiber/v3/middleware/static"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/comms"
 	"github.com/theapemachine/amsh/mastercomputer"
-	"github.com/theapemachine/amsh/sockpuppet"
 	"github.com/theapemachine/amsh/twoface"
-	"sync"
 )
 
 /*
@@ -29,13 +34,23 @@ NewHTTPS creates a new HTTPS service, configures the mapping to internal service
 from the config file, and sets up fiber (v3) to serve TLS requests.
 */
 func NewHTTPS() *HTTPS {
+	// Initialize the messaging queue
+	queue := twoface.NewQueue()
+
+	// Initialize the worker manager
 	builder := mastercomputer.NewBuilder()
 
-	reasoner := builder.NewWorker("reasoner")
-	reasoner.Start()
-
-	verifier := builder.NewWorker("verifier")
-	verifier.Start()
+	for _, agent := range []mastercomputer.WorkerType{
+		mastercomputer.WorkerTypeManager,
+		mastercomputer.WorkerTypeReasoner,
+		mastercomputer.WorkerTypeVerifier,
+		mastercomputer.WorkerTypeCommunicator,
+		mastercomputer.WorkerTypeResearcher,
+		mastercomputer.WorkerTypeExecutor,
+	} {
+		worker := builder.NewWorker(agent)
+		worker.Start()
+	}
 
 	return &HTTPS{
 		app: fiber.New(fiber.Config{
@@ -46,7 +61,7 @@ func NewHTTPS() *HTTPS {
 			JSONEncoder:   json.Marshal,
 			JSONDecoder:   json.Unmarshal,
 		}),
-		queue:       twoface.NewQueue(),
+		queue:       queue,
 		slackEvents: comms.NewEvents(),
 	}
 }
@@ -64,17 +79,9 @@ func (https *HTTPS) Up() error {
 		favicon.New(),
 	)
 
-	https.app.Use("/ws", func(c fiber.Ctx) error {
-		// IsWebSocketUpgrade returns true if the client
-		// requested upgrade to the WebSocket protocol.
-		if sockpuppet.IsWebSocketUpgrade(c) {
-			c.Locals("allowed", true)
-			return c.Next()
-		}
-		return fiber.ErrUpgradeRequired
-	})
+	// WebSocket route using adaptor
+	https.app.Get("/ws", adaptor.HTTPHandler(handler(websocketHandler)))
 
-	https.app.Get("/ws", sockpuppet.NewWebsocket(NewWebSocketHandler()))
 	https.app.Post("/webhook/trengo", https.NewWebhook("trengo", "message"))
 	https.app.Use("/", static.New("./frontend"))
 
@@ -114,4 +121,41 @@ func (https *HTTPS) Shutdown() error {
 	// For now, we don't have a specific shutdown method for it
 
 	return nil
+}
+
+func handler(f http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(f)
+}
+
+func websocketHandler(w http.ResponseWriter, r *http.Request) {
+	conn, _, _, err := ws.UpgradeHTTP(r, w)
+	if err != nil {
+		errnie.Error(err)
+		return
+	}
+
+	errnie.Debug("WebSocket connection established")
+
+	go func() {
+		defer conn.Close()
+
+		for {
+			msg, op, err := wsutil.ReadClientData(conn)
+			if err != nil {
+				errnie.Error(err)
+				break
+			}
+
+			errnie.Info("Received message: " + string(msg))
+
+			// Process the message (you can add your custom logic here)
+			response := []byte("Acknowledged: " + string(msg))
+
+			err = wsutil.WriteServerMessage(conn, op, response)
+			if err != nil {
+				errnie.Error(err)
+				break
+			}
+		}
+	}()
 }
