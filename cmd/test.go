@@ -41,7 +41,7 @@ func runTest(cmd *cobra.Command, args []string) error {
 		worker.Start()
 	}
 
-	message := data.New(utils.NewName(), "task", "managing", []byte("Why does Deep Thought claim the answer to life the universe and everything is 42?"))
+	message := data.New(utils.NewName(), "task", "managing", []byte("How many times do we find the letter r in the word strawberry?"))
 	message.Poke("chain", "test")
 
 	queue.PubCh <- *message

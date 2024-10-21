@@ -1,10 +1,7 @@
 package service
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v3"
-	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/data"
 )
 
@@ -19,21 +16,8 @@ type Inbound struct {
 
 func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 	return func(ctx fiber.Ctx) (err error) {
-		template := viper.GetViper().GetString("webhook." + origin + "." + scope)
-
-		message := Inbound{}
-		if err = ctx.Bind().Body(&message); err != nil {
-			return err
-		}
-
-		template = strings.ReplaceAll(template, "{message_id}", message.MessageID)
-		template = strings.ReplaceAll(template, "{ticket_id}", message.TicketID)
-		template = strings.ReplaceAll(template, "{contact_id}", message.ContactID)
-		template = strings.ReplaceAll(template, "{contact_name}", message.ContactName)
-		template = strings.ReplaceAll(template, "{contact_email}", message.ContactEmail)
-		template = strings.ReplaceAll(template, "{message}", message.Message)
-
-		https.queue.Publish(*data.New("trengo", "webhook", "managing", []byte(template)))
+		message := data.New("webhook", "trengo", "managing", ctx.Body())
+		message.Poke("chain", "trengo")
 
 		return ctx.SendStatus(fiber.StatusOK)
 	}

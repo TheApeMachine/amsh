@@ -149,6 +149,9 @@ func (worker *Worker) Start() {
 						worker.queue.PubCh <- msg
 					}
 				}
+
+				// Reset the worker state to ready, so it can process the next message.
+				worker.state = WorkerStateReady
 			}
 		}
 	}()

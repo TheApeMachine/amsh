@@ -53,6 +53,16 @@ var processMap = map[string][]map[string]string{
 			"iterations": "1",
 		},
 	},
+	"verification": {
+		{
+			"role":       "verification",
+			"scope":      "finish",
+			"state":      "busy",
+			"done":       "ready",
+			"user":       "You have received the following feedback on your execution. Please reflect on it and come up with some additions to add to your system prompt that will help you to improve your approach and performance.",
+			"iterations": "1",
+		},
+	},
 	"slack": {
 		{
 			"role":       "incoming",
@@ -71,6 +81,16 @@ var processMap = map[string][]map[string]string{
 			"done":       "ready",
 			"user":       "The communicator has shared the following breakdown of a message received on Slack. Please provide your plan and delegate the steps to the appropriate channels.",
 			"iterations": "3",
+		},
+	},
+	"trengo": {
+		{
+			"role":       "helpdesk",
+			"scope":      "dynamic",
+			"state":      "busy",
+			"done":       "ready",
+			"user":       "The following came in from Trengo. Come up with the appropriate plan, make sure we extract labels matching the labels available in Trengo, and see if we need to add or update tickets in Azure.",
+			"iterations": strconv.Itoa(maxIterations),
 		},
 	},
 }

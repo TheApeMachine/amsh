@@ -95,6 +95,13 @@ func (executor *Executor) prepareParams(iteration, maxIterations int) (openai.Ch
 		return openai.ChatCompletionNewParams{}, err
 	}
 
+	if executor.worker.buffer.Peek("role") == "reflection" {
+		responseFormat, err = executor.getResponseFormat("reflection")
+		if errnie.Error(err) != nil {
+			return openai.ChatCompletionNewParams{}, err
+		}
+	}
+
 	// Convert the string to a float
 	temperature, err := strconv.ParseFloat(executor.worker.buffer.Peek("temperature"), 64)
 	if errnie.Error(err) != nil {
@@ -195,6 +202,8 @@ func (executor *Executor) printResponse(content string) (isDone bool, err error)
 		return format.NewCommunicating().Print([]byte(content))
 	case format.Managing:
 		return format.NewManaging().Print([]byte(content))
+	case format.SelfReflection:
+		return format.NewSelfReflection().Print([]byte(content))
 	}
 
 	return false, nil
@@ -252,6 +261,9 @@ func (executor *Executor) getResponseFormat(workload string) (
 	case "manager":
 		executor.strategy = format.Managing{}
 		schema = GenerateSchema[format.Managing]()
+	case "reflection":
+		executor.strategy = format.SelfReflection{}
+		schema = GenerateSchema[format.SelfReflection]()
 	default:
 		executor.strategy = format.Working{}
 		schema = GenerateSchema[format.Working]()
