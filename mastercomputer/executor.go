@@ -27,6 +27,7 @@ type Executor struct {
 	task         *data.Artifact
 	conversation *Conversation
 	strategy     Strategy
+	eventEmitter *twoface.EventEmitter
 }
 
 func NewExecutor(worker *Worker, task *data.Artifact) *Executor {
@@ -40,6 +41,7 @@ func NewExecutor(worker *Worker, task *data.Artifact) *Executor {
 		toolset:      NewToolset(),
 		task:         task,
 		conversation: NewConversation(task),
+		eventEmitter: twoface.NewEventEmitter(),
 	}
 }
 
@@ -79,7 +81,13 @@ func (executor *Executor) Do(maxIterations int) bool {
 func (executor *Executor) prepareParams(iteration, maxIterations int) (openai.ChatCompletionNewParams, error) {
 	messages := executor.conversation.Truncate()
 	iterationMsg := "\n\n[ITERATION: " + strconv.Itoa(iteration) + " of " + strconv.Itoa(maxIterations) + "]\n\n"
-	executor.task.Append(iterationMsg)
+
+	additionalReminder := "\n\nBe mindful of your current iteration count!\n"
+	if iteration == maxIterations-1 {
+		additionalReminder = "You are getting close to the end of your permitted iterations, make sure to wrap up any loose ends!\n\n"
+	}
+
+	executor.task.Append(iterationMsg + additionalReminder)
 	messages = append(messages, openai.AssistantMessage(iterationMsg))
 
 	responseFormat, err := executor.getResponseFormat(executor.worker.buffer.Peek("role"))
@@ -146,6 +154,9 @@ func (executor *Executor) processResponse(response *openai.ChatCompletion) (isDo
 	if content != "" {
 		executor.conversation.Update(message)
 		executor.task.Append(message.Content)
+
+		errnie.Debug("Emitting executor update event")
+		executor.EmitEvent(twoface.EventTypeExecutorUpdate, *executor.task)
 
 		if isDone, err = executor.printResponse(content); err != nil {
 			errnie.Error(err)
@@ -255,4 +266,9 @@ func (executor *Executor) getResponseFormat(workload string) (
 			Strict:      openai.F(true),
 		}),
 	}, nil
+}
+
+// Add this method to the Executor struct
+func (executor *Executor) EmitEvent(eventType twoface.EventType, payload data.Artifact) {
+	executor.eventEmitter.Emit(twoface.Event{Type: eventType, Payload: payload})
 }

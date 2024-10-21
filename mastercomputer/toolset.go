@@ -64,6 +64,7 @@ func NewToolset() *Toolset {
 					"search_work_items",
 					"get_helpdesk_messages",
 					"get_helpdesk_message",
+					"use_browser",
 				},
 				"executor": {
 					"start_environment",
@@ -76,6 +77,10 @@ func NewToolset() *Toolset {
 				},
 				"communicator": {
 					"search_slack_messages",
+					"search_slack_files",
+					"search_github_code",
+					"search_helpdesk_tickets",
+					"search_work_items",
 					"send_slack_channel_message",
 					"send_slack_user_message",
 				},

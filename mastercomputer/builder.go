@@ -36,14 +36,18 @@ func NewBuilder() *Builder {
 	return builderInstance
 }
 
-func (builder *Builder) NewWorker(t WorkerType) *Worker {
+func (builder *Builder) NewWorker(t WorkerType, names ...string) *Worker {
 	v := viper.GetViper()
 	system := v.GetString("ai.prompt.system")
 	role := v.GetString("ai.prompt." + string(t))
 	guidelines := v.GetString("ai.prompt.guidelines")
 
 	ID := utils.NewID()
+
 	name := utils.NewName()
+	if len(names) > 0 {
+		name = names[0]
+	}
 
 	system = utils.ReplaceWith(system, [][]string{
 		{"id", ID},

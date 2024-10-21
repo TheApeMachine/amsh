@@ -53,4 +53,24 @@ var processMap = map[string][]map[string]string{
 			"iterations": "1",
 		},
 	},
+	"slack": {
+		{
+			"role":       "incoming",
+			"scope":      "managing",
+			"state":      "busy",
+			"done":       "ready",
+			"user":       "The following message was posted on Slack. Please break down the message. Use your search tools to find relevant history or context.",
+			"iterations": "3",
+		},
+	},
+	"incoming": {
+		{
+			"role":       "delegation",
+			"scope":      "dynamic",
+			"state":      "busy",
+			"done":       "ready",
+			"user":       "The communicator has shared the following breakdown of a message received on Slack. Please provide your plan and delegate the steps to the appropriate channels.",
+			"iterations": "3",
+		},
+	},
 }

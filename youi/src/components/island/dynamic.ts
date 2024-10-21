@@ -101,9 +101,6 @@ export class DynamicIsland extends HTMLElement {
                         border-radius: 0.125rem;
                         font-size: 1rem;
                         box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px, rgba(0, 0, 0, 0.3) 0px 7px 13px -3px, rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
-                        &:hover {
-                            box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px, rgba(0, 0, 0, 0.3) 0px 7px 13px -3px, rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
-                        }
                     }
                 }
                 footer {
@@ -146,7 +143,7 @@ export class DynamicIsland extends HTMLElement {
         this.island!.classList.add('card');
         Flip.from(this.state, {
             duration: 1,
-            ease: "back.inOut(1)",
+            ease: "power.inOut",
             absolute: true,
             onComplete: () => {
                 console.log('complete');
@@ -157,7 +154,7 @@ export class DynamicIsland extends HTMLElement {
         this.island!.classList.add('modal');
         Flip.from(this.state, {
             duration: 1,
-            ease: "back.inOut(1)",
+            ease: "power.inOut",
             absolute: true,
             onComplete: () => {
                 console.log('complete');

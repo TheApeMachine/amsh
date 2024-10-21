@@ -15,11 +15,12 @@ Queue is a simple pub/sub implementation that allows for topics to be created
 on the fly and for subscribers to be added and removed dynamically.
 */
 type Queue struct {
-	ctx         context.Context
-	cancel      context.CancelFunc
-	mu          sync.RWMutex
-	subscribers map[string]*Subscriber
-	PubCh       chan data.Artifact
+	ctx          context.Context
+	cancel       context.CancelFunc
+	mu           sync.RWMutex
+	subscribers  map[string]*Subscriber
+	PubCh        chan data.Artifact
+	EventEmitter *EventEmitter
 }
 
 /*
@@ -41,10 +42,11 @@ func NewQueue() *Queue {
 	once.Do(func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		queueInstance = &Queue{
-			ctx:         ctx,
-			cancel:      cancel,
-			subscribers: make(map[string]*Subscriber),
-			PubCh:       make(chan data.Artifact, 128),
+			ctx:          ctx,
+			cancel:       cancel,
+			subscribers:  make(map[string]*Subscriber),
+			PubCh:        make(chan data.Artifact, 128),
+			EventEmitter: NewEventEmitter(),
 		}
 		queueInstance.Start()
 	})
@@ -174,6 +176,7 @@ func (q *Queue) Publish(message data.Artifact) error {
 		))
 	}
 
+	errnie.Debug("Publishing message with ID: %s", message.Peek("id"))
 	for _, subscriber := range q.subscribers {
 		if topic == "broadcast" || subscriber.ID == topic {
 			select {
@@ -189,6 +192,8 @@ func (q *Queue) Publish(message data.Artifact) error {
 			}
 		}
 	}
+
+	q.EmitEvent(EventTypeQueueUpdate, message)
 
 	return nil
 }
@@ -206,4 +211,9 @@ func (q *Queue) Unregister(ID string) error {
 	close(subscriber.inbox)
 	delete(q.subscribers, ID)
 	return nil
+}
+
+// Add this method to the Queue struct
+func (q *Queue) EmitEvent(eventType EventType, payload data.Artifact) {
+	q.EventEmitter.Emit(Event{Type: eventType, Payload: payload})
 }

@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/slack-go/slack"
-	"github.com/theapemachine/amsh/errnie"
 )
 
 type Search struct {
@@ -15,11 +14,12 @@ type Search struct {
 }
 
 func NewSearch() *Search {
-	botToken := os.Getenv("BOT_TOKEN")
+	botToken := os.Getenv("MARVIN_BOT_TOKEN")
+	userToken := os.Getenv("MARVIN_USER_TOKEN")
 	return &Search{
-		appToken: os.Getenv("APP_TOKEN"),
+		appToken: os.Getenv("MARVIN_APP_TOKEN"),
 		botToken: botToken,
-		api:      slack.New(botToken),
+		api:      slack.New(userToken),
 	}
 }
 
@@ -27,7 +27,7 @@ func (s *Search) SearchMessages(ctx context.Context, query string) ([]slack.Sear
 	params := slack.NewSearchParameters()
 	results, err := s.api.SearchMessagesContext(ctx, query, params)
 	if err != nil {
-		return nil, errnie.Error(err)
+		return nil, err
 	}
 	return results.Matches, nil
 }
@@ -36,7 +36,7 @@ func (s *Search) SearchFiles(ctx context.Context, query string) ([]slack.File, e
 	params := slack.NewSearchParameters()
 	results, err := s.api.SearchFilesContext(ctx, query, params)
 	if err != nil {
-		return nil, errnie.Error(err)
+		return nil, err
 	}
 	return results.Matches, nil
 }
