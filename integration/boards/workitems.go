@@ -76,14 +76,19 @@ func (srv *CreateWorkitemSrv) CreateWorkitem(
 		responseValue *workitemtracking.WorkItem
 	)
 
-	path := "/fields/System.Title"
-	title = "test"
+	titlePath := "/fields/System.Title"
+	descriptionPath := "/fields/System.Description"
 
 	doc := []webapi.JsonPatchOperation{
 		{
 			Op:    &webapi.OperationValues.Add,
-			Path:  &path,
+			Path:  &titlePath,
 			Value: &title,
+		},
+		{
+			Op:    &webapi.OperationValues.Add,
+			Path:  &descriptionPath,
+			Value: &description,
 		},
 	}
 

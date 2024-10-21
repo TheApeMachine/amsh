@@ -16,8 +16,8 @@ type Inbound struct {
 
 func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 	return func(ctx fiber.Ctx) (err error) {
-		message := data.New("webhook", "trengo", "managing", ctx.Body())
-		message.Poke("chain", "trengo")
+		message := data.New("webhook", origin, scope, ctx.Body())
+		message.Poke("chain", origin)
 
 		return ctx.SendStatus(fiber.StatusOK)
 	}

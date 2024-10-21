@@ -68,7 +68,7 @@ func (executor *Executor) Do(maxIterations int) bool {
 			}
 		}
 
-		if isDone || iteration >= maxIterations {
+		if isDone {
 			break
 		}
 

@@ -44,6 +44,7 @@ func NewToolset() *Toolset {
 				"send_message",
 				"broadcast_message",
 				"publish_message",
+				"get_workers",
 				"add_vector_memory",
 				"search_vector_memory",
 				"delete_vector_memory",
@@ -56,6 +57,7 @@ func NewToolset() *Toolset {
 					"search_work_items",
 					"get_work_item",
 					"manage_work_item",
+					"worker",
 				},
 				"researcher": {
 					"search_github_code",
@@ -169,6 +171,15 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 		}
 
 		return openai.ToolMessage(toolCall.ID, "something went wrong")
+	case "get_workers":
+		workers := NewManager().GetWorkers()
+		workerList := []string{"[WORKERS]"}
+		for _, worker := range workers {
+			workerList = append(workerList, fmt.Sprintf("%s (%s)", worker.name, worker.buffer.Peek("role")))
+		}
+		workerList = append(workerList, "[/WORKERS]")
+
+		return openai.ToolMessage(toolCall.ID, strings.Join(workerList, "\n"))
 	case "worker":
 		if toolset.getArgPresent(args, "system_prompt") && toolset.getArgPresent(args, "user_prompt") && toolset.getArgPresent(args, "toolset") {
 			builder := NewBuilder()
@@ -577,6 +588,12 @@ func (toolset *Toolset) makeTools() {
 			"message":  toolset.makeStringParam("The content of the message you want to publish."),
 			"priority": toolset.makeEnumParam("The priority of the message you want to publish.", []string{"low", "normal", "high"}),
 		},
+	)
+
+	toolset.toolMap["get_workers"] = toolset.makeSchema(
+		"get_workers",
+		"Get a list of all workers currently in use.",
+		map[string]interface{}{},
 	)
 
 	toolset.toolMap["worker"] = toolset.makeSchema(

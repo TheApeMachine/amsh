@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gofiber/fiber/v3/client"
@@ -23,6 +24,9 @@ var testCmd = &cobra.Command{
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
+	os.Setenv("QDRANT_URL", "http://localhost:6333")
+	os.Setenv("NEO4J_URL", "neo4j://localhost:7474")
+
 	// Initialize the messaging queue
 	queue := twoface.NewQueue()
 
@@ -41,7 +45,7 @@ func runTest(cmd *cobra.Command, args []string) error {
 		worker.Start()
 	}
 
-	message := data.New(utils.NewName(), "task", "managing", []byte("How many times do we find the letter r in the word strawberry?"))
+	message := data.New(utils.NewName(), "task", "managing", []byte("Build a comprehensive plan to improve Fan Factory's market position, including a detailed analysis of the current market landscape, competitive positioning, required inhouse product/tool development, and strategic recommendations for growth and differentiation."))
 	message.Poke("chain", "test")
 
 	queue.PubCh <- *message

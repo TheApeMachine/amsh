@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/url"
+	"os"
 
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/theapemachine/amsh/errnie"
@@ -35,11 +36,7 @@ func NewQdrant(collection string, dimension uint64) *Qdrant {
 		log.Fatal(err)
 	}
 
-	url, err := url.Parse("http://qdrant:6333")
-
-	if err != nil {
-		url, err = url.Parse("http://localhost:6333")
-	}
+	url, err := url.Parse(os.Getenv("QDRANT_URL"))
 
 	if err != nil {
 		errnie.Error(err)

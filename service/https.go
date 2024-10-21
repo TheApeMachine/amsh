@@ -102,7 +102,8 @@ func (https *HTTPS) Up() error {
 	// WebSocket route using adaptor
 	https.app.Get("/ws", adaptor.HTTPHandler(handler(https.websocketHandler)))
 
-	https.app.Post("/webhook/trengo", https.NewWebhook("trengo", "message"))
+	https.app.Post("/webhook/trengo", https.NewWebhook("trengo", "managing"))
+	https.app.Post("/webhook/github", https.NewWebhook("github", "managing"))
 	https.app.Post("/events/slack", https.slackEvents.Run)
 	https.app.Use("/", static.New("./frontend"))
 

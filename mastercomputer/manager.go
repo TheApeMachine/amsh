@@ -36,6 +36,12 @@ func (manager *Manager) AddWorker(worker *Worker) {
 	manager.wg.Add(1)
 }
 
+func (manager *Manager) GetWorkers() map[string]*Worker {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	return manager.workers
+}
+
 func (manager *Manager) GetWorker(workerID string) *Worker {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()

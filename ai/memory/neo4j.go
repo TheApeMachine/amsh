@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"os"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/theapemachine/amsh/errnie"
@@ -23,13 +24,11 @@ func NewNeo4j() *Neo4j {
 		err    error
 	)
 
-	client, err = neo4j.NewDriverWithContext("neo4j://neo4j:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
+	client, err = neo4j.NewDriverWithContext(os.Getenv("NEO4J_URL"), neo4j.BasicAuth("neo4j", "securepassword", ""))
 
 	if err != nil {
-		client, err = neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
+		errnie.Error(err)
 	}
-
-	errnie.Error(err)
 
 	// Verify connectivity
 	if err := client.VerifyConnectivity(ctx); err != nil {
