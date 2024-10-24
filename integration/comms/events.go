@@ -71,7 +71,6 @@ func (srv *Events) Run(ctx fiber.Ctx) error {
 		}
 
 		ctx.Type("text/plain")
-		errnie.Info("challenge", r.Challenge)
 		return ctx.Status(fiber.StatusOK).SendString(r.Challenge)
 	case slackevents.CallbackEvent:
 		srv.handleCallbackEvent(ctx, eventsAPIEvent)

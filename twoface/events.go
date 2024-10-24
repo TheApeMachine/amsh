@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/errnie"
 )
 
 type EventType string
@@ -52,19 +51,6 @@ func (ee *EventEmitter) Unsubscribe(ch chan Event) {
 }
 
 func (ee *EventEmitter) Emit(event Event) {
-	if event.Payload.Peek("payload") == "" {
-		errnie.Info("Skipping empty event of type: %s", event.Type)
-		return
-	}
-
 	ee.mu.RLock()
 	defer ee.mu.RUnlock()
-	for ch := range ee.listeners {
-		select {
-		case ch <- event:
-			errnie.Info("Emitted event of type: %s", event.Type)
-		default:
-			errnie.Warn("Channel full, skipped event of type: %s", event.Type)
-		}
-	}
 }

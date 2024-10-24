@@ -5,7 +5,17 @@ import (
 	"math/rand/v2"
 
 	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
+)
+
+type WorkerState uint
+
+const (
+	WorkerStateUndecided WorkerState = iota
+	WorkerStateDiscussing
+	WorkerStateAgreed
+	WorkerStateDisagreed
 )
 
 /*
@@ -18,12 +28,13 @@ type Worker struct {
 	parentCtx   context.Context
 	executor    *Executor
 	name        string
+	role        string
 	system      string
 	user        string
-	format      openai.ChatCompletionNewParamsResponseFormatUnion
-	schema      interface{}
 	toolset     []openai.ChatCompletionToolParam
 	temperature float64
+	state       WorkerState
+	discussion  *Executor
 }
 
 /*
@@ -35,10 +46,14 @@ func NewWorker(
 	name string,
 	toolset []openai.ChatCompletionToolParam,
 	executor *Executor,
+	role string,
 ) *Worker {
+	errnie.Trace()
+
 	return &Worker{
 		parentCtx: ctx,
 		name:      name,
+		role:      role,
 		toolset:   toolset,
 		executor:  executor,
 	}
@@ -49,10 +64,20 @@ Initialize sets up the worker's context, queue registration, and initializes the
 This is the preparation phase for the worker to be ready to receive and process messages.
 */
 func (worker *Worker) Initialize() *Worker {
+	errnie.Trace()
+
 	worker.temperature = utils.ToFixed(rand.Float64()*1.0, 1)
 	return worker
 }
 
 func (worker *Worker) Start() {
+	errnie.Trace()
+
+	// Use the worker's history when calling Do
+	if worker.state == WorkerStateDiscussing || worker.state == WorkerStateDisagreed || worker.discussion != nil {
+		worker.discussion.Do(worker)
+		return
+	}
+
 	worker.executor.Do(worker)
 }

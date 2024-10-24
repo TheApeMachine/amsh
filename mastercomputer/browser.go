@@ -31,9 +31,21 @@ func (browser *Browser) Run(args map[string]any) (string, error) {
 		}
 	}()
 
-	return instance.MustPage(
+	page := instance.MustPage(
 		args["url"].(string),
-	).MustWindowFullscreen().MustEval(
+	).MustWindowFullscreen()
+
+	// Wait for the page to load
+	page.MustWaitStable()
+
+	// Execute the provided JavaScript function
+	result := page.MustEval(
 		args["javascript"].(string),
-	).Get("output").Str(), nil
+	)
+
+	fmt.Println("[BROWSER RESULT]")
+	fmt.Println(result.String())
+	fmt.Println("[/BROWSER RESULT]")
+
+	return result.String(), nil
 }

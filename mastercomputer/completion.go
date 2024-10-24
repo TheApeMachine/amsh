@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -13,15 +14,24 @@ import (
 )
 
 func GenerateSchema[T any]() interface{} {
-	// Structured Outputs uses a subset of JSON schema
-	// These flags are necessary to comply with the subset
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
 		DoNotReference:            true,
+		Mapper:                    handleRecursiveTypes,
 	}
 	var v T
 	schema := reflector.Reflect(v)
 	return schema
+}
+
+func handleRecursiveTypes(t reflect.Type) *jsonschema.Schema {
+	// Check if the type is recursive and return a schema reference
+	if t.Kind() == reflect.Struct {
+		return &jsonschema.Schema{
+			Ref: "#/definitions/" + t.Name(),
+		}
+	}
+	return nil
 }
 
 type Completion struct {
@@ -31,7 +41,7 @@ type Completion struct {
 
 func NewCompletion(ctx context.Context) *Completion {
 	return &Completion{
-		ctx:    ctx,
+		ctx:    context.Background(),
 		client: openai.NewClient(),
 	}
 }
@@ -63,7 +73,7 @@ func (completion *Completion) Execute(
 func (completion *Completion) executeWithStream(
 	ctx context.Context, params openai.ChatCompletionNewParams,
 ) (*openai.ChatCompletion, error) {
-	response, err := completion.client.Chat.Completions.New(ctx, params)
+	response, err := completion.client.Chat.Completions.New(completion.ctx, params)
 
 	if errnie.Error(err) != nil {
 		spew.Dump(params)

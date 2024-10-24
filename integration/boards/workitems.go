@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/search"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
@@ -70,7 +69,7 @@ func NewCreateWorkitemSrv(ctx context.Context, projectName string) (*CreateWorki
 }
 
 func (srv *CreateWorkitemSrv) CreateWorkitem(
-	ctx context.Context, title, description, workitemType string,
+	ctx context.Context, title, description, workitemType string, parentID *int,
 ) (out string, err error) {
 	var (
 		responseValue *workitemtracking.WorkItem
@@ -90,6 +89,23 @@ func (srv *CreateWorkitemSrv) CreateWorkitem(
 			Path:  &descriptionPath,
 			Value: &description,
 		},
+	}
+
+	if parentID != nil {
+		// Add a link to the parent work item
+		parentLinkPath := "/relations/-"
+		parentLink := map[string]interface{}{
+			"rel": "System.LinkTypes.Hierarchy-Reverse",
+			"url": fmt.Sprintf("https://dev.azure.com/{organization}/{project}/_apis/wit/workItems/%d", *parentID),
+			"attributes": map[string]string{
+				"comment": "Linking to parent work item",
+			},
+		}
+		doc = append(doc, webapi.JsonPatchOperation{
+			Op:    &webapi.OperationValues.Add,
+			Path:  &parentLinkPath,
+			Value: &parentLink,
+		})
 	}
 
 	responseValue, err = srv.conn.CreateWorkItem(ctx, workitemtracking.CreateWorkItemArgs{
@@ -132,9 +148,7 @@ func (srv *SearchWorkitemsSrv) SearchWorkitems(ctx context.Context, query string
 		index         = 0
 		skip          = 0
 		top           = 10
-		filters       = map[string][]string{
-			"System.State": {"To Do"},
-		}
+		filters       = map[string][]string{}
 	)
 
 	if responseValue, err = srv.conn.FetchWorkItemSearchResults(ctx, search.FetchWorkItemSearchResultsArgs{
@@ -158,15 +172,45 @@ func (srv *SearchWorkitemsSrv) SearchWorkitems(ctx context.Context, query string
 	for _, result := range *responseValue.Results {
 		tickets := *result.Fields
 
-		spew.Dump(tickets)
-		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.workitemtype"]))
-		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.title"]))
-		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.description"]))
-		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.state"]))
-		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.assignedto"]))
-		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.createddate"]))
-		builder.WriteString(fmt.Sprintf("%s\n", tickets["system.tags"]))
-		builder.WriteString(fmt.Sprintf("%s\n", tickets["---"]))
+		// Check if the fields exist before accessing them
+		if id, ok := tickets["System.Id"]; ok {
+			builder.WriteString(fmt.Sprintf("[WORKITEM %s]\n", id))
+		}
+		if workItemType, ok := tickets["System.WorkItemType"]; ok {
+			builder.WriteString(fmt.Sprintf("Type: %s\n", workItemType))
+		}
+		if state, ok := tickets["System.State"]; ok {
+			builder.WriteString(fmt.Sprintf("State: %s\n", state))
+		}
+		if assignedTo, ok := tickets["System.AssignedTo"]; ok {
+			builder.WriteString(fmt.Sprintf("Assigned To: %s\n", assignedTo))
+		}
+		if createdDate, ok := tickets["System.CreatedDate"]; ok {
+			builder.WriteString(fmt.Sprintf("Created Date: %s\n", createdDate))
+		}
+		if tags, ok := tickets["System.Tags"]; ok {
+			builder.WriteString(fmt.Sprintf("Tags: %s\n", tags))
+		}
+		if title, ok := tickets["System.Title"]; ok {
+			builder.WriteString(fmt.Sprintf("Title: %s\n", title))
+		}
+		if description, ok := tickets["System.Description"]; ok {
+			builder.WriteString(fmt.Sprintf("Description: %s\n", description))
+		}
+		if comments, ok := tickets["System.History"]; ok {
+			builder.WriteString(fmt.Sprintf("Comments: %s\n", comments))
+		}
+		// Get comments for this work item
+		if id, ok := tickets["System.Id"]; ok {
+			workItemID, _ := strconv.Atoi(fmt.Sprintf("%v", id))
+			commentSrv, err := NewGetCommentsSrv(ctx, os.Getenv("AZDO_ORG_URL"), os.Getenv("AZDO_PAT"))
+			if err == nil {
+				if comments, err := commentSrv.GetComments(ctx, workItemID, nil); err == nil {
+					builder.WriteString(fmt.Sprintf("Comments:\n%s\n", comments))
+				}
+			}
+		}
+		builder.WriteString("[/WORKITEM]\n")
 		index++
 	}
 
@@ -223,4 +267,41 @@ func (srv *UpdateWorkitemSrv) UpdateWorkitem(ctx context.Context, id int, title,
 	template = strings.ReplaceAll(template, "{response}", "Work item updated")
 
 	return template, nil
+}
+
+type GetCommentsSrv struct {
+	conn workitemtracking.Client
+}
+
+func NewGetCommentsSrv(ctx context.Context, orgURL, pat string) (*GetCommentsSrv, error) {
+	conn, err := workitemtracking.NewClient(ctx, azuredevops.NewPatConnection(orgURL, pat))
+	if err != nil {
+		return nil, errnie.Error(err)
+	}
+
+	return &GetCommentsSrv{conn: conn}, nil
+}
+
+func (srv *GetCommentsSrv) GetComments(ctx context.Context, workItemId int, commentIds []int) (out string, err error) {
+	var (
+		responseValue *workitemtracking.CommentList
+	)
+
+	if responseValue, err = srv.conn.GetCommentsBatch(ctx, workitemtracking.GetCommentsBatchArgs{
+		WorkItemId: &workItemId,
+		Ids:        &commentIds, // Pass commentIds directly
+	}); err != nil {
+		return "", errnie.Error(err)
+	}
+
+	builder := strings.Builder{}
+	for _, comment := range *responseValue.Comments { // Added * to dereference the slice
+		builder.WriteString(fmt.Sprintf("Comment ID: %d\n", *comment.Id))
+		builder.WriteString(fmt.Sprintf("Text: %s\n", *comment.Text)) // Added * to dereference
+		builder.WriteString(fmt.Sprintf("Created By: %s\n", *comment.CreatedBy.DisplayName))
+		builder.WriteString(fmt.Sprintf("Created Date: %s\n", comment.CreatedDate))
+		builder.WriteString("\n")
+	}
+
+	return builder.String(), nil
 }

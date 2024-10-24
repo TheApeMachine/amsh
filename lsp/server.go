@@ -127,7 +127,6 @@ func (server *Server) handleStderr() chan LSPError {
 
 		for scanner.Scan() {
 			// Handle errors or warnings from gopls
-			errnie.Info("gopls stderr: %s", scanner.Text())
 			out <- LSPError{Text: scanner.Text()}
 		}
 

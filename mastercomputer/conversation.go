@@ -1,15 +1,17 @@
 package mastercomputer
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/utils"
 )
 
 type Conversation struct {
-	task             *data.Artifact
 	context          []openai.ChatCompletionMessageParamUnion
 	maxContextTokens int
 	tokenCounts      []int64
@@ -24,7 +26,53 @@ func NewConversation() *Conversation {
 }
 
 func (conversation *Conversation) Update(message openai.ChatCompletionMessageParamUnion) {
+	// Format and print the message in a human-readable way
+	printFormattedMessage(message)
 	conversation.context = append(conversation.context, message)
+}
+
+// Helper function to format and print messages
+func printFormattedMessage(msg openai.ChatCompletionMessageParamUnion) {
+	var role, content string
+
+	// Extract role and content based on message type
+	switch m := msg.(type) {
+	case openai.ChatCompletionSystemMessageParam:
+		role = "System"
+		content = m.Content.String()
+	case openai.ChatCompletionUserMessageParam:
+		role = "User"
+		content = m.Content.String()
+	case openai.ChatCompletionAssistantMessageParam:
+		role = "Assistant"
+		content = m.Content.String()
+	case openai.ChatCompletionToolMessageParam:
+		role = "Tool"
+		content = m.Content.String()
+	default:
+		return
+	}
+
+	// Print formatted message with role as header
+	fmt.Printf(
+		"\n%s %s\n",
+		utils.Muted(fmt.Sprintf("┌─── %s Message ───────────────────────────\n", role)),
+		utils.Highlight(formatContent(content)),
+	)
+	fmt.Println(utils.Muted("└────────────────────────────────────────────\n"))
+}
+
+// Helper function to format content with proper line breaks and indentation
+func formatContent(content string) string {
+	// Replace newlines with newline + pipe + space for consistent formatting
+	formatted := ""
+	for i, line := range strings.Split(content, "\n") {
+		if i > 0 {
+			formatted += "\n│ "
+		}
+		formatted += line
+	}
+	return formatted
 }
 
 func (conversation *Conversation) Truncate() []openai.ChatCompletionMessageParamUnion {

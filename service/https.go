@@ -111,8 +111,6 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
-			errnie.Info("Received message: " + string(msg))
-
 			if strings.Contains(string(msg), "ping") {
 				continue
 			}

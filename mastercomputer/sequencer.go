@@ -41,28 +41,32 @@ func (sequencer *Sequencer) Initialize() {
 	v := viper.GetViper()
 	toolset := NewToolset()
 
-	sequencer.worker = NewWorker(sequencer.ctx, sequencer.name, toolset.Assign(sequencer.role), sequencer.executor)
+	sequencer.executor = NewExecutor(sequencer)
+	sequencer.worker = NewWorker(sequencer.ctx, sequencer.name, toolset.Assign(sequencer.role), sequencer.executor, sequencer.role)
 	system := v.GetString("ai.prompt.system")
 	system = strings.ReplaceAll(system, "{name}", sequencer.name)
 	system = strings.ReplaceAll(system, "{role}", v.GetString("ai.prompt.sequencer.role"))
 	sequencer.worker.system = system
 	sequencer.worker.user = sequencer.user
 	sequencer.worker.toolset = toolset.Assign(sequencer.role)
+	sequencer.worker.Initialize()
 
 	for _, role := range []string{"prompt", "reasoner", "researcher", "planner", "actor"} {
 		for _, wrkr := range []string{utils.NewName(), utils.NewName(), utils.NewName()} {
-			worker := NewWorker(sequencer.ctx, wrkr, toolset.Assign(role), sequencer.executor)
+			worker := NewWorker(sequencer.ctx, wrkr, toolset.Assign(role), sequencer.executor, role)
 			system = v.GetString("ai.prompt.system")
 			system = strings.ReplaceAll(system, "{name}", sequencer.name)
 			system = strings.ReplaceAll(system, "{role}", v.GetString("ai.prompt."+role+".role"))
 			worker.system = system
 			worker.user = sequencer.user
+			worker.Initialize()
 			sequencer.workers[role] = append(sequencer.workers[role], worker)
 		}
 	}
 }
 
 func (sequencer *Sequencer) Start() {
+	sequencer.worker.Start()
 }
 
 func (sequencer *Sequencer) Stop() {

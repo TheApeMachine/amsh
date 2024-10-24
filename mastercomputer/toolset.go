@@ -11,6 +11,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/memory"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/boards"
 	"github.com/theapemachine/amsh/integration/comms"
 	"github.com/theapemachine/amsh/integration/git"
@@ -43,11 +44,11 @@ func NewToolset() *Toolset {
 				"search_graph_memory",
 			},
 			workloads: map[string][]string{
-				"manager": {
-					"search_work_items",
-					"get_work_item",
-					"manage_work_item",
-					"worker",
+				"discussion": {
+					"change_state",
+				},
+				"sequencer": {
+					"assignment",
 				},
 				"researcher": {
 					"search_github_code",
@@ -58,23 +59,18 @@ func NewToolset() *Toolset {
 					"get_helpdesk_message",
 					"use_browser",
 				},
-				"executor": {
+				"actor": {
 					"start_environment",
 					"search_github_code",
 					"add_helpdesk_labels",
 					"get_helpdesk_labels",
 				},
-				"reviewer": {
-					"add_code_review",
-				},
-				"communicator": {
+				"planner": {
 					"search_slack_messages",
-					"search_slack_files",
-					"search_github_code",
 					"search_helpdesk_tickets",
 					"search_work_items",
-					"send_slack_channel_message",
-					"send_slack_user_message",
+					"get_work_item",
+					"manage_work_item",
 				},
 			},
 		}
@@ -88,6 +84,8 @@ func NewToolset() *Toolset {
 Assign a set of tools to a worker based on the workload.
 */
 func (toolset *Toolset) Assign(workload string) (out []openai.ChatCompletionToolParam) {
+	errnie.Trace()
+
 	for _, tool := range toolset.baseTools {
 		if tool, ok := toolset.toolMap[tool]; ok {
 			out = append(out, tool)
@@ -106,6 +104,8 @@ func (toolset *Toolset) Assign(workload string) (out []openai.ChatCompletionTool
 }
 
 func (toolset *Toolset) getArgPresent(args map[string]any, arg string) (out bool) {
+	errnie.Trace()
+
 	if _, ok := args[arg]; ok {
 		return true
 	}
@@ -115,7 +115,9 @@ func (toolset *Toolset) getArgPresent(args map[string]any, arg string) (out bool
 /*
 Use a tool, based on the tool call passed in.
 */
-func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletionMessageToolCall) (out openai.ChatCompletionToolMessageParam) {
+func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall openai.ChatCompletionMessageToolCall) (out openai.ChatCompletionToolMessageParam) {
+	errnie.Trace()
+
 	args := map[string]any{}
 	var err error
 
@@ -124,17 +126,38 @@ func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletion
 	}
 
 	switch toolCall.Function.Name {
-	case "assignment":
-		if toolset.getArgPresent(args, "role") {
-			role := args["role"].(string)
-			workers := sequencer.workers[role]
-			for _, worker := range workers {
-				worker.Start()
+	case "change_state":
+		if toolset.getArgPresent(args, "state") {
+			var state string
+			var ok bool
+			if state, ok = args["state"].(string); ok && state == "agreed" {
+				worker.state = WorkerStateAgreed
+			} else if state, ok = args["state"].(string); ok && state == "disagreed" {
+				worker.state = WorkerStateDisagreed
 			}
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Worker state changed to %s", state))
 		}
+	case "assignment":
+		if toolset.getArgPresent(args, "role") && toolset.getArgPresent(args, "assignment") {
+			role := args["role"].(string)
+			assignment := args["assignment"].(string)
+			workers := sequencer.workers[role]
+			discussion := NewExecutor(sequencer)
+			discussion.conversation.context = append([]openai.ChatCompletionMessageParamUnion{}, sequencer.executor.conversation.context...)
+			discussion.conversation.Update(openai.AssistantMessage("[NEXT ASSIGNMENT]\n" + assignment + "\n[/NEXT ASSIGNMENT]\n"))
+			discussion.conversation.Update(openai.SystemMessage("Since you are a team of 3, all with the same role, discuss how to divide the work for the assignment."))
+
+			for _, wrkr := range workers {
+				wrkr.discussion = discussion
+				wrkr.state = WorkerStateDiscussing
+				wrkr.Start()
+			}
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Assigned '%s' to workers with role '%s'", assignment, role))
+		}
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for assignment")
 	case "worker":
 		if toolset.getArgPresent(args, "system_prompt") && toolset.getArgPresent(args, "user_prompt") && toolset.getArgPresent(args, "toolset") {
-			worker := NewWorker(sequencer.ctx, utils.NewName(), toolset.Assign(args["toolset"].(string)), sequencer.executor)
+			worker := NewWorker(sequencer.ctx, utils.NewName(), toolset.Assign(args["toolset"].(string)), sequencer.executor, worker.role)
 			worker.system = args["system_prompt"].(string)
 			worker.user = args["user_prompt"].(string)
 			worker.Initialize()
@@ -177,36 +200,40 @@ func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletion
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_vector_memory")
 
-	case "add_graph_memory":
-		if toolset.getArgPresent(args, "private") && toolset.getArgPresent(args, "cypher") {
+	case "use_graph_memory":
+		if toolset.getArgPresent(args, "cypher") {
 			store := memory.NewNeo4j()
-			_ = args["private"].(bool)
+			operation := args["operation"].(string)
 			cypher := args["cypher"].(string)
 
 			// Implement the logic to add graph memory
-			result, err := store.Write(cypher)
-			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error adding graph memory: "+err.Error())
+			if operation == "add" {
+				result, err := store.Write(cypher)
+				if err != nil {
+					return openai.ToolMessage(toolCall.ID, "Error adding graph memory: "+err.Error())
+				}
+				return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory added: %v", result))
 			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory added: %v", result))
+
+			if operation == "update" {
+				result, err := store.Write(cypher)
+				if err != nil {
+					return openai.ToolMessage(toolCall.ID, "Error updating graph memory: "+err.Error())
+				}
+				return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory updated: %v", result))
+			}
+
+			if operation == "search" {
+				result, err := store.Query(cypher)
+				if err != nil {
+					return openai.ToolMessage(toolCall.ID, "Error searching graph memory: "+err.Error())
+				}
+				return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory search results: %v", result))
+			}
+
+			return openai.ToolMessage(toolCall.ID, "Invalid arguments for use_graph_memory")
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_graph_memory")
-
-	case "search_graph_memory":
-		if toolset.getArgPresent(args, "cypher") && toolset.getArgPresent(args, "private") {
-			store := memory.NewNeo4j()
-			cypher := args["cypher"].(string)
-			_ = args["private"].(bool)
-
-			// Implement the logic to search graph memory
-			result, err := store.Query(cypher)
-			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error searching graph memory: "+err.Error())
-			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory search results: %v", result))
-		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_graph_memory")
-
 	case "search_work_items":
 		if toolset.getArgPresent(args, "query") {
 			query := args["query"].(string)
@@ -251,13 +278,21 @@ func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletion
 			workItemType := args["workitem_type"].(string)
 			ctx := context.Background()
 
+			var parentID *int
+			if toolset.getArgPresent(args, "parent_id") {
+				id, err := strconv.Atoi(args["parent_id"].(string))
+				if err == nil {
+					parentID = &id
+				}
+			}
+
 			switch action {
 			case "create":
 				createSrv, err := boards.NewCreateWorkitemSrv(ctx, "playground")
 				if err != nil {
 					return openai.ToolMessage(toolCall.ID, "Error creating create service: "+err.Error())
 				}
-				result, err := createSrv.CreateWorkitem(ctx, title, description, workItemType)
+				result, err := createSrv.CreateWorkitem(ctx, title, description, workItemType, parentID)
 				if err != nil {
 					return openai.ToolMessage(toolCall.ID, "Error creating work item: "+err.Error())
 				}
@@ -288,10 +323,11 @@ func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletion
 	case "search_helpdesk_tickets":
 		if toolset.getArgPresent(args, "query") && toolset.getArgPresent(args, "page") {
 			query := args["query"].(string)
-			page, err := strconv.Atoi(args["page"].(string))
-			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid page number: "+err.Error())
+			pageFloat, ok := args["page"].(float64) // Safely assert to float64
+			if !ok {
+				return openai.ToolMessage(toolCall.ID, "Invalid page number type")
 			}
+			page := int(pageFloat) // Convert float64 to int
 
 			ticketService := trengo.NewTicketService()
 			tickets, err := ticketService.ListTickets(context.Background(), page)
@@ -312,10 +348,12 @@ func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletion
 
 	case "get_helpdesk_messages":
 		if toolset.getArgPresent(args, "ticket_id") {
-			ticketID, err := strconv.Atoi(args["ticket_id"].(string))
-			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error())
+			// Convert float64 to int
+			ticketIDFloat, ok := args["ticket_id"].(float64)
+			if !ok {
+				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID type")
 			}
+			ticketID := int(ticketIDFloat)
 
 			messageService := trengo.NewMessageService(os.Getenv("TRENGO_BASE_URL"), os.Getenv("TRENGO_API_TOKEN"))
 			messages, err := messageService.ListMessages(context.Background(), ticketID)
@@ -449,7 +487,7 @@ func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletion
 			if err != nil {
 				return openai.ToolMessage(toolCall.ID, "Error using browser: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, result)
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("\n[BROWSER RESULT]\n%s\n[/BROWSER RESULT]\n", result))
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for use_browser")
 	case "start_environment":
@@ -460,11 +498,19 @@ func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletion
 }
 
 func (toolset *Toolset) makeTools() {
+	toolset.toolMap["change_state"] = toolset.makeSchema(
+		"change_state",
+		"Change your state when in a discussion. A discussion will go on until all workers have agreed on the decisions.",
+		map[string]interface{}{
+			"state": toolset.makeEnumParam("The state to change to.", []string{"disagree", "agreed"}),
+		},
+	)
 	toolset.toolMap["assignment"] = toolset.makeSchema(
 		"assignment",
 		"Assign the next team of workers in your sequence.",
 		map[string]interface{}{
-			"role": toolset.makeEnumParam("The role of the worker to assign.", []string{"prompt", "reasoner", "researcher", "planner", "actor"}),
+			"role":       toolset.makeEnumParam("The role of the worker to assign.", []string{"prompt", "reasoner", "researcher", "planner", "actor"}),
+			"assignment": toolset.makeStringParam("The assignment to assign to the worker."),
 		},
 	)
 
@@ -483,7 +529,6 @@ func (toolset *Toolset) makeTools() {
 		"Add a memory to the vector store. Useful for storing memories as vectors.",
 		map[string]interface{}{
 			"content": toolset.makeStringParam("The content of the memory to add to the vector store."),
-			"private": toolset.makeBoolParam("Whether this is a private memory or not."),
 		},
 	)
 
@@ -492,25 +537,15 @@ func (toolset *Toolset) makeTools() {
 		"Search the vector store. Useful for retrieving memories from the vector store.",
 		map[string]interface{}{
 			"question": toolset.makeStringParam("The question to search the vector memory for."),
-			"private":  toolset.makeBoolParam("Whether to search private memories or not."),
 		},
 	)
 
-	toolset.toolMap["add_graph_memory"] = toolset.makeSchema(
+	toolset.toolMap["use_graph_memory"] = toolset.makeSchema(
 		"add_graph_memory",
 		"Add a memory to the graph store. Useful for storing memories as connected relationships. Make sure you have at least one relationship defined in your cypher query.",
 		map[string]interface{}{
-			"private": toolset.makeBoolParam("Whether this is a private memory or not."),
-			"cypher":  toolset.makeStringParam("The cypher query to add new nodes and edges to the graph store."),
-		},
-	)
-
-	toolset.toolMap["search_graph_memory"] = toolset.makeSchema(
-		"search_graph_memory",
-		"Search the graph store. Useful for retrieving memories from the graph store.",
-		map[string]interface{}{
-			"cypher":  toolset.makeStringParam("The cypher query to search the graph memory for."),
-			"private": toolset.makeBoolParam("Whether to search private memories or not."),
+			"operation": toolset.makeEnumParam("The operation to perform on the graph store.", []string{"add", "update", "search"}),
+			"cypher":    toolset.makeStringParam("The cypher query to add new nodes and edges to the graph store."),
 		},
 	)
 
@@ -604,10 +639,10 @@ func (toolset *Toolset) makeTools() {
 
 	toolset.toolMap["use_browser"] = toolset.makeSchema(
 		"use_browser",
-		"Use the browser to navigate the web. Useful for when you need to navigate the web.",
+		"Use the browser to navigate the web and execute JavaScript to interact with the page. The JavaScript function should return a string containing the desired output.",
 		map[string]interface{}{
-			"url":        toolset.makeStringParam("The url to navigate to."),
-			"javascript": toolset.makeStringParam("The JavaScript to run on the page via the developer console. Must be a valid javascript function that returns a string."),
+			"url":        toolset.makeStringParam("The URL to navigate to."),
+			"javascript": toolset.makeStringParam("A JavaScript function that returns a string. This function will be executed on the page via the developer console. Example: '() => { return document.title; }' to get the page title. Be mindful of context length, and if you want to retrieve page content, which can be very large, you should make sure your script includes a way to strip away useless content."),
 		},
 	)
 

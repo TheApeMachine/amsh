@@ -1,14 +1,32 @@
 import { gsap } from "gsap";
 import { Flip } from "gsap/Flip";
 import "@/components/ui/button";
+import "@/components/animoji/assistant";
+import "@/components/island/moodlight";
+import "@/components/animoji/typewriter";
 
 gsap.registerPlugin(Flip);
 
 export class DynamicIsland extends HTMLElement {
     private template = document.createElement('template');
     private island: HTMLElement | null = null;
-    private state: string = "island";
     private tl: gsap.core.Timeline | null = gsap.timeline();
+
+    private content: {
+        [key: string]: {
+            element: string,
+            target: string
+        }
+    } = {
+        island: {
+            element: "mood-light",
+            target: "main"
+        },
+        animoji: {
+            element: "animoji-assistant",
+            target: "aside"
+        }
+    }
 
     private animations: {
         [key: string]: (selector: HTMLElement) => gsap.core.Timeline
@@ -20,6 +38,7 @@ export class DynamicIsland extends HTMLElement {
             background: '#FFF',
             color: '#333',
             transform: 'scale(1)',
+            ease: 'back.inOut',
         }),
         hover: (selector: HTMLElement) => this.tl!.to(selector, {
             boxShadow: '0px 0px 0px 3px #999',
@@ -28,11 +47,20 @@ export class DynamicIsland extends HTMLElement {
             background: '#FFF',
             color: '#333',
             transform: 'scale(2)',
+            ease: 'back.inOut',
         }),
         button: (selector: HTMLElement) => this.tl!.to(selector, {
             boxShadow: '0px 0px 0px 3px #FFF',
             padding: '0.25rem 1rem',
             fontSize: '1rem',
+            ease: 'back.inOut',
+        }),
+        animoji: (selector: HTMLElement) => this.tl!.to(selector, {
+            boxShadow: '0px 0px 0px 3px #FFF',
+            ease: 'back.inOut',
+            borderRadius: '0.125rem',
+            width: "25%",
+            height: 64
         }),
     };
 
@@ -79,7 +107,10 @@ export class DynamicIsland extends HTMLElement {
                         padding: 0.25rem 1rem;
                         border-radius: 0.125rem;
                         font-size: 1rem;
-                        box-shadow: rgba(0, 0, 0, 0.4) 0px 2px 4px, rgba(0, 0, 0, 0.3) 0px 7px 13px -3px, rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
+                        box-shadow: 
+                            rgba(0, 0, 0, 0.4) 0px 2px 4px, 
+                            rgba(0, 0, 0, 0.3) 0px 7px 13px -3px, 
+                            rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
                     }
                 }
                 footer {
@@ -90,11 +121,11 @@ export class DynamicIsland extends HTMLElement {
                 }
             </style>
             <div id="island">
-                <header><slot name="header"></slot></header>
-                <aside><slot name="aside"></slot></aside>
-                <main><slot name="main"></slot></main>
-                <article><slot name="article"></slot></article>
-                <footer><slot name="footer"></slot></footer>
+                <header></header>
+                <aside></aside>
+                <main></main>
+                <article></article>
+                <footer></footer>
             </div>
         `;
 
@@ -108,10 +139,24 @@ export class DynamicIsland extends HTMLElement {
 
         this.island!.addEventListener('mouseenter', () => this.render('hover'));
         this.island!.addEventListener('mouseleave', () => this.render('island'));
+
+        setTimeout(() => {
+            this.render("animoji");
+            this.shadowRoot?.querySelector("main")!.appendChild(document.createElement("type-writer"));
+        }, 3000);
     }
 
     render(state: string) {
         this.tl?.clear();
+
+        this.shadowRoot!.querySelector(
+            this.content[state].target
+        )!.appendChild(
+            document.createElement(
+                this.content[state].element
+            )
+        );
+        
         this.animations[state](this.island!).play();
     }
 

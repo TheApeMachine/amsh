@@ -185,9 +185,8 @@ func Debug(format string, v ...interface{}) {
 /*
 Info logs an info message with the appropriate symbol
 */
-func Info(format string, v ...interface{}) {
-	logger.Info(fmt.Sprintf(format, v...))
-	writeToLog(fmt.Sprintf(format, v...))
+func Info(msg interface{}, v ...interface{}) {
+	logger.Info(msg, v...)
 }
 
 /*

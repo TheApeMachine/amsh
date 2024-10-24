@@ -68,8 +68,6 @@ func initConfig() {
 		log.Println("failed to read config file", err)
 		return
 	}
-
-	errnie.Info("Config initialized successfully")
 }
 
 func writeConfig() (err error) {
@@ -104,7 +102,6 @@ func writeConfig() (err error) {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	errnie.Info("Wrote config file to %s", fullPath)
 	return
 }
 

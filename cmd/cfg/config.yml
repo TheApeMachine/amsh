@@ -1,108 +1,113 @@
 loglevel: trace
 
 s3:
-  endpoint: "http://minio:9000"
-  access_key: "miniouser"
-  secret_key: "miniosecret"
-  bucket: "amsh"
+    endpoint: "http://minio:9000"
+    access_key: "miniouser"
+    secret_key: "miniosecret"
+    bucket: "amsh"
 
 neo4j:
-  uri: "neo4j://neo4j:7687"
-  user: "neo4j"
-  password: "securepassword"
+    uri: "neo4j://neo4j:7687"
+    user: "neo4j"
+    password: "securepassword"
 
 webhook:
-  trengo:
-    message: |
-      The following was delivered to the Trengo Webhook Endpoint.
+    trengo:
+        message: |
+            The following was delivered to the Trengo Webhook Endpoint.
 
-      [INBOUND {message_id}]
-        TICKET ID    : {ticket_id}
-        CONTACT ID   : {contact_id}
-        CONTACT NAME : {contact_name}
-        CONTACT EMAIL: {contact_email}
-        
-        [MESSAGE]
-          {message}
-        [/MESSAGE]
-      [/INBOUND]
+            [INBOUND {message_id}]
+              TICKET ID    : {ticket_id}
+              CONTACT ID   : {contact_id}
+              CONTACT NAME : {contact_name}
+              CONTACT EMAIL: {contact_email}
+              
+              [MESSAGE]
+                {message}
+              [/MESSAGE]
+            [/INBOUND]
 
-      [TASKS]
-        1. Assign the appropriate labels to the message.
-        2. Gather information on the issues that the customer is experiencing.
-        3. Update existing tickets in Azure Board, or create new tickets when needed.
-        4. Update the relevant people in the company, by sending them a message.
-      [/TASKS]
+            [TASKS]
+              1. Assign the appropriate labels to the message.
+              2. Gather information on the issues that the customer is experiencing.
+              3. Update existing tickets in Azure Board, or create new tickets when needed.
+              4. Update the relevant people in the company, by sending them a message.
+            [/TASKS]
 integrations:
-  boards:
-    workitem: |
-      [WORKITEM ({id})]
-        {title}
+    boards:
+        workitem: |
+            [WORKITEM ({id})]
+              {title}
 
-        {description}
+              {description}
 
-        [COMMENTS]
-          {comments}
-        [/COMMENTS]
-      [/WORKITEM]
-    response: |
-      [RESPONSE ({id})]
-        {response}
-      [/RESPONSE]
-  trengo:
-    labels: |
-      The following is a list of labels that are available in the Trengo API.
+              [COMMENTS]
+                {comments}
+              [/COMMENTS]
+            [/WORKITEM]
+        response: |
+            [RESPONSE ({id})]
+              {response}
+            [/RESPONSE]
+    trengo:
+        labels: |
+            The following is a list of labels that are available in the Trengo API.
 
-      [LABELS]
-      {labels}
-      [/LABELS]
+            [LABELS]
+            {labels}
+            [/LABELS]
 messaging:
-  templates:
-    new: |
-      The following is a new message that was published on a topic you are subscribed to.
-      Please read the message, and respond with the appropriate answer.
+    templates:
+        new: |
+            The following is a new message that was published on a topic you are subscribed to.
+            Please read the message, and respond with the appropriate answer.
 
-      [MESSAGE ({id})]
-        FROM: {sender}
-        TOPIC: {topic}
-      
-        {message}
-      [/MESSAGE]
-    reply: |
-      [REPLY ({id})]
-        FROM: {sender}
-        TOPIC: {topic}
-      
-        {message}
-      [/REPLY]
+            [MESSAGE ({id})]
+              FROM: {sender}
+              TOPIC: {topic}
+
+              {message}
+            [/MESSAGE]
+        reply: |
+            [REPLY ({id})]
+              FROM: {sender}
+              TOPIC: {topic}
+
+              {message}
+            [/REPLY]
 ai:
-  max_context_tokens: 128000
-  max_iterations: 5
-  config:
-    verifier:
-      filters: "verification"
-  prompt:
-    system: |
-      You are part of a system called The Ape Machine, an advanced multi-agent AI system, designed to perform tasks of any magnitude.
-      You are a member of a team of agents, each specializing in a different aspect of the task at hand.
-
-      YOUR IDENTIFIER: {name}
-      YOUR ROLE      : {role}
+    max_context_tokens: 128000
+    max_iterations: 5
+    config:
+        verifier:
+            filters: "verification"
     prompt:
-      role: |
-        You are a PROMPT ENGINEER, and your job is to translate user requests into clear and concise instructions for the other agents.
-    reasoner:
-      role: |
-        You are a REASONER, and your job is to provide the team with deep insight into the task at hand.
-    manager:
-      role: |
-        You are a RESEARCHER, and your job is to search and discover information, from a variety of sources.
-    actor:
-      role: |
-        You are an EXECUTOR, and your job is to carry out tasks and execute plans.
-    sequencer:
-      role: |
-        You are a SEQUENCER, and your job is to coordinate the work of the other agents, by sequencing their work.
-    planner:
-      role: |
-        You are a PLANNER, and your job is to build practical plans, that can be followed to completion.
+        system: |
+            You are part of a system called The Ape Machine, an advanced multi-agent AI system, designed to perform tasks of any magnitude.
+            You are a member of a team of agents, each specializing in a different aspect of the task at hand.
+
+            YOUR IDENTIFIER: {name}
+            YOUR ROLE      : {role}
+        guidance: |
+            IMPORTANT! 
+              Remember at all times not to make any assumptions, or provide information that is not verified. 
+              If you get stuck, just say so, and try to find another way to solve the problem.
+              Always reason about things before you act on them, and after you have acted, reflect on what you did.
+        prompt:
+            role: |
+                You are a PROMPT ENGINEER, and your job is to translate user requests into clear and concise instructions for the other agents.
+        reasoner:
+            role: |
+                You are a REASONER, and your job is to provide the team with deep insight into the task at hand.
+        manager:
+            role: |
+                You are a RESEARCHER, and your job is to search and discover information, from a variety of sources.
+        actor:
+            role: |
+                You are an EXECUTOR, and your job is to carry out tasks and execute plans.
+        sequencer:
+            role: |
+                You are a SEQUENCER, and your job is to coordinate the work of the other agents, by sequencing their work.
+        planner:
+            role: |
+                You are a PLANNER, and your job is to build practical plans, that can be followed to completion.

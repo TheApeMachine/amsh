@@ -49,61 +49,16 @@ class AnimojiAssistant extends HTMLElement {
                     top: 0;
                     left: 0;
                     overflow: hidden;
-                    filter: drop-shadow(0px 0px 8px rgba(0, 0, 0, 0.8));
+                    filter: drop-shadow(0px 0px 1rem rgba(0, 0, 0, 0.1));
                     z-index: 2000;
-                }
-                .dynamic-island {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    overflow: hidden;
-                    z-index: 1000;
-                }
-                .chat-container {
-                    display: none;
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 300px;
-                    height: 400px;
-                    background-color: rgba(0, 0, 0, 0.8);
-                    border-radius: 20px;
-                    padding: 20px;
-                    box-sizing: border-box;
-                }
-                .chat-output {
-                    height: 300px;
-                    overflow-y: auto;
-                    margin-bottom: 10px;
-                    color: white;
-                }
-                .chat-input {
-                    width: 100%;
-                    padding: 10px;
-                    border: none;
-                    border-radius: 10px;
-                    background-color: rgba(255, 255, 255, 0.1);
-                    color: white;
                 }
             </style>
             <div class="dynamic-island">
                 <div id="animoji-container"></div>
             </div>
-            <div class="chat-container">
-                <div class="chat-output"></div>
-                <input type="text" class="chat-input" placeholder="Type your message...">
-            </div>
         `;
 
         this.shadow = this.attachShadow({ mode: 'open' });
-
-        // Bind the keydown handler to this instance
-        this.boundKeydownHandler = this.handleKeydown.bind(this);
     }
 
     connectedCallback() {
@@ -129,19 +84,6 @@ class AnimojiAssistant extends HTMLElement {
                 }
             }
         }
-
-        this.chatContainer = this.shadow.querySelector('.chat-container') as HTMLDivElement;
-        this.chatInput = this.shadow.querySelector('.chat-input') as HTMLInputElement;
-        this.chatOutput = this.shadow.querySelector('.chat-output') as HTMLDivElement;
-
-        this.chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.handleUserInput();
-            }
-        });
-
-        // Add the keydown event listener
-        document.addEventListener('keydown', this.boundKeydownHandler);
 
         this.setState('idle');
         this.startCycling();
@@ -229,45 +171,6 @@ class AnimojiAssistant extends HTMLElement {
         });
     }
 
-    exitChatMode() {
-        this.chatContainer.style.display = 'none';
-        gsap.to(this.animojiContainer, {
-            width: '64px',
-            height: '64px',
-            duration: 0.5,
-            ease: 'power2.inOut'
-        });
-    }
-
-    typewriterEffect(text: string) {
-        let i = 0;
-        this.chatOutput.innerHTML = '';
-        const speed = 50; // ms per character
-
-        const typeWriter = () => {
-            if (i < text.length) {
-                this.chatOutput.innerHTML += text.charAt(i);
-                i++;
-                setTimeout(typeWriter, speed);
-            }
-        };
-
-        typeWriter();
-    }
-
-    handleUserInput() {
-        const userMessage = this.chatInput.value.trim();
-        if (userMessage) {
-            this.chatOutput.innerHTML += `<p><strong>You:</strong> ${userMessage}</p>`;
-            this.chatInput.value = '';
-            // Here you would typically send the user's message to your AI backend
-            // and receive a response. For now, we'll just echo a simple response.
-            setTimeout(() => {
-                this.typewriterEffect("I understand. How else can I help you?");
-            }, 1000);
-        }
-    }
-
     disconnectedCallback() {
         if (this.cycleInterval) {
             clearInterval(this.cycleInterval);
@@ -277,14 +180,6 @@ class AnimojiAssistant extends HTMLElement {
         document.removeEventListener('keydown', this.boundKeydownHandler);
     }
 
-    handleKeydown(event: KeyboardEvent) {
-        if (event.key === '/' && this.currentState !== 'chat') {
-            event.preventDefault(); // Prevent the "/" from being typed
-            this.setState('chat');
-        } else if (event.key === 'Escape' && this.currentState === 'chat') {
-            this.setState('idle');
-        }
-    }
 }
 
 customElements.define('animoji-assistant', AnimojiAssistant);

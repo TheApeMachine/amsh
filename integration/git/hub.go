@@ -14,7 +14,7 @@ type Hub struct {
 }
 
 func NewHub() *Hub {
-	token := os.Getenv("GITHUB_TOKEN")
+	token := os.Getenv("GITHUB_PAT")
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
