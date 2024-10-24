@@ -11,6 +11,8 @@ import "@/components/animoji/assistant"
 import "@/components/island/dynamic"
 import "@/components/ui/progress"
 import "@/components/ui/popover"
+import "@/components/ui/scrollmask"
+import "@/components/sanddance/component"
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
@@ -20,6 +22,7 @@ export const effect = async () => {
 
     layers = {
         product: document.querySelector("slides-component") as HTMLElement,
+
     };
 
     positions.forEach((position: string, index: number) => {
@@ -66,7 +69,11 @@ export const render = async () => {
                     <section>
                         <dynamic-island></dynamic-island>
                     </section>
+                    <section>
+                        <resizable></resizable>
+                    </section>
                 </slides-component>
+                <sanddance-component></sanddance-component>
             `
         }
     }), {

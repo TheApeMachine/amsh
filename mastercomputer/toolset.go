@@ -6,18 +6,16 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/memory"
-	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/integration/boards"
 	"github.com/theapemachine/amsh/integration/comms"
 	"github.com/theapemachine/amsh/integration/git"
 	"github.com/theapemachine/amsh/integration/trengo"
-	"github.com/theapemachine/amsh/twoface"
+	"github.com/theapemachine/amsh/utils"
 	"github.com/tmc/langchaingo/schema"
 )
 
@@ -39,18 +37,10 @@ func NewToolset() *Toolset {
 		toolsetInstance = &Toolset{
 			toolMap: make(map[string]openai.ChatCompletionToolParam),
 			baseTools: []string{
-				"get_topics",
-				"topic",
-				"send_message",
-				"broadcast_message",
-				"publish_message",
-				"get_workers",
 				"add_vector_memory",
 				"search_vector_memory",
-				"delete_vector_memory",
 				"add_graph_memory",
 				"search_graph_memory",
-				"delete_graph_memory",
 			},
 			workloads: map[string][]string{
 				"manager": {
@@ -125,7 +115,7 @@ func (toolset *Toolset) getArgPresent(args map[string]any, arg string) (out bool
 /*
 Use a tool, based on the tool call passed in.
 */
-func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageToolCall) (out openai.ChatCompletionToolMessageParam) {
+func (toolset *Toolset) Use(sequencer *Sequencer, toolCall openai.ChatCompletionMessageToolCall) (out openai.ChatCompletionToolMessageParam) {
 	args := map[string]any{}
 	var err error
 
@@ -134,81 +124,35 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 	}
 
 	switch toolCall.Function.Name {
-	case "get_topics":
-		topics := twoface.NewQueue().GetTopics()
-		return openai.ToolMessage(toolCall.ID, "[TOPICS]\n"+strings.Join(topics, "\n")+"\n[/TOPICS]\n")
-	case "topic":
-		// Check if we are subscribing or unsubscribing
-		if toolset.getArgPresent(args, "action") && toolset.getArgPresent(args, "topic_channel") {
-			if args["action"] == "subscribe" {
-				twoface.NewQueue().Subscribe(ID, args["topic_channel"].(string))
-				return openai.ToolMessage(toolCall.ID, "subscribed to "+args["topic_channel"].(string))
-			} else if args["action"] == "unsubscribe" {
-				twoface.NewQueue().Unsubscribe(ID, args["topic_channel"].(string))
-				return openai.ToolMessage(toolCall.ID, "unsubscribed from "+args["topic_channel"].(string))
+	case "assignment":
+		if toolset.getArgPresent(args, "role") {
+			role := args["role"].(string)
+			workers := sequencer.workers[role]
+			for _, worker := range workers {
+				worker.Start()
 			}
 		}
-
-		return openai.ToolMessage(toolCall.ID, "something went wrong")
-	case "send_message":
-		if toolset.getArgPresent(args, "to") && toolset.getArgPresent(args, "subject") && toolset.getArgPresent(args, "message") {
-			twoface.NewQueue().PubCh <- *data.New(ID, args["subject"].(string), args["to"].(string), []byte(args["message"].(string)))
-			return openai.ToolMessage(toolCall.ID, "message sent")
-		}
-
-		return openai.ToolMessage(toolCall.ID, "something went wrong")
-	case "broadcast_message":
-		if toolset.getArgPresent(args, "subject") && toolset.getArgPresent(args, "message") {
-			twoface.NewQueue().PubCh <- *data.New(ID, "message", "broadcast", []byte(args["subject"].(string)+"\n\n"+args["message"].(string)))
-			return openai.ToolMessage(toolCall.ID, "message broadcasted")
-		}
-
-		return openai.ToolMessage(toolCall.ID, "something went wrong")
-	case "publish_message":
-		if toolset.getArgPresent(args, "channel") && toolset.getArgPresent(args, "subject") && toolset.getArgPresent(args, "message") {
-			twoface.NewQueue().PubCh <- *data.New(ID, args["subject"].(string), args["channel"].(string), []byte(args["message"].(string)))
-			return openai.ToolMessage(toolCall.ID, "message published")
-		}
-
-		return openai.ToolMessage(toolCall.ID, "something went wrong")
-	case "get_workers":
-		workers := NewManager().GetWorkers()
-		workerList := []string{"[WORKERS]"}
-		for _, worker := range workers {
-			workerList = append(workerList, fmt.Sprintf("%s (%s)", worker.name, worker.buffer.Peek("role")))
-		}
-		workerList = append(workerList, "[/WORKERS]")
-
-		return openai.ToolMessage(toolCall.ID, strings.Join(workerList, "\n"))
 	case "worker":
 		if toolset.getArgPresent(args, "system_prompt") && toolset.getArgPresent(args, "user_prompt") && toolset.getArgPresent(args, "toolset") {
-			builder := NewBuilder()
-			worker := builder.NewWorker(builder.GetRole(args["toolset"].(string)))
-			worker.Start()
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("%s (%s) created", worker.buffer.Peek("role"), worker.name))
+			worker := NewWorker(sequencer.ctx, utils.NewName(), toolset.Assign(args["toolset"].(string)), sequencer.executor)
+			worker.system = args["system_prompt"].(string)
+			worker.user = args["user_prompt"].(string)
+			worker.Initialize()
+			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("worker (%s) created", worker.name))
 		}
 
 		return openai.ToolMessage(toolCall.ID, "something went wrong")
 	case "add_vector_memory":
 		if toolset.getArgPresent(args, "content") && toolset.getArgPresent(args, "private") {
-			manager := NewManager()
-			worker := manager.GetWorker(ID)
 			content := args["content"].(string)
-			private := args["private"].(bool)
-			store := worker.memory.LongTerm
+			store := memory.NewQdrant("hive", 1536)
 
-			if !private {
-				store = manager.memory.LongTerm
-			}
-
-			// Implement the logic to add vector memory
-			// This is a placeholder implementation
 			if err = store.AddDocuments([]schema.Document{
 				{
 					PageContent: content,
 					Metadata: map[string]any{
-						"worker": worker.buffer.Peek("origin"),
-						"role":   worker.buffer.Peek("role"),
+						"worker": sequencer.worker.name,
+						"user":   sequencer.worker.user,
 					},
 				},
 			}); err != nil {
@@ -220,13 +164,12 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_vector_memory")
 	case "search_vector_memory":
-		if toolset.getArgPresent(args, "question") && toolset.getArgPresent(args, "private") {
-			longTerm := memory.NewLongTerm(ID)
-			question := args["question"].(string)
-			private := args["private"].(bool)
+		if toolset.getArgPresent(args, "content") && toolset.getArgPresent(args, "private") {
+			content := args["content"].(string)
+			store := memory.NewQdrant("hive", 1536)
 
 			// Implement the logic to search vector memory
-			result, err := longTerm.Query("vector", fmt.Sprintf("SEARCH %s %v", question, private))
+			result, err := store.Query(fmt.Sprintf("SEARCH %s %v", content, args["private"].(bool)))
 			if err != nil {
 				return openai.ToolMessage(toolCall.ID, "Error searching vector memory: "+err.Error())
 			}
@@ -234,28 +177,14 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_vector_memory")
 
-	case "delete_vector_memory":
-		if toolset.getArgPresent(args, "id") {
-			longTerm := memory.NewLongTerm(ID)
-			id := args["id"].(string)
-
-			// Implement the logic to delete vector memory
-			result, err := longTerm.Query("vector", fmt.Sprintf("DELETE %s", id))
-			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error deleting vector memory: "+err.Error())
-			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Vector memory deleted: %v", result))
-		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for delete_vector_memory")
-
 	case "add_graph_memory":
 		if toolset.getArgPresent(args, "private") && toolset.getArgPresent(args, "cypher") {
-			longTerm := memory.NewLongTerm(ID)
+			store := memory.NewNeo4j()
 			_ = args["private"].(bool)
 			cypher := args["cypher"].(string)
 
 			// Implement the logic to add graph memory
-			result, err := longTerm.Write("graph", cypher)
+			result, err := store.Write(cypher)
 			if err != nil {
 				return openai.ToolMessage(toolCall.ID, "Error adding graph memory: "+err.Error())
 			}
@@ -265,12 +194,12 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 
 	case "search_graph_memory":
 		if toolset.getArgPresent(args, "cypher") && toolset.getArgPresent(args, "private") {
-			longTerm := memory.NewLongTerm(ID)
+			store := memory.NewNeo4j()
 			cypher := args["cypher"].(string)
 			_ = args["private"].(bool)
 
 			// Implement the logic to search graph memory
-			result, err := longTerm.Query("graph", cypher)
+			result, err := store.Query(cypher)
 			if err != nil {
 				return openai.ToolMessage(toolCall.ID, "Error searching graph memory: "+err.Error())
 			}
@@ -278,19 +207,6 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_graph_memory")
 
-	case "delete_graph_memory":
-		if toolset.getArgPresent(args, "cypher") {
-			longTerm := memory.NewLongTerm(ID)
-			cypher := args["cypher"].(string)
-
-			// Implement the logic to delete graph memory
-			result, err := longTerm.Query("graph", fmt.Sprintf("DELETE %s", cypher))
-			if err != nil {
-				return openai.ToolMessage(toolCall.ID, "Error deleting graph memory: "+err.Error())
-			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory deleted: %v", result))
-		}
-		return openai.ToolMessage(toolCall.ID, "Invalid arguments for delete_graph_memory")
 	case "search_work_items":
 		if toolset.getArgPresent(args, "query") {
 			query := args["query"].(string)
@@ -305,6 +221,7 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 			}
 			return openai.ToolMessage(toolCall.ID, result)
 		}
+
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_work_items")
 
 	case "get_work_item":
@@ -543,62 +460,17 @@ func (toolset *Toolset) Use(ID string, toolCall openai.ChatCompletionMessageTool
 }
 
 func (toolset *Toolset) makeTools() {
-	toolset.toolMap["get_topics"] = toolset.makeSchema(
-		"get_topics",
-		"Get a list of all topic channels currently in use.",
-		map[string]interface{}{},
-	)
-
-	toolset.toolMap["topic"] = toolset.makeSchema(
-		"topic",
-		"Manage your subscriptions to topic channels.",
+	toolset.toolMap["assignment"] = toolset.makeSchema(
+		"assignment",
+		"Assign the next team of workers in your sequence.",
 		map[string]interface{}{
-			"topic_channel": toolset.makeStringParam("The topic channel to subscribe to."),
-			"action":        toolset.makeEnumParam("The action to perform.", []string{"subscribe", "unsubscribe"}),
+			"role": toolset.makeEnumParam("The role of the worker to assign.", []string{"prompt", "reasoner", "researcher", "planner", "actor"}),
 		},
-	)
-
-	toolset.toolMap["send_message"] = toolset.makeSchema(
-		"send_message",
-		"Send a message to a user or a channel.",
-		map[string]interface{}{
-			"to":       toolset.makeStringParam("The username of the user or channel to send the message to."),
-			"subject":  toolset.makeStringParam("The subject of the message you want to send."),
-			"priority": toolset.makeEnumParam("The priority of the message you want to send.", []string{"low", "normal", "high"}),
-			"message":  toolset.makeStringParam("The content of the message you want to send."),
-		},
-	)
-
-	toolset.toolMap["broadcast_message"] = toolset.makeSchema(
-		"broadcast_message",
-		"Broadcast a message to all users.",
-		map[string]interface{}{
-			"subject":  toolset.makeStringParam("The subject of the message you want to send."),
-			"message":  toolset.makeStringParam("The content of the message you want to send."),
-			"priority": toolset.makeEnumParam("The priority of the message you want to send.", []string{"low", "normal", "high"}),
-		},
-	)
-
-	toolset.toolMap["publish_message"] = toolset.makeSchema(
-		"publish_message",
-		"Publish a message to a topic channel.",
-		map[string]interface{}{
-			"channel":  toolset.makeStringParam("The channel to publish the message to."),
-			"subject":  toolset.makeStringParam("The subject of the message you want to publish."),
-			"message":  toolset.makeStringParam("The content of the message you want to publish."),
-			"priority": toolset.makeEnumParam("The priority of the message you want to publish.", []string{"low", "normal", "high"}),
-		},
-	)
-
-	toolset.toolMap["get_workers"] = toolset.makeSchema(
-		"get_workers",
-		"Get a list of all workers currently in use.",
-		map[string]interface{}{},
 	)
 
 	toolset.toolMap["worker"] = toolset.makeSchema(
 		"worker",
-		"Create any type of worker, and delegate sub-tasks to them.",
+		"Create a new worker for any kind of task. A worker can be given a system prompt and a user prompt, as well as a toolset to use.",
 		map[string]interface{}{
 			"system_prompt": toolset.makeStringParam("The system prompt for the worker."),
 			"user_prompt":   toolset.makeStringParam("The user prompt for the worker."),
@@ -624,14 +496,6 @@ func (toolset *Toolset) makeTools() {
 		},
 	)
 
-	toolset.toolMap["delete_vector_memory"] = toolset.makeSchema(
-		"delete_vector_memory",
-		"Delete a memory from the vector store. Useful for deleting private memories from the vector store.",
-		map[string]interface{}{
-			"id": toolset.makeStringParam("The id of the memory to delete from the vector store."),
-		},
-	)
-
 	toolset.toolMap["add_graph_memory"] = toolset.makeSchema(
 		"add_graph_memory",
 		"Add a memory to the graph store. Useful for storing memories as connected relationships. Make sure you have at least one relationship defined in your cypher query.",
@@ -647,14 +511,6 @@ func (toolset *Toolset) makeTools() {
 		map[string]interface{}{
 			"cypher":  toolset.makeStringParam("The cypher query to search the graph memory for."),
 			"private": toolset.makeBoolParam("Whether to search private memories or not."),
-		},
-	)
-
-	toolset.toolMap["delete_graph_memory"] = toolset.makeSchema(
-		"delete_graph_memory",
-		"Delete a memory from the graph store. Useful for deleting private memories from the graph store.",
-		map[string]interface{}{
-			"cypher": toolset.makeStringParam("The cypher query to delete from the graph store."),
 		},
 	)
 
@@ -702,54 +558,28 @@ func (toolset *Toolset) makeTools() {
 		},
 	)
 
-	toolset.toolMap["get_helpdesk_message"] = toolset.makeSchema(
-		"get_helpdesk_message",
-		"Get a specific message from a helpdesk ticket in Trengo.",
-		map[string]interface{}{
-			"ticket_id":  toolset.makeIntParam("The ID of the ticket the message belongs to."),
-			"message_id": toolset.makeIntParam("The ID of the message to fetch."),
-		},
-	)
-
-	toolset.toolMap["get_helpdesk_labels"] = toolset.makeSchema(
-		"get_helpdesk_labels",
-		"Get the available labels for a helpdesk ticket. Useful for knowing which labels exist.",
-		map[string]interface{}{
-			"id": toolset.makeStringParam("The id of the helpdesk ticket you want to get labels for."),
-		},
-	)
-
 	toolset.toolMap["add_helpdesk_labels"] = toolset.makeSchema(
 		"add_helpdesk_labels",
-		"Add labels to a helpdesk ticket. Useful for categorizing helpdesk tickets.",
+		"Add category and keyword labels to a helpdesk ticket. Very useful and highly appreciated by the support team.",
 		map[string]interface{}{
 			"id":     toolset.makeStringParam("The id of the helpdesk ticket you want to add labels to."),
-			"labels": toolset.makeArrayParam("The labels to add to the helpdesk ticket."),
+			"labels": toolset.makeArrayParam("The labels to add to the helpdesk ticket. Make sure to only use highly relevant and specific labels."),
 		},
 	)
 
 	toolset.toolMap["search_slack_messages"] = toolset.makeSchema(
-		"search_slack_messages",
-		"Search the slack messages. Useful for retrieving slack messages from the slack system.",
+		"search_slack",
+		"Searching Slack can be very useful, given that it contains a lot of historical and current communication regarding the projects of the organization.",
 		map[string]interface{}{
-			"query": toolset.makeStringParam("The query to search the slack messages for."),
+			"queries": toolset.makeArrayParam("Batch multiple queries for efficient searching. Besides keywords, you can also use Slack's search syntax to refine your search."),
 		},
 	)
 
-	toolset.toolMap["send_slack_channel_message"] = toolset.makeSchema(
-		"send_slack_channel_message",
-		"Send a message to a channel in slack.",
+	toolset.toolMap["send_slack_message"] = toolset.makeSchema(
+		"send_slack_message",
+		"Send or reply to messages via Slack. You can send a message to a user or channel. Useful for when you need to communicate with the outside world.",
 		map[string]interface{}{
-			"channel": toolset.makeStringParam("The channel to send the message to."),
-			"message": toolset.makeStringParam("The content of the message you want to send."),
-		},
-	)
-
-	toolset.toolMap["send_slack_user_message"] = toolset.makeSchema(
-		"send_slack_user_message",
-		"Send a direct message to a user in slack.",
-		map[string]interface{}{
-			"user":    toolset.makeStringParam("The user to send the direct message to."),
+			"id":      toolset.makeStringParam("The user or channel id to send the message to."),
 			"message": toolset.makeStringParam("The content of the direct message you want to send."),
 		},
 	)

@@ -15,7 +15,6 @@ import (
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/comms"
-	"github.com/theapemachine/amsh/mastercomputer"
 	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
 )
@@ -30,47 +29,11 @@ type HTTPS struct {
 	slackEvents *comms.Events
 }
 
-func getWorkerName(role mastercomputer.WorkerType) string {
-	switch role {
-	case mastercomputer.WorkerTypeManager:
-		return "marvin-manager"
-	case mastercomputer.WorkerTypeReasoner:
-		return "marvin-reasoner"
-	case mastercomputer.WorkerTypeVerifier:
-		return "marvin-verifier"
-	case mastercomputer.WorkerTypeCommunicator:
-		return "marvin-communicator"
-	case mastercomputer.WorkerTypeResearcher:
-		return "marvin-researcher"
-	case mastercomputer.WorkerTypeExecutor:
-		return "marvin-executor"
-	}
-
-	return utils.NewName()
-}
-
 /*
 NewHTTPS creates a new HTTPS service, configures the mapping to internal service endpoints
 from the config file, and sets up fiber (v3) to serve TLS requests.
 */
 func NewHTTPS() *HTTPS {
-	// Initialize the messaging queue
-	queue := twoface.NewQueue()
-
-	// Initialize the worker manager
-	builder := mastercomputer.NewBuilder()
-
-	for _, agent := range []mastercomputer.WorkerType{
-		mastercomputer.WorkerTypeManager,
-		mastercomputer.WorkerTypeReasoner,
-		mastercomputer.WorkerTypeVerifier,
-		mastercomputer.WorkerTypeCommunicator,
-		mastercomputer.WorkerTypeResearcher,
-		mastercomputer.WorkerTypeExecutor,
-	} {
-		worker := builder.NewWorker(agent, getWorkerName(agent))
-		worker.Start()
-	}
 
 	return &HTTPS{
 		app: fiber.New(fiber.Config{
@@ -81,7 +44,6 @@ func NewHTTPS() *HTTPS {
 			JSONEncoder:   json.Marshal,
 			JSONDecoder:   json.Unmarshal,
 		}),
-		queue:       queue,
 		slackEvents: comms.NewEvents(),
 	}
 }

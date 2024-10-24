@@ -10,9 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/spf13/cobra"
-	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/mastercomputer"
-	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -27,31 +25,13 @@ func runTest(cmd *cobra.Command, args []string) error {
 	os.Setenv("QDRANT_URL", "http://localhost:6333")
 	os.Setenv("NEO4J_URL", "neo4j://localhost:7474")
 
-	// Initialize the messaging queue
-	queue := twoface.NewQueue()
+	seq := mastercomputer.NewSequencer(utils.NewName(), "sequencer", "test", `
+	You have been hired by a company called Fan Factory. Learn about the company and come up with a strategy to grow the company and
+	improve its market position.
+	`)
 
-	// Initialize the worker manager
-	builder := mastercomputer.NewBuilder()
-
-	for _, agent := range []mastercomputer.WorkerType{
-		mastercomputer.WorkerTypeManager,
-		mastercomputer.WorkerTypeReasoner,
-		mastercomputer.WorkerTypeVerifier,
-		mastercomputer.WorkerTypeCommunicator,
-		mastercomputer.WorkerTypeResearcher,
-		mastercomputer.WorkerTypeExecutor,
-	} {
-		worker := builder.NewWorker(agent)
-		worker.Start()
-	}
-
-	message := data.New(utils.NewName(), "task", "managing", []byte("Build a comprehensive plan to improve Fan Factory's market position, including a detailed analysis of the current market landscape, competitive positioning, required inhouse product/tool development, and strategic recommendations for growth and differentiation."))
-	message.Poke("chain", "test")
-
-	queue.PubCh <- *message
-
-	log.Println("Waiting for workers to finish...")
-	builder.Wait()
+	seq.Initialize()
+	seq.Start()
 
 	// Delete Qdrant collections
 	if err := deleteQdrantCollections(); err != nil {

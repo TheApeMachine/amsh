@@ -15,13 +15,9 @@ type Conversation struct {
 	tokenCounts      []int64
 }
 
-func NewConversation(task *data.Artifact) *Conversation {
+func NewConversation() *Conversation {
 	return &Conversation{
-		task: task,
-		context: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(task.Peek("system")),
-			openai.UserMessage(task.Peek("user") + "\n\n" + task.Peek("payload")),
-		},
+		context:          []openai.ChatCompletionMessageParamUnion{},
 		maxContextTokens: viper.GetViper().GetInt("ai.max_context_tokens"),
 		tokenCounts:      make([]int64, 0),
 	}
@@ -59,15 +55,15 @@ func (conversation *Conversation) estimateTokens(msg openai.ChatCompletionMessag
 	content := ""
 	role := ""
 	switch m := msg.(type) {
+	case openai.ChatCompletionSystemMessageParam:
+		content = m.Content.String()
+		role = "system"
 	case openai.ChatCompletionUserMessageParam:
 		content = m.Content.String()
 		role = "user"
 	case openai.ChatCompletionAssistantMessageParam:
 		content = m.Content.String()
 		role = "assistant"
-	case openai.ChatCompletionSystemMessageParam:
-		content = m.Content.String()
-		role = "system"
 	case openai.ChatCompletionToolMessageParam:
 		content = m.Content.String()
 		role = "function"

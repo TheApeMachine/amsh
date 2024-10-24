@@ -16,9 +16,6 @@ type Neo4j struct {
 // NewNeo4j creates a new Neo4j client.
 func NewNeo4j() *Neo4j {
 	ctx := context.Background()
-	// uri := viper.GetString("neo4j.uri")
-	// username := viper.GetString("neo4j.username")
-	// password := viper.GetString("neo4j.password")
 	var (
 		client neo4j.DriverWithContext
 		err    error
