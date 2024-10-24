@@ -11,7 +11,6 @@ import (
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/mastercomputer"
-	"github.com/theapemachine/amsh/utils"
 )
 
 var testCmd = &cobra.Command{
@@ -22,12 +21,12 @@ var testCmd = &cobra.Command{
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
-	os.Setenv("QDRANT_URL", "http://localhost:6333")
-	os.Setenv("NEO4J_URL", "neo4j://localhost:7474")
-
-	seq := mastercomputer.NewSequencer(utils.NewName(), "sequencer", "test", `
-	You have been hired by a company called Fan Factory. Learn about the company and come up with a strategy to grow the company and
-	improve its market position.
+	seq := mastercomputer.NewSequencer()
+	seq.MessageHandler(`
+	You have been hired by a Dutch company called Fan Factory.
+	They provide tools and services related to employee wellbeing.
+	Learn about the company and come up with a detailed strategy to grow the company and improve its market position.
+	Share a comprehensive plan of action, with clear steps and tasks, that can be executed by the team.
 	`)
 
 	seq.Initialize()
@@ -85,4 +84,7 @@ func deleteQdrantCollections() error {
 
 func init() {
 	rootCmd.AddCommand(testCmd)
+	os.Setenv("LOGFILE", "test.log")
+	os.Setenv("QDRANT_URL", "http://localhost:6333")
+	os.Setenv("NEO4J_URL", "neo4j://localhost:7474")
 }

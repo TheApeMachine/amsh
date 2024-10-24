@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/google/go-github/v66/github"
 	"golang.org/x/oauth2"
@@ -34,7 +35,7 @@ type CodeSearchResult struct {
 
 func (h *Hub) SearchCode(ctx context.Context, query string) ([]CodeSearchResult, error) {
 	opts := &github.SearchOptions{
-		ListOptions: github.ListOptions{PerPage: 30}, // Limit to 30 results
+		ListOptions: github.ListOptions{PerPage: 3},
 	}
 
 	result, _, err := h.client.Search.Code(ctx, query, opts)
@@ -49,6 +50,12 @@ func (h *Hub) SearchCode(ctx context.Context, query string) ([]CodeSearchResult,
 			// Log the error but continue with other results
 			fmt.Printf("Error getting content for %s/%s/%s: %v\n", *item.Repository.Owner.Login, *item.Repository.Name, *item.Path, err)
 			continue
+		}
+
+		content = strings.TrimSpace(content)
+
+		if len(content) > 2000 {
+			content = content[:2000]
 		}
 
 		searchResults = append(searchResults, CodeSearchResult{

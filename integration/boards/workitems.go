@@ -172,34 +172,16 @@ func (srv *SearchWorkitemsSrv) SearchWorkitems(ctx context.Context, query string
 	for _, result := range *responseValue.Results {
 		tickets := *result.Fields
 
-		// Check if the fields exist before accessing them
-		if id, ok := tickets["System.Id"]; ok {
-			builder.WriteString(fmt.Sprintf("[WORKITEM %s]\n", id))
-		}
-		if workItemType, ok := tickets["System.WorkItemType"]; ok {
-			builder.WriteString(fmt.Sprintf("Type: %s\n", workItemType))
-		}
-		if state, ok := tickets["System.State"]; ok {
-			builder.WriteString(fmt.Sprintf("State: %s\n", state))
-		}
-		if assignedTo, ok := tickets["System.AssignedTo"]; ok {
-			builder.WriteString(fmt.Sprintf("Assigned To: %s\n", assignedTo))
-		}
-		if createdDate, ok := tickets["System.CreatedDate"]; ok {
-			builder.WriteString(fmt.Sprintf("Created Date: %s\n", createdDate))
-		}
-		if tags, ok := tickets["System.Tags"]; ok {
-			builder.WriteString(fmt.Sprintf("Tags: %s\n", tags))
-		}
-		if title, ok := tickets["System.Title"]; ok {
-			builder.WriteString(fmt.Sprintf("Title: %s\n", title))
-		}
-		if description, ok := tickets["System.Description"]; ok {
-			builder.WriteString(fmt.Sprintf("Description: %s\n", description))
-		}
-		if comments, ok := tickets["System.History"]; ok {
-			builder.WriteString(fmt.Sprintf("Comments: %s\n", comments))
-		}
+		builder.WriteString("----------------------------------------\n")
+		builder.WriteString(fmt.Sprintf("Id: %s\n", tickets["System.Id"]))
+		builder.WriteString(fmt.Sprintf("Type: %s\n", tickets["System.WorkItemType"]))
+		builder.WriteString(fmt.Sprintf("State: %s\n", tickets["System.State"]))
+		builder.WriteString(fmt.Sprintf("Assigned To: %s\n", tickets["System.AssignedTo"]))
+		builder.WriteString(fmt.Sprintf("Created Date: %s\n", tickets["System.CreatedDate"]))
+		builder.WriteString(fmt.Sprintf("Tags: %s\n", tickets["System.Tags"]))
+		builder.WriteString(fmt.Sprintf("Title: %s\n", tickets["System.Title"]))
+		builder.WriteString(fmt.Sprintf("Description: %s\n", tickets["System.Description"]))
+
 		// Get comments for this work item
 		if id, ok := tickets["System.Id"]; ok {
 			workItemID, _ := strconv.Atoi(fmt.Sprintf("%v", id))
@@ -210,7 +192,6 @@ func (srv *SearchWorkitemsSrv) SearchWorkitems(ctx context.Context, query string
 				}
 			}
 		}
-		builder.WriteString("[/WORKITEM]\n")
 		index++
 	}
 

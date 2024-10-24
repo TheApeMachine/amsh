@@ -35,13 +35,11 @@ func handleRecursiveTypes(t reflect.Type) *jsonschema.Schema {
 }
 
 type Completion struct {
-	ctx    context.Context
 	client *openai.Client
 }
 
 func NewCompletion(ctx context.Context) *Completion {
 	return &Completion{
-		ctx:    context.Background(),
 		client: openai.NewClient(),
 	}
 }
@@ -73,7 +71,7 @@ func (completion *Completion) Execute(
 func (completion *Completion) executeWithStream(
 	ctx context.Context, params openai.ChatCompletionNewParams,
 ) (*openai.ChatCompletion, error) {
-	response, err := completion.client.Chat.Completions.New(completion.ctx, params)
+	response, err := completion.client.Chat.Completions.New(ctx, params)
 
 	if errnie.Error(err) != nil {
 		spew.Dump(params)

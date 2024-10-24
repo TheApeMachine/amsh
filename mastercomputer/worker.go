@@ -13,17 +13,14 @@ type WorkerState uint
 
 const (
 	WorkerStateUndecided WorkerState = iota
+	WorkerStateWorking
 	WorkerStateDiscussing
 	WorkerStateAgreed
 	WorkerStateDisagreed
+	WorkerStateDone
 )
 
-/*
-Worker represents a blank agent that can adopt any role or workload that is assigned to it.
-By setting the system prompt, user prompt, and assigning a toolset, the worker is flexible enough
-to be the only agentic type. Finally, given that a worker is also a tool, workers that are assigned
-the worker tool can make their own workers and delegate work.
-*/
+// Worker represents a flexible agent capable of handling different roles and workloads.
 type Worker struct {
 	parentCtx   context.Context
 	executor    *Executor
@@ -34,12 +31,10 @@ type Worker struct {
 	toolset     []openai.ChatCompletionToolParam
 	temperature float64
 	state       WorkerState
+	buffer      *ConversationBuffer // Scoped buffer for this worker's context
 }
 
-/*
-NewWorker provides a minimal, uninitialized worker object. The buffer artifact is used to
-initialize the worker's configuration, and an essential part of data transfer.
-*/
+// NewWorker creates a new worker with scoped context buffer.
 func NewWorker(
 	ctx context.Context,
 	name string,
@@ -55,20 +50,18 @@ func NewWorker(
 		role:      role,
 		toolset:   toolset,
 		executor:  executor,
+		buffer:    NewConversationBuffer(name), // Assign scoped conversation buffer
 	}
 }
 
-/*
-Initialize sets up the worker's context, queue registration, and initializes the memory.
-This is the preparation phase for the worker to be ready to receive and process messages.
-*/
+// Initialize sets up the worker's context, toolset, and memory.
 func (worker *Worker) Initialize() *Worker {
 	errnie.Trace()
-
 	worker.temperature = utils.ToFixed(rand.Float64()*1.0, 1)
 	return worker
 }
 
+// Start begins the worker's execution phase.
 func (worker *Worker) Start() {
 	errnie.Trace()
 	worker.executor.Do(worker)

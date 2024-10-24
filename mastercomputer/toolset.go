@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/openai/openai-go"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/memory"
 	"github.com/theapemachine/amsh/errnie"
@@ -38,10 +39,7 @@ func NewToolset() *Toolset {
 		toolsetInstance = &Toolset{
 			toolMap: make(map[string]openai.ChatCompletionToolParam),
 			baseTools: []string{
-				"add_vector_memory",
-				"search_vector_memory",
-				"add_graph_memory",
-				"search_graph_memory",
+				"change_state",
 			},
 			workloads: map[string][]string{
 				"discussion": {
@@ -51,6 +49,10 @@ func NewToolset() *Toolset {
 					"assignment",
 				},
 				"researcher": {
+					"add_vector_memory",
+					"search_vector_memory",
+					"add_graph_memory",
+					"search_graph_memory",
 					"search_github_code",
 					"search_slack_messages",
 					"search_helpdesk_tickets",
@@ -66,8 +68,6 @@ func NewToolset() *Toolset {
 					"get_helpdesk_labels",
 				},
 				"planner": {
-					"search_slack_messages",
-					"search_helpdesk_tickets",
 					"search_work_items",
 					"get_work_item",
 					"manage_work_item",
@@ -134,23 +134,31 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 				worker.state = WorkerStateAgreed
 			} else if state, ok = args["state"].(string); ok && state == "disagreed" {
 				worker.state = WorkerStateDisagreed
+			} else if state, ok = args["state"].(string); ok && state == "done" {
+				worker.state = WorkerStateDone
 			}
+
+			sequencer.output.Console(worker, MsgTypeToolCall, "Change State", "Worker state changed to", state)
 			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Worker state changed to %s", state))
 		}
 	case "assignment":
 		if toolset.getArgPresent(args, "role") && toolset.getArgPresent(args, "assignment") {
 			role := args["role"].(string)
 			assignment := args["assignment"].(string)
+			sequencer.activeTeam = role
 			workers := sequencer.workers[role]
-			sequencer.executor.conversation.Update(openai.AssistantMessage("[NEXT ASSIGNMENT]\n" + assignment + "\n[/NEXT ASSIGNMENT]\n"))
-			sequencer.executor.conversation.Update(openai.SystemMessage("Since you are a team of 3, all with the same role, discuss how to divide the work for the assignment."))
+			sequencer.executor.conversation.Update(openai.AssistantMessage(assignment))
+			sequencer.executor.conversation.Update(openai.AssistantMessage(viper.GetViper().GetString("ai.prompt.discussion")))
 
 			for _, wrkr := range workers {
 				wrkr.state = WorkerStateDiscussing
-				wrkr.Start()
 			}
+
+			sequencer.output.Console(worker, MsgTypeToolCall, "Assignment", assignment, role)
 			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Assigned '%s' to workers with role '%s'", assignment, role))
 		}
+
+		sequencer.output.Console(worker, MsgTypeToolCall, "Assignment", "Invalid arguments for assignment")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for assignment")
 	case "worker":
 		if toolset.getArgPresent(args, "system_prompt") && toolset.getArgPresent(args, "user_prompt") && toolset.getArgPresent(args, "toolset") {
@@ -158,12 +166,15 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			worker.system = args["system_prompt"].(string)
 			worker.user = args["user_prompt"].(string)
 			worker.Initialize()
+
+			sequencer.output.Console(worker, MsgTypeToolCall, "Worker", "Worker", worker.name, "created")
 			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("worker (%s) created", worker.name))
 		}
 
-		return openai.ToolMessage(toolCall.ID, "something went wrong")
+		sequencer.output.Console(worker, MsgTypeToolCall, "Worker", "Invalid arguments for worker")
+		return openai.ToolMessage(toolCall.ID, "Invalid arguments for worker")
 	case "add_vector_memory":
-		if toolset.getArgPresent(args, "content") && toolset.getArgPresent(args, "private") {
+		if toolset.getArgPresent(args, "content") {
 			content := args["content"].(string)
 			store := memory.NewQdrant("hive", 1536)
 
@@ -171,30 +182,46 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 				{
 					PageContent: content,
 					Metadata: map[string]any{
-						"worker": sequencer.worker.name,
-						"user":   sequencer.worker.user,
+						"worker": worker.name,
+						"user":   worker.user,
 					},
 				},
 			}); err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Add Vector Memory", "Error adding vector memory:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error adding vector memory: "+err.Error())
 			}
 
+			sequencer.output.Console(worker, MsgTypeToolCall, "Add Vector Memory", content)
 			return openai.ToolMessage(toolCall.ID, "vector memory added")
 		}
 
+		sequencer.output.Console(worker, MsgTypeToolCall, "Add Vector Memory", "Invalid arguments for add_vector_memory")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_vector_memory")
 	case "search_vector_memory":
-		if toolset.getArgPresent(args, "content") && toolset.getArgPresent(args, "private") {
-			content := args["content"].(string)
+		if toolset.getArgPresent(args, "question") {
+			question := args["question"].(string)
 			store := memory.NewQdrant("hive", 1536)
 
 			// Implement the logic to search vector memory
-			result, err := store.Query(fmt.Sprintf("SEARCH %s %v", content, args["private"].(bool)))
+			result, err := store.Query(question)
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Search Vector Memory", "Error searching vector memory:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error searching vector memory: "+err.Error())
 			}
+
+			var out string
+
+			for _, r := range result {
+				for k, v := range r {
+					out += fmt.Sprintf("%s: %v\n", k, v)
+				}
+			}
+
+			sequencer.output.Console(worker, MsgTypeToolCall, "Search Vector Memory", question, out)
 			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Vector memory search results: %v", result))
 		}
+
+		sequencer.output.Console(worker, MsgTypeToolCall, "Search Vector Memory", "Invalid arguments for search_vector_memory")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_vector_memory")
 
 	case "use_graph_memory":
@@ -207,29 +234,40 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			if operation == "add" {
 				result, err := store.Write(cypher)
 				if err != nil {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Add Graph Memory", "Error adding graph memory:", err.Error())
 					return openai.ToolMessage(toolCall.ID, "Error adding graph memory: "+err.Error())
 				}
+
+				sequencer.output.Console(worker, MsgTypeToolCall, "Add Graph Memory", fmt.Sprintf("Graph memory added: %v", result))
 				return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory added: %v", result))
 			}
 
 			if operation == "update" {
 				result, err := store.Write(cypher)
 				if err != nil {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Add Graph Memory", "Error updating graph memory:", err.Error())
 					return openai.ToolMessage(toolCall.ID, "Error updating graph memory: "+err.Error())
 				}
+
+				sequencer.output.Console(worker, MsgTypeToolCall, "Add Graph Memory", fmt.Sprintf("Graph memory updated: %v", result))
 				return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory updated: %v", result))
 			}
 
 			if operation == "search" {
 				result, err := store.Query(cypher)
 				if err != nil {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Add Graph Memory", "Error searching graph memory:", err.Error())
 					return openai.ToolMessage(toolCall.ID, "Error searching graph memory: "+err.Error())
 				}
+
+				sequencer.output.Console(worker, MsgTypeToolCall, "Add Graph Memory", fmt.Sprintf("Graph memory search results: %v", result))
 				return openai.ToolMessage(toolCall.ID, fmt.Sprintf("Graph memory search results: %v", result))
 			}
 
+			sequencer.output.Console(worker, MsgTypeToolCall, "Add Graph Memory", "Invalid arguments for use_graph_memory")
 			return openai.ToolMessage(toolCall.ID, "Invalid arguments for use_graph_memory")
 		}
+		sequencer.output.Console(worker, MsgTypeToolCall, "Add Graph Memory", "Invalid arguments for add_graph_memory")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_graph_memory")
 	case "search_work_items":
 		if toolset.getArgPresent(args, "query") {
@@ -237,12 +275,16 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			ctx := context.Background()
 			searchSrv, err := boards.NewSearchWorkitemsSrv(ctx, "your_project_name")
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Search Work Items", "Error creating search service:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error creating search service: "+err.Error())
 			}
 			result, err := searchSrv.SearchWorkitems(ctx, query)
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Search Work Items", "Error searching work items:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error searching work items: "+err.Error())
 			}
+
+			sequencer.output.Console(worker, MsgTypeToolCall, "Search Work Items", result)
 			return openai.ToolMessage(toolCall.ID, result)
 		}
 
@@ -252,17 +294,22 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 		if toolset.getArgPresent(args, "id") {
 			id, err := strconv.Atoi(args["id"].(string))
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Get Work Item", "Invalid work item ID:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Invalid work item ID: "+err.Error())
 			}
 			ctx := context.Background()
 			getSrv, err := boards.NewGetWorkItemSrv(ctx, os.Getenv("AZDO_ORG_URL"), os.Getenv("AZDO_PAT"))
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Get Work Item", "Error creating get service:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error creating get service: "+err.Error())
 			}
 			result, err := getSrv.GetWorkitem(ctx, id)
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Get Work Item", "Error getting work item:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error getting work item: "+err.Error())
 			}
+
+			sequencer.output.Console(worker, MsgTypeToolCall, "Get Work Item", result)
 			return openai.ToolMessage(toolCall.ID, result)
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_work_item")
@@ -287,34 +334,46 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			case "create":
 				createSrv, err := boards.NewCreateWorkitemSrv(ctx, "playground")
 				if err != nil {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", "Error creating create service:", err.Error())
 					return openai.ToolMessage(toolCall.ID, "Error creating create service: "+err.Error())
 				}
 				result, err := createSrv.CreateWorkitem(ctx, title, description, workItemType, parentID)
 				if err != nil {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", "Error creating work item:", err.Error())
 					return openai.ToolMessage(toolCall.ID, "Error creating work item: "+err.Error())
 				}
+
+				sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", result)
 				return openai.ToolMessage(toolCall.ID, result)
 			case "update":
 				if !toolset.getArgPresent(args, "id") {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", "ID is required for updating a work item")
 					return openai.ToolMessage(toolCall.ID, "ID is required for updating a work item")
 				}
 				id, err := strconv.Atoi(args["id"].(string))
 				if err != nil {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", "Invalid work item ID:", err.Error())
 					return openai.ToolMessage(toolCall.ID, "Invalid work item ID: "+err.Error())
 				}
 				updateSrv, err := boards.NewUpdateWorkitemSrv(ctx, "playground")
 				if err != nil {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", "Error creating update service:", err.Error())
 					return openai.ToolMessage(toolCall.ID, "Error creating update service: "+err.Error())
 				}
 				result, err := updateSrv.UpdateWorkitem(ctx, id, title, description)
 				if err != nil {
+					sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", "Error updating work item:", err.Error())
 					return openai.ToolMessage(toolCall.ID, "Error updating work item: "+err.Error())
 				}
+
+				sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", result)
 				return openai.ToolMessage(toolCall.ID, result)
 			default:
+				sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", "Invalid action for manage_work_item")
 				return openai.ToolMessage(toolCall.ID, "Invalid action for manage_work_item")
 			}
 		}
+		sequencer.output.Console(worker, MsgTypeToolCall, "Manage Work Item", "Invalid arguments for manage_work_item")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for manage_work_item")
 
 	case "search_helpdesk_tickets":
@@ -322,6 +381,7 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			query := args["query"].(string)
 			pageFloat, ok := args["page"].(float64) // Safely assert to float64
 			if !ok {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Search Helpdesk Tickets", "Invalid page number type")
 				return openai.ToolMessage(toolCall.ID, "Invalid page number type")
 			}
 			page := int(pageFloat) // Convert float64 to int
@@ -329,6 +389,7 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			ticketService := trengo.NewTicketService()
 			tickets, err := ticketService.ListTickets(context.Background(), page)
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Search Helpdesk Tickets", "Error searching helpdesk tickets:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error searching helpdesk tickets: "+err.Error())
 			}
 
@@ -339,8 +400,10 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 					ticket.ID, ticket.Subject, ticket.Status, ticket.CreatedAt, ticket.UpdatedAt, ticket.AssignedTo, ticket.LastMessage)
 			}
 
+			sequencer.output.Console(worker, MsgTypeToolCall, "Search Helpdesk Tickets", formattedResults)
 			return openai.ToolMessage(toolCall.ID, formattedResults)
 		}
+		sequencer.output.Console(worker, MsgTypeToolCall, "Search Helpdesk Tickets", "Invalid arguments for search_helpdesk_tickets")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_helpdesk_tickets")
 
 	case "get_helpdesk_messages":
@@ -348,6 +411,7 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			// Convert float64 to int
 			ticketIDFloat, ok := args["ticket_id"].(float64)
 			if !ok {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Get Helpdesk Messages", "Invalid ticket ID type")
 				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID type")
 			}
 			ticketID := int(ticketIDFloat)
@@ -355,6 +419,7 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			messageService := trengo.NewMessageService(os.Getenv("TRENGO_BASE_URL"), os.Getenv("TRENGO_API_TOKEN"))
 			messages, err := messageService.ListMessages(context.Background(), ticketID)
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Get Helpdesk Messages", "Error getting helpdesk messages:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error getting helpdesk messages: "+err.Error())
 			}
 
@@ -367,22 +432,26 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 
 			return openai.ToolMessage(toolCall.ID, formattedResults)
 		}
+		sequencer.output.Console(worker, MsgTypeToolCall, "Get Helpdesk Messages", "Invalid arguments for get_helpdesk_messages")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_helpdesk_messages")
 
 	case "get_helpdesk_message":
 		if toolset.getArgPresent(args, "ticket_id") && toolset.getArgPresent(args, "message_id") {
 			ticketID, err := strconv.Atoi(args["ticket_id"].(string))
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Get Helpdesk Message", "Invalid ticket ID:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error())
 			}
 			messageID, err := strconv.Atoi(args["message_id"].(string))
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Get Helpdesk Message", "Invalid message ID:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Invalid message ID: "+err.Error())
 			}
 
 			messageService := trengo.NewMessageService(os.Getenv("TRENGO_BASE_URL"), os.Getenv("TRENGO_API_TOKEN"))
 			message, err := messageService.FetchMessage(context.Background(), ticketID, messageID)
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Get Helpdesk Message", "Error getting helpdesk message:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error getting helpdesk message: "+err.Error())
 			}
 
@@ -392,36 +461,28 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 
 			return openai.ToolMessage(toolCall.ID, formattedResult)
 		}
+		sequencer.output.Console(worker, MsgTypeToolCall, "Get Helpdesk Message", "Invalid arguments for get_helpdesk_message")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for get_helpdesk_message")
-
-	case "get_helpdesk_labels":
-		ctx := context.Background()
-		listLabels := trengo.NewListLabels()
-		labels, err := listLabels.List(ctx)
-		if err != nil {
-			return openai.ToolMessage(toolCall.ID, "Error getting helpdesk labels: "+err.Error())
-		}
-		labelsJSON, err := json.Marshal(labels)
-		if err != nil {
-			return openai.ToolMessage(toolCall.ID, "Error marshaling labels: "+err.Error())
-		}
-		return openai.ToolMessage(toolCall.ID, string(labelsJSON))
 	case "add_helpdesk_labels":
 		if toolset.getArgPresent(args, "ticket_id") && toolset.getArgPresent(args, "label_id") {
 			ticketID, err := strconv.Atoi(args["ticket_id"].(string))
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Add Helpdesk Labels", "Invalid ticket ID:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Invalid ticket ID: "+err.Error())
 			}
 			labelID, err := strconv.Atoi(args["label_id"].(string))
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Add Helpdesk Labels", "Invalid label ID:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Invalid label ID: "+err.Error())
 			}
 			ctx := context.Background()
 			assignLabels := trengo.NewAssignLabels()
 			err = assignLabels.Attach(ctx, labelID, ticketID)
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Add Helpdesk Labels", "Error adding helpdesk label:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error adding helpdesk label: "+err.Error())
 			}
+			sequencer.output.Console(worker, MsgTypeToolCall, "Add Helpdesk Labels", "Label successfully added to the ticket")
 			return openai.ToolMessage(toolCall.ID, "Label successfully added to the ticket")
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for add_helpdesk_labels")
@@ -430,9 +491,11 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			search := comms.NewSearch()
 			messages, err := search.SearchMessages(context.Background(), args["query"].(string))
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Search Slack Messages", "Error searching Slack messages:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error searching Slack messages: "+err.Error())
 			}
 			result, _ := json.Marshal(messages)
+			sequencer.output.Console(worker, MsgTypeToolCall, "Search Slack Messages", string(result))
 			return openai.ToolMessage(toolCall.ID, string(result))
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_slack_messages")
@@ -441,8 +504,10 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			msg := comms.NewMessage(args["channel"].(string), args["message"].(string))
 			err := msg.Post(context.Background())
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Send Slack Channel Message", "Error sending Slack channel message:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error sending Slack channel message: "+err.Error())
 			}
+			sequencer.output.Console(worker, MsgTypeToolCall, "Send Slack Channel Message", "Slack channel message sent successfully")
 			return openai.ToolMessage(toolCall.ID, "Slack channel message sent successfully")
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for send_slack_channel_message")
@@ -452,8 +517,10 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			msg := comms.NewMessage(args["user"].(string), args["message"].(string))
 			err := msg.Post(context.Background())
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Send Slack User Message", "Error sending Slack user message:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error sending Slack user message: "+err.Error())
 			}
+			sequencer.output.Console(worker, MsgTypeToolCall, "Send Slack User Message", "Slack user message sent successfully")
 			return openai.ToolMessage(toolCall.ID, "Slack user message sent successfully")
 		}
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for send_slack_user_message")
@@ -462,6 +529,7 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			hub := git.NewHub()
 			results, err := hub.SearchCode(context.Background(), args["query"].(string))
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Search GitHub Code", "Error searching GitHub code:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error searching GitHub code: "+err.Error())
 			}
 
@@ -472,8 +540,10 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 					result.Repository, result.Path, result.Content)
 			}
 
+			sequencer.output.Console(worker, MsgTypeToolCall, "Search GitHub Code", formattedResults)
 			return openai.ToolMessage(toolCall.ID, formattedResults)
 		}
+		sequencer.output.Console(worker, MsgTypeToolCall, "Search GitHub Code", "Invalid arguments for search_github_code")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for search_github_code")
 	case "add_code_review":
 		return openai.ToolMessage(toolCall.ID, "tool not implemented")
@@ -482,24 +552,29 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			browser := NewBrowser()
 			result, err := browser.Run(args)
 			if err != nil {
+				sequencer.output.Console(worker, MsgTypeToolCall, "Use Browser", "Error using browser:", err.Error())
 				return openai.ToolMessage(toolCall.ID, "Error using browser: "+err.Error())
 			}
-			return openai.ToolMessage(toolCall.ID, fmt.Sprintf("\n[BROWSER RESULT]\n%s\n[/BROWSER RESULT]\n", result))
+			sequencer.output.Console(worker, MsgTypeToolCall, "Use Browser", result)
+			return openai.ToolMessage(toolCall.ID, result)
 		}
+		sequencer.output.Console(worker, MsgTypeToolCall, "Use Browser", "Invalid arguments for use_browser")
 		return openai.ToolMessage(toolCall.ID, "Invalid arguments for use_browser")
 	case "start_environment":
+		sequencer.output.Console(worker, MsgTypeToolCall, "Start Environment", "tool not implemented")
 		return openai.ToolMessage(toolCall.ID, "tool not implemented")
 	}
 
+	sequencer.output.Console(worker, MsgTypeToolCall, "Tool not implemented")
 	return openai.ToolMessage(toolCall.ID, "Tool not implemented")
 }
 
 func (toolset *Toolset) makeTools() {
 	toolset.toolMap["change_state"] = toolset.makeSchema(
 		"change_state",
-		"Change your state when in a discussion. A discussion will go on until all workers have agreed on the decisions.",
+		"Change your state when in a discussion or when you are done with your work. A discussion will go on until all workers have agreed.",
 		map[string]interface{}{
-			"state": toolset.makeEnumParam("The state to change to.", []string{"disagree", "agreed"}),
+			"state": toolset.makeEnumParam("The state to change to.", []string{"agreed", "disagreed", "done"}),
 		},
 	)
 	toolset.toolMap["assignment"] = toolset.makeSchema(
@@ -525,7 +600,7 @@ func (toolset *Toolset) makeTools() {
 		"add_vector_memory",
 		"Add a memory to the vector store. Useful for storing memories as vectors.",
 		map[string]interface{}{
-			"content": toolset.makeStringParam("The content of the memory to add to the vector store."),
+			"content": toolset.makeStringParam("The content of the memory to add to the vector store. No need for markdown formatting, just plain text."),
 		},
 	)
 
@@ -567,6 +642,7 @@ func (toolset *Toolset) makeTools() {
 		"Manage a work item. Useful for creating or updating work items in the project management system.",
 		map[string]interface{}{
 			"action":        toolset.makeEnumParam("The action to perform on the work item.", []string{"create", "update"}),
+			"parent_id":     toolset.makeIntParam("The id of the parent work item. Only used when creating a work item."),
 			"workitem_type": toolset.makeEnumParam("The type of work item to create.", []string{"Epic", "Issue", "Task"}),
 			"title":         toolset.makeStringParam("The title of the work item."),
 			"description":   toolset.makeStringParam("Gherkin description of the work item."),

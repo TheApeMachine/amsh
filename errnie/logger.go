@@ -33,7 +33,7 @@ var (
 	logFile     *os.File
 	logFileMu   sync.Mutex
 	logFilePath string
-	nonofile    bool = true
+	nonofile    bool
 
 	logger = log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
@@ -53,6 +53,8 @@ func JSONtoMap(jsonString string) (map[string]any, error) {
 }
 
 func init() {
+	nonofile = os.Getenv("LOGFILE") == ""
+
 	styles.Levels[log.ErrorLevel] = lipgloss.NewStyle().
 		Padding(0, 1, 0, 1).
 		Background(lipgloss.Color(Red)).
@@ -79,7 +81,7 @@ func init() {
 
 	logger.SetStyles(styles)
 
-	switch loglevel := viper.GetViper().GetString("loglevel"); loglevel {
+	switch viper.GetViper().GetString("loglevel") {
 	case "trace":
 		logger.SetLevel(log.DebugLevel)
 	case "debug":
@@ -91,7 +93,7 @@ func init() {
 	case "error":
 		logger.SetLevel(log.ErrorLevel)
 	default:
-		logger.SetLevel(log.InfoLevel)
+		logger.SetLevel(log.DebugLevel)
 	}
 
 	initLogFile()
@@ -106,6 +108,10 @@ func init() {
 }
 
 func initLogFile() {
+	if nonofile {
+		return
+	}
+
 	logDir := "./logs"
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		fmt.Printf("Failed to create log directory: %v\n", err)
@@ -164,22 +170,8 @@ func Raw(obj any) {
 /*
 Debug logs a debug message with the appropriate symbol
 */
-func Debug(format string, v ...interface{}) {
-	pc := make([]uintptr, 10)
-	runtime.Callers(2, pc)
-	f := runtime.FuncForPC(pc[0])
-	_, line := f.FileLine(pc[0])
-	formatted := fmt.Sprintf("%d", line)
-
-	// Print the method name with arguments
-	fn := f.Name()
-	for _, arg := range v {
-		fn += fmt.Sprintf(" %v", arg)
-	}
-
-	logger.Debug("fn", "fn", fn, "line", formatted, "format", fmt.Sprintf(format, v...))
-	writeToLog(fmt.Sprintf("%s %s", fn, formatted))
-	writeToLog(fmt.Sprintf(format, v...))
+func Debug(msg interface{}, v ...interface{}) {
+	logger.Debug(msg, v...)
 }
 
 /*
@@ -192,9 +184,8 @@ func Info(msg interface{}, v ...interface{}) {
 /*
 Warn logs a warning message with the appropriate symbol
 */
-func Warn(format string, v ...interface{}) {
-	logger.Warn(fmt.Sprintf(format, v...))
-	writeToLog(fmt.Sprintf(format, v...))
+func Warn(msg interface{}, v ...interface{}) {
+	logger.Warn(msg, v...)
 }
 
 /*
@@ -202,7 +193,7 @@ Error logs the error and returns it, which makes it easy to insert
 errnie error logging in many types of situations, acting as a
 transparent wrapper around the error.
 */
-func Error(err error) error {
+func Error(err error, v ...interface{}) error {
 	if err == nil {
 		return nil
 	}
@@ -211,19 +202,19 @@ func Error(err error) error {
 	message := fmt.Sprintf("%s\n%s", err.Error(), getStackTrace())
 	message += "\n" + getCodeSnippet(err.Error(), 0, 10)
 
-	logger.Error(message)
+	logger.Error(message, v...)
 	writeToLog(message)
 	return err
 }
 
-func writeToLog(message string) {
+func writeToLog(message string, v ...interface{}) {
 	if message == "" || nonofile {
 		return
 	}
 
 	logFileMu.Lock()
 	defer logFileMu.Unlock()
-	_, err := logFile.WriteString(stripansi.Strip(message) + "\n")
+	_, err := logFile.WriteString(stripansi.Strip(fmt.Sprintf(message, v...)) + "\n")
 	if err != nil {
 		fmt.Printf("Failed to write to log file: %v\n", err)
 	}

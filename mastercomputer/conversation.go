@@ -1,14 +1,11 @@
 package mastercomputer
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/utils"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Conversation struct {
@@ -18,6 +15,8 @@ type Conversation struct {
 }
 
 func NewConversation() *Conversation {
+	errnie.Trace()
+
 	return &Conversation{
 		context:          []openai.ChatCompletionMessageParamUnion{},
 		maxContextTokens: viper.GetViper().GetInt("ai.max_context_tokens"),
@@ -26,63 +25,26 @@ func NewConversation() *Conversation {
 }
 
 func (conversation *Conversation) Update(message openai.ChatCompletionMessageParamUnion) {
-	// Format and print the message in a human-readable way
-	printFormattedMessage(message)
+	errnie.Trace()
 	conversation.context = append(conversation.context, message)
 }
 
-// Helper function to format and print messages
-func printFormattedMessage(msg openai.ChatCompletionMessageParamUnion) {
-	var role, content string
-
-	// Extract role and content based on message type
-	switch m := msg.(type) {
-	case openai.ChatCompletionSystemMessageParam:
-		role = "System"
-		content = m.Content.String()
-	case openai.ChatCompletionUserMessageParam:
-		role = "User"
-		content = m.Content.String()
-	case openai.ChatCompletionAssistantMessageParam:
-		role = "Assistant"
-		content = m.Content.String()
-	case openai.ChatCompletionToolMessageParam:
-		role = "Tool"
-		content = m.Content.String()
-	default:
-		return
-	}
-
-	// Print formatted message with role as header
-	fmt.Printf(
-		"\n%s %s\n",
-		utils.Muted(fmt.Sprintf("┌─── %s Message ───────────────────────────\n", role)),
-		utils.Highlight(formatContent(content)),
-	)
-	fmt.Println(utils.Muted("└────────────────────────────────────────────\n"))
-}
-
-// Helper function to format content with proper line breaks and indentation
-func formatContent(content string) string {
-	// Replace newlines with newline + pipe + space for consistent formatting
-	formatted := ""
-	for i, line := range strings.Split(content, "\n") {
-		if i > 0 {
-			formatted += "\n│ "
-		}
-		formatted += line
-	}
-	return formatted
-}
-
 func (conversation *Conversation) Truncate() []openai.ChatCompletionMessageParamUnion {
+	errnie.Trace()
+
 	maxTokens := conversation.maxContextTokens - 1024 // Reserve tokens for response
 	totalTokens := 0
 	var truncatedMessages []openai.ChatCompletionMessageParamUnion
 
-	// Start from the most recent message
+	// Start from the most recent message, making sure we never truncate the system and user prompt.
 	for i := len(conversation.context) - 1; i >= 0; i-- {
 		msg := conversation.context[i]
+		switch msg.(type) {
+		case openai.ChatCompletionSystemMessageParam, openai.ChatCompletionUserMessageParam:
+			truncatedMessages = append([]openai.ChatCompletionMessageParamUnion{msg}, truncatedMessages...)
+			continue
+		}
+
 		messageTokens := conversation.estimateTokens(msg)
 		if totalTokens+messageTokens <= maxTokens {
 			truncatedMessages = append([]openai.ChatCompletionMessageParamUnion{msg}, truncatedMessages...)
@@ -96,10 +58,13 @@ func (conversation *Conversation) Truncate() []openai.ChatCompletionMessageParam
 }
 
 func (conversation *Conversation) UpdateTokenCounts(usage openai.CompletionUsage) {
+	errnie.Trace()
 	conversation.tokenCounts = append(conversation.tokenCounts, usage.TotalTokens)
 }
 
 func (conversation *Conversation) estimateTokens(msg openai.ChatCompletionMessageParamUnion) int {
+	errnie.Trace()
+
 	content := ""
 	role := ""
 	switch m := msg.(type) {

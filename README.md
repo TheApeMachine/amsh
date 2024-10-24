@@ -1,75 +1,72 @@
-# amsh
+1. Shared Conversation Context and Worker Identity Confusion
+   You pointed out that the workers all share the same conversation context, and this leads to some confusion where agents sometimes mistake another agent’s output as their own. This certainly creates a significant challenge because:
 
-Solve the riddle: In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight.
+Shared Context Complexity: When multiple agents share a conversation, it’s easy for them to lose a sense of “self.” Especially in a collaborative, multi-agent setup, maintaining distinct identities within the same conversational thread is key to productive and accurate teamwork.
+Recommendations:
+Scoped Contexts: One way to mitigate this issue is by scoping the conversation context based on each agent's role and task. Instead of every agent having full access to the complete conversation, each agent could only access the context that’s directly relevant to their role. For example:
 
-The Ape Machine Shell is the personal terminal workspace of Daniel Owen van Dommelen, a.k.a. The Ape Machine.
+The Prompt Engineer sees only the user request, prompt, and system guidance.
+The Reasoner sees the initial prompt and previous reasoning steps.
+Contexts can then be selectively merged when necessary by the Sequencer or another high-level orchestration layer.
+Tagging System for Outputs: Another way to prevent identity confusion is to tag each message clearly with the agent who generated it. You could append metadata to each message, clearly denoting its origin. This tagged context would make it easier for agents to distinguish between their own contributions and those of their peers. This would align more naturally with the agents' need to be aware of their own scope versus that of others.
 
-It is primarily based on his personal Neovim configuration, but adds various features, the most important of which 
-is a deep integration with Large Language Models to improve the programming experience using A.I.
+2. Seamless Team Switching and Worker Re-Use
+   I see that the Sequencer itself is a worker and, as such, also participates and observes the shared context. This is actually a clever way to ensure that role assignment is aware of all agents' progress.
 
-It is also able to attempt self-improvement by leveraging the power of A.I. to rewrite itself. To facilitate this, it uses
-an integration with the Docker API to build itself into a Docker image and run it in a container. It can then call the
-OpenAI API to instantiate various A.I. agents within the container to perform tasks such as writing more of itself,
-fixing bugs, and self-reviewing its code to improve its own design.
+Recommendations:
+Active Role Evaluation: Instead of having the sequencer just switch to a predefined team based on the role, it could use a more dynamic evaluation of each team's progress and needs. For example, if a Researcher team has already completed its work, the Sequencer could evaluate if it needs to assign the Prompting or Planning team next based on the current stage of the project. Introducing such dynamic evaluation might help mitigate the issues where specific teams (like the Prompt team) are not being assigned correctly.
+Adaptive Team Assignment: Another potential solution here could be to leverage "agent fitness functions." Essentially, after each phase or iteration, the system would score the effectiveness of the current team's progress and adjust the agent configurations accordingly. This could introduce more dynamism to the assignment process and help with situations where the Sequencer doesn’t assign the prompting team properly. 3. Discussion Phase Issue—Managerial Assumptions
+The observation that workers assume a "manager" or leadership role during the discussion phase, effectively halting productive work, is an interesting manifestation of emergent behavior that might be a side-effect of how the roles are currently defined.
 
-This README therefore also serves as a guide for how to improve the amsh project itself, and should be used as a reference
-for the A.I. to understand the overall design and architecture of the amsh project.
+Possible Causes and Solutions:
+Hierarchy Bias in Prompts: The prompts and guidance you’ve provided might inadvertently be leading each agent to think they need to "lead" or make the decisions. The phrasing and structure of the guidance provided to agents during the discussion phase could be slightly misdirecting them. Instead of explicit instructions, reframe the prompt to encourage collaboration. Phrasing like "contribute ideas and insights without attempting to take full control" could encourage more equal participation.
 
-## Quick Reference / Guidelines
+Adding a Facilitator Agent: Introducing a lightweight, dedicated Facilitator agent could also be effective. This agent would not contribute directly to the discussion content but would manage the flow, ensuring everyone has their say and preventing any one agent from taking over. It could, for example, call on specific agents for their inputs if others seem to dominate or ensure that a proper sequence of turns is respected.
 
-- **Visual Components**: Should be split into model.go, update.go, and view.go files, and implement the BubbleTea Model interface.
-  - model.go: Contains the state of the component.
-  - update.go: Contains the update logic for the component.
-  - view.go: Contains the view logic for the component.
+Structured Discussions: To prevent agents from getting stuck in a leadership role, you could provide a scaffolded discussion framework:
 
-- **Purely Functional Components**: Need to implement the io.ReadWriteCloser interface for passing data around.
+Break the discussion into timed phases.
+For each phase, specify an objective. For instance, in phase one, they can identify the primary issues. In phase two, they brainstorm, and so forth. This structured framework could discourage agents from attempting to take overarching control since their responsibility would be clearly bounded to each phase.
+Iterative Work Division: Rather than expecting agents to come up with a final plan before starting work, allow the Discussion phase to be iterative and interleave it with actual tasks. This means that agents can plan a bit, do a bit, and then come back to plan again. This might help in avoiding "over-planning" behaviors where agents try to manage the entire workload before any work is done.
 
-- **Code Comments**: Should be written in a way that is easy to understand, and should be used to explain the "why" behind the code, as well as any
-  "tricky" parts. The what and how can be understood by reading the code, but the why is what is important, and what is often the result of trial
-  and error, or a design decision that was made. It also provides a guide for the A.I. to understand the code and make changes to it.
-  - Top-level comments, above functions, methods, or types should use the following format:
-    ```
-    /*
-    NameOfThing ... (then use guidelines described above)
-    */
-    ```
-    All other comments nested one or deeper should use the `//` format.
+4. Sequencer Never Assigns Prompt Team Properly
+   You mentioned that the Sequencer doesn’t ever assign the Prompt team, which hampers the system's ability to self-optimize by adjusting the actual system and user prompts.
 
-## Goals
+Recommendations:
+Explicit Goal Assignment: One approach would be to make self-optimization a specific goal of the sequence, explicitly assigning tasks related to self-improvement or prompt optimization as an integral part of the loop. This could be done by introducing a PromptOptimization phase that explicitly tells the Sequencer to assign the Prompt team.
 
-- **Unified Workspace**: amsh should provide a unified workspace for development, and related tasks and act as both a terminal and editor.
-  - Switching between editor and terminal can be done using an Alt-Screen toggle.
-    Example: https://github.com/charmbracelet/bubbletea/tree/master/examples/altscreen-toggle
-- **Familiarity**: amsh should take the bulk of its inpiration from Neovimodel, especially in terms of its interface and general mode-based operation.
-  - It should implement Neovim's modes, Normal, Insert, and Visual.
-  - It should have built-in features for auto-complete.
-    Example: https://github.com/charmbracelet/bubbletea/blob/master/examples/autocomplete/main.go
-- **Enjoyable**: amsh should be enjoyable to use, and combine functionality with a top-shelf visual experience encoded in the TUI.
-  - Using the BubbleTea framework, and various pre-built components will get us very far along the way.
-    Examples:
-      https://github.com/charmbracelet/bubbletea/tree/master/examples
-      https://github.com/charmbracelet/bubbles/tree/master/examples
-- **Modularity**: amsh should be highly modular, and each component should be designed to be able to be replaced or improved independently of the others.
-  - Every component needs to do one thing, and do that one thing well, and decoupled from any other components. No component should be directly referencing,
-    or importing another component. Communication should only happen using the BubbleTea framework's messaging and command systemodel, and each component should
-    implement the Update method according to the BubbleTea Model interface, and handle any messages it should somehow respond to.
-  - Each component is responsible for its own local state, behavior, and sending messages or commands.
-  - The buffer is where everything comes together to render the final, composed TUI corresponding to the current state of the systemodel. The buffer acts as a
-    hub for messages and commands, although it can only pass through messages, and render a view. The buffer does not have any specific implementation regarding
-    any component, and even the view it renders is merely a concatenation of messages it receives containing view updates from other components. Components
-    are able to register themselves with the buffer, opening a two-way message channel.
-- **Self-Similar**: amsh should, as much as possible, be composed of components that are all following a similar implementation and design.
-  - Each component should have a model.go, update.go, and view.go file, separating the three parts of the BubbleTea Model interface.
-  - If a component does not implement a visual representation, it should implement io.ReadWriteCloser for passing data around. For this, the buffer can implement
-    a secondary message queue based on goroutines and channels, including a conversion path between messages received on this channel to BubbleTea messages.
-- **Self-Improvement**: amsh should be able to improve itself by leveraging the power of A.I. to rewrite itself and improve its own design.
-  - The application should leverage its implementation of the Docker API to build and run itself as a Docker container, using an alternative startup command,
-    which runs the self-improvement cycle.
-  - It should be able to refer to this document to understand the goals and guidelines of this project.
-  - It should be able to call the OpenAI API and start sending it code that needs reviewing, and receive back tasks that need to be executed.
-  - It should be able to call the OpenAI API and start sending it code that needs modification.
-  - It should be able to run itself inside the container, and monitor its output to detect any bugs or other issues.
-  - It should be able to self-review its current strategies and long-term horizon, using this document as a source of truth.
-  - It should be able to connect with the user that is currently using a running version of the programodel, via a chat window, so progress and plans of attack
-    can be verified with the product owner.
-  - It should be able to commit its changes to a branch, so they can be verified before merging into the main branch.
+Verification and Feedback Loop: A potential solution to ensuring prompt optimization is assigning a Verifier agent to act as an evaluator for all phases. The verifier could assess prompt quality and give explicit feedback that could trigger the Sequencer to call upon the Prompt team. This way, prompt improvement is a function of every iterative cycle.
+
+Probabilistic Prompt Adjustment: Another potential approach is to assign a probabilistic function to the Sequencer where, with a certain likelihood, the Prompt team is selected to adjust the prompt. This would ensure prompt optimization occurs intermittently, thereby avoiding getting stuck with suboptimal prompts.
+
+5. Shared Conversation and Iteration Issue—Improvement Opportunities
+   The challenge with multiple workers sharing the same conversation and sometimes looping in on themselves due to inadequate feedback mechanisms is something I see as a key area for improvement.
+
+Suggestions:
+Agent Reflection Mechanism: Introduce a "reflection" phase at the end of each iteration. Each agent should evaluate the iteration's results and determine if their contributions were effective. This process could help identify where agents are looping without meaningful progress.
+Scoped Buffers for Iterations: Rather than allowing workers to work directly within a single conversation buffer, create scoped conversation buffers for each iteration. This way, if a worker’s changes are incorrect, the system can easily revert to an earlier buffer state and reattempt using new strategies.
+Role-Aware Prompts for Iteration: Adjust prompts based on iterations. After each iteration, append role-aware guidance based on failures or issues detected. For instance, after a failed attempt, the Prompt agent could receive instructions like: "The previous prompt didn’t lead to a meaningful outcome. Identify the ambiguity and try to improve it." 6. Toolset and Tool Usage Enhancements
+The toolset definition is quite modular, which is beneficial. However, the usage seems to have some challenges when it comes to effectively managing work items or handling different tools within the context.
+
+Improvements:
+Agent-Tool Affinity: Assign affinity scores between tools and agents. Based on these scores, let agents dynamically decide whether to use a tool or delegate it to another worker with a higher affinity for that particular tool. This way, agents with the most expertise use tools they’re best suited for.
+Tool Reusability: If tools are failing frequently, introduce a "retry with alternate" mechanism where similar tools (if available) could be swapped in to attempt the same task. This would reduce failure rates and help move tasks forward without getting stuck on a single tool’s failure. 7. State Management Refinements
+The different states (Working, Discussing, Agreed, etc.) play a crucial role in tracking task progress. However, managing transitions can be tricky with concurrent agents, as you’ve noticed.
+
+Suggestions:
+State Coordinator Agent: Instead of having agents independently manage state changes, introduce a StateCoordinator agent. This agent would manage the transitions between states based on the collective progress of all workers. This could ensure that workers do not independently change their state without considering the group’s overall progress.
+Predefined State Transition Maps: Define explicit transition maps for state changes, which could help prevent unexpected or incorrect state changes. For example, a worker in the Discussing state should only transition to Working after an agreement is reached by all. This map could act as a validation mechanism before a state transition is committed. 8. Addressing Double Work and Assignment Overlaps
+The original issue of agents attempting double work led to the discussion phase, but this itself caused new issues. There is a fine line between coordination and stalling productivity.
+
+Potential Solutions:
+Token-Based Work Assignment: Consider using a token-based mechanism for work assignment during the discussion phase. Each worker would be granted a token, and only those holding a token would have permission to contribute to a specific task. This prevents overlaps and ensures the division of labor is clear and trackable.
+Micro-Plans and Ownership: During the discussion phase, break down tasks into micro-plans. Assign each micro-plan to a specific worker. Ownership of small tasks would prevent overlapping and double work, and would ensure that each agent feels responsible for a smaller, more manageable part of the overall workload.
+Summary and Next Steps
+Your system is already highly complex and thoughtfully architected, but it’s naturally facing the challenges that come with agent-based, collaborative task completion. Here’s what I think might help address the issues at hand:
+
+Scoped Conversation Contexts and Identity Awareness: Implement a tagging mechanism and possibly scoping of contexts to mitigate confusion and help agents retain their individual contributions.
+Structured and Facilitated Discussion: Consider introducing a Facilitator agent and structuring discussions to reduce emergent "managerial" behaviors.
+Dynamic Role Assignment for Self-Optimization: Improve prompt optimization with dedicated feedback and probabilistic assignment of prompt engineers.
+Scoped Buffers and Reflection: Use scoped buffers for iterations and reflection mechanisms to identify ineffective looping.
+State Management and Coordination: Improve state handling with a StateCoordinator agent and predefined transition maps.
+I hope these suggestions spark some ideas for you, and I’m happy to help further refine any specific part of the system as you work through these updates. How would you like to proceed from here?

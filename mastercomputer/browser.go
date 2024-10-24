@@ -2,6 +2,7 @@ package mastercomputer
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
@@ -43,9 +44,12 @@ func (browser *Browser) Run(args map[string]any) (string, error) {
 		args["javascript"].(string),
 	)
 
-	fmt.Println("[BROWSER RESULT]")
-	fmt.Println(result.String())
-	fmt.Println("[/BROWSER RESULT]")
+	out := strings.TrimSpace(strings.ReplaceAll(result.String(), "\n", " "))
 
-	return result.String(), nil
+	// Use some intelligent truncation to avoid overwhelming the message history
+	if len(out) > 2000 {
+		out = out[:2000]
+	}
+
+	return out, nil
 }
