@@ -142,13 +142,10 @@ func (toolset *Toolset) Use(sequencer *Sequencer, worker *Worker, toolCall opena
 			role := args["role"].(string)
 			assignment := args["assignment"].(string)
 			workers := sequencer.workers[role]
-			discussion := NewExecutor(sequencer)
-			discussion.conversation.context = append([]openai.ChatCompletionMessageParamUnion{}, sequencer.executor.conversation.context...)
-			discussion.conversation.Update(openai.AssistantMessage("[NEXT ASSIGNMENT]\n" + assignment + "\n[/NEXT ASSIGNMENT]\n"))
-			discussion.conversation.Update(openai.SystemMessage("Since you are a team of 3, all with the same role, discuss how to divide the work for the assignment."))
+			sequencer.executor.conversation.Update(openai.AssistantMessage("[NEXT ASSIGNMENT]\n" + assignment + "\n[/NEXT ASSIGNMENT]\n"))
+			sequencer.executor.conversation.Update(openai.SystemMessage("Since you are a team of 3, all with the same role, discuss how to divide the work for the assignment."))
 
 			for _, wrkr := range workers {
-				wrkr.discussion = discussion
 				wrkr.state = WorkerStateDiscussing
 				wrkr.Start()
 			}

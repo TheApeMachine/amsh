@@ -63,7 +63,7 @@ func (executor *Executor) prepareParams(worker *Worker) (openai.ChatCompletionNe
 	tools := worker.toolset
 
 	// Override the tools if the worker is in a discussion.
-	if worker.discussion != nil {
+	if worker.state == WorkerStateDiscussing || worker.state == WorkerStateDisagreed {
 		tools = executor.toolset.Assign("discussion")
 	}
 
@@ -113,40 +113,17 @@ func (executor *Executor) processResponse(worker *Worker, response *openai.ChatC
 			Content: wrappedContent,
 		}
 		executor.conversation.Update(wrappedMessage)
-
-		if worker.discussion != nil {
-			worker.discussion.conversation.Update(wrappedMessage)
-		}
 	}
 
 	toolMessages := executor.handleToolCalls(worker, response)
 	for _, toolMessage := range toolMessages {
 		executor.conversation.Update(toolMessage)
-
-		if worker.discussion != nil {
-			worker.discussion.conversation.Update(toolMessage)
-		}
 	}
 
-	executor.handleDiscussion(worker)
-}
-
-func (executor *Executor) handleDiscussion(worker *Worker) {
-	errnie.Trace()
-
-	if worker.discussion != nil {
-		count := 0
-		for _, wrkr := range executor.sequencer.workers[worker.role] {
-			if wrkr.state == WorkerStateAgreed {
-				count++
-			}
-		}
-
-		if count == len(executor.sequencer.workers[worker.role]) {
-			for _, wrkr := range executor.sequencer.workers[worker.role] {
-				wrkr.discussion = nil
-			}
-		}
+	// If all workers are agreed, change the state to WorkerStateAgreed.
+	if worker.state == WorkerStateDiscussing {
+		executor.conversation.Update(openai.SystemMessage("All workers have agreed. Change the state to WorkerStateAgreed."))
+		worker.state = WorkerStateAgreed
 	}
 }
 
@@ -183,58 +160,40 @@ func (executor *Executor) getResponseFormat() openai.ChatCompletionNewParamsResp
 			Schema: openai.F(interface{}(map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"thoughts": map[string]interface{}{
-						"type": "array",
-						"items": map[string]interface{}{
-							"$ref": "#/definitions/thought",
-						},
-					},
-					"done": map[string]interface{}{
-						"type": "boolean",
+					"tree_of_thoughts": map[string]interface{}{
+						"$ref": "#/$defs/thought",
 					},
 				},
-				"required":             []string{"thoughts", "done"},
-				"additionalProperties": false,
-				"definitions": map[string]interface{}{
+				"$defs": map[string]interface{}{
 					"thought": map[string]interface{}{
 						"type": "object",
 						"properties": map[string]interface{}{
-							"chain": map[string]interface{}{
-								"type": "array",
-								"items": map[string]interface{}{
-									"$ref": "#/definitions/thought",
-								},
+							"value": map[string]interface{}{
+								"type": "number",
 							},
-							"tree": map[string]interface{}{
-								"type": "array",
-								"items": map[string]interface{}{
-									"$ref": "#/definitions/thought",
-								},
-							},
-							"ideas": map[string]interface{}{
-								"type": "array",
-								"items": map[string]interface{}{
-									"$ref": "#/definitions/thought",
-								},
-							},
-							"realizations": map[string]interface{}{
-								"type": "array",
-								"items": map[string]interface{}{
-									"$ref": "#/definitions/thought",
-								},
-							},
-							"self_reflections": map[string]interface{}{
-								"type": "array",
-								"items": map[string]interface{}{
-									"$ref": "#/definitions/thought",
+							"next": map[string]interface{}{
+								"anyOf": []interface{}{
+									map[string]interface{}{
+										"$ref": "#/$defs/thought",
+									},
+									map[string]interface{}{
+										"type": "null",
+									},
 								},
 							},
 						},
-						"required":             []string{"chain", "tree", "ideas", "realizations", "self_reflections"},
 						"additionalProperties": false,
+						"required": []string{
+							"next",
+							"value",
+						},
 					},
 				},
-			})),
+				"additionalProperties": false,
+				"required": []string{
+					"tree_of_thoughts",
+				},
+			})), // Added missing comma here
 			Strict: openai.F(true),
 		}),
 	}

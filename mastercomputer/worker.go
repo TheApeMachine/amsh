@@ -34,7 +34,6 @@ type Worker struct {
 	toolset     []openai.ChatCompletionToolParam
 	temperature float64
 	state       WorkerState
-	discussion  *Executor
 }
 
 /*
@@ -72,12 +71,5 @@ func (worker *Worker) Initialize() *Worker {
 
 func (worker *Worker) Start() {
 	errnie.Trace()
-
-	// Use the worker's history when calling Do
-	if worker.state == WorkerStateDiscussing || worker.state == WorkerStateDisagreed || worker.discussion != nil {
-		worker.discussion.Do(worker)
-		return
-	}
-
 	worker.executor.Do(worker)
 }
