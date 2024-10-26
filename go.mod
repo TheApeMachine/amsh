@@ -100,6 +100,7 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/testcontainers/testcontainers-go v0.33.0 // indirect
+	github.com/theckman/yacspin v0.13.12 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
@@ -144,7 +145,7 @@ require (
 	github.com/charmbracelet/log v0.4.0
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/fatih/color v1.17.0 // indirect
+	github.com/fatih/color v1.18.0 // indirect
 	github.com/go-rod/rod v0.116.2
 	github.com/gobwas/ws v1.4.0
 	github.com/goccy/go-json v0.10.3

@@ -2,100 +2,124 @@ package mastercomputer
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/utils"
 )
 
-// Executor is responsible for executing completions and managing scoped context.
+// Executor is responsible for executing tasks and interacting with tools.
+// It now includes WorkerID and Events for better tracking and visualization.
 type Executor struct {
-	ctx          context.Context
-	cancel       context.CancelFunc
-	sequencer    *Sequencer
-	conversation *Conversation
-	toolset      *Toolset
+	ctx      context.Context
+	cancel   context.CancelFunc
+	buffer   *Conversation
+	toolset  *Toolset
+	role     string
+	workerID string
+	events   *Events
+	out      chan openai.ChatCompletionMessageParamUnion
 }
 
-func NewExecutor(sequencer *Sequencer) *Executor {
+// NewExecutor creates a new Executor instance with additional tracking parameters.
+// It now accepts workerID and events channel.
+func NewExecutor(buffer *Conversation, toolset *Toolset, role string, workerID string, out chan openai.ChatCompletionMessageParamUnion) *Executor {
 	errnie.Trace()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Executor{
-		ctx:          ctx,
-		cancel:       cancel,
-		conversation: NewConversation(),
-		sequencer:    sequencer,
-		toolset:      NewToolset(),
+		ctx:      ctx,
+		cancel:   cancel,
+		buffer:   buffer,
+		toolset:  toolset,
+		role:     role,
+		workerID: workerID,
+		events:   NewEvents(),
+		out:      out,
 	}
 }
 
-func (executor *Executor) Do(worker *Worker) {
+// Start begins the execution process.
+func (executor *Executor) Start() {
 	errnie.Trace()
+	if params, err := executor.prepareParams(executor.buffer.Truncate()); errnie.Error(err) == nil {
+		completion := NewCompletion(executor.ctx)
+		response := completion.Execute(params)
 
-	// Preserve existing conversation context, scoped by the worker
-	messages := worker.buffer.GetScopedMessages()
-
-	if len(messages) == 0 {
-		// Add initial system and user prompts to scoped context
-		worker.buffer.AddMessage(openai.SystemMessage(worker.system))
-		worker.buffer.AddMessage(openai.UserMessage(worker.user))
-	}
-
-	// Prepare parameters for API request
-	if params, err := executor.prepareParams(worker); errnie.Error(err) == nil {
-		response, err := executor.executeCompletion(params)
-		if errnie.Error(err) == nil {
-			executor.processResponse(worker, response)
+		// Add nil check before processing response
+		if response == nil {
+			log.Println("Received nil response from completion")
+			executor.out <- openai.AssistantMessage("Error: Failed to get response from AI model")
+			return
 		}
+
+		executor.processResponse(response)
 	}
 }
 
-var semaphore = make(chan struct{}, 1)
-
-func (executor *Executor) executeCompletion(params openai.ChatCompletionNewParams) (response *openai.ChatCompletion, err error) {
+// prepareParams prepares the parameters for the OpenAI API call.
+func (executor *Executor) prepareParams(messages []openai.ChatCompletionMessageParamUnion) (openai.ChatCompletionNewParams, error) {
 	errnie.Trace()
-
-	semaphore <- struct{}{}
-	defer func() { <-semaphore }()
-	completion := NewCompletion(executor.ctx)
-	return completion.Execute(executor.ctx, params)
-}
-
-func (executor *Executor) prepareParams(worker *Worker) (openai.ChatCompletionNewParams, error) {
-	errnie.Trace()
-
-	messages := worker.buffer.GetScopedMessages()
-	tools := worker.toolset
-
+	spew.Dump(messages)
 	params := openai.ChatCompletionNewParams{
 		Messages:    openai.F(messages),
 		Model:       openai.F(openai.ChatModelGPT4oMini),
-		Temperature: openai.Float(utils.ToFixed(worker.temperature, 1)),
-		Tools:       openai.F(tools),
+		Temperature: openai.Float(0.0),
+		Tools:       openai.F(executor.toolset.Assign(executor.role)),
 		Store:       openai.F(true),
 	}
 
 	return params, nil
 }
 
-func (executor *Executor) processResponse(worker *Worker, response *openai.ChatCompletion) {
+// processResponse handles the response from the OpenAI API.
+func (executor *Executor) processResponse(response *openai.ChatCompletion) {
 	errnie.Trace()
+
+	// Add defensive nil check at the start
+	if response == nil {
+		log.Println("Cannot process nil response")
+		return
+	}
 
 	if len(response.Choices) == 0 {
 		log.Println("No response from OpenAI")
+		executor.out <- openai.AssistantMessage("Error: No response received from AI model")
 		return
 	}
 
 	message := response.Choices[0].Message
 	content := message.Content
 
+	executor.events.channel <- Event{
+		Timestamp: time.Now(),
+		Type:      "ResponseReceived",
+		Message:   content,
+		WorkerID:  executor.workerID,
+	}
+
 	// Add response to worker's conversation buffer with worker-specific tagging
 	if content != "" {
-		taggedMessage := openai.AssistantMessage(fmt.Sprintf("[From %s]: %s", worker.name, content))
-		worker.buffer.AddMessage(taggedMessage)
-		executor.sequencer.output.Console(worker, MsgTypeAssistant, content)
+		executor.out <- openai.AssistantMessage(content)
+	}
+
+	executor.handleToolCalls(response)
+}
+
+// handleToolCalls processes any tool calls present in the response.
+func (executor *Executor) handleToolCalls(response *openai.ChatCompletion) {
+	errnie.Trace()
+	executor.buffer.UpdateTokenCounts(response.Usage)
+	message := response.Choices[0].Message
+
+	if message.ToolCalls == nil || len(message.ToolCalls) == 0 {
+		return
+	}
+
+	for _, toolCall := range message.ToolCalls {
+		executor.out <- openai.AssistantMessage(message.Content)
+		executor.out <- executor.toolset.Use(toolCall, executor.workerID)
 	}
 }

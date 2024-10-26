@@ -42,7 +42,7 @@ func NewQdrant(collection string, dimension uint64) *Qdrant {
 		errnie.Error(err)
 	}
 
-	createCollectionIfNotExists(ctx, collection, url, dimension)
+	createCollectionIfNotExists(collection, url, dimension)
 
 	client, err := qdrant.New(
 		qdrant.WithURL(*url),
@@ -115,7 +115,7 @@ func (q *Qdrant) Add(docs []string) ([]string, error) {
 /*
 createCollectionIfNotExists uses an HTTP PUT call to create a collection if it does not exist.
 */
-func createCollectionIfNotExists(ctx context.Context, collection string, uri *url.URL, dimension uint64) error {
+func createCollectionIfNotExists(collection string, uri *url.URL, dimension uint64) error {
 	var (
 		response *client.Response
 		err      error

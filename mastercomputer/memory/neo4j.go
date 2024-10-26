@@ -38,13 +38,14 @@ func NewNeo4j() *Neo4j {
 /*
 Query executes a Cypher query on the Neo4j database and returns the results.
 */
-func (n *Neo4j) Query(query string) ([]map[string]interface{}, error) {
+func (n *Neo4j) Query(query string) (out []map[string]interface{}, err error) {
 	ctx := context.Background()
 	session := n.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	defer session.Close(ctx)
 
-	result, err := session.Run(ctx, query, nil)
-	if err != nil {
+	var result neo4j.ResultWithContext
+
+	if result, err = session.Run(ctx, query, nil); err != nil {
 		return nil, err
 	}
 
@@ -73,4 +74,10 @@ func (n *Neo4j) Write(query string) (neo4j.ResultWithContext, error) {
 func (n *Neo4j) Close() error {
 	ctx := context.Background()
 	return n.client.Close(ctx)
+}
+
+func (n *Neo4j) Use(args ...interface{}) (results []map[string]interface{}, err error) {
+	results, err = n.Query(args[0].(string))
+
+	return
 }

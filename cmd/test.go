@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/spf13/cobra"
+	"github.com/theapemachine/amsh/berrt"
 	"github.com/theapemachine/amsh/mastercomputer"
 )
 
@@ -21,16 +23,35 @@ var testCmd = &cobra.Command{
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
-	seq := mastercomputer.NewSequencer()
-	seq.MessageHandler(`
-	You have been hired by a Dutch company called Fan Factory.
-	They provide tools and services related to employee wellbeing.
-	Learn about the company and come up with a detailed strategy to grow the company and improve its market position.
-	Share a comprehensive plan of action, with clear steps and tasks, that can be executed by the team.
-	`)
+	// Example user prompt input
+	userPrompt := `
+	You have been hired by a Dutch company called Fan Factory, which delivers products and services
+	in relation to employee wellbeing. Your job is to research the company, their domain, and present
+	a comprehensive plan to scale their business.
+	`
 
-	seq.Initialize()
+	seq := mastercomputer.NewSequencer(cmd.Context(), userPrompt)
+	events := mastercomputer.NewEvents()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+
+		for event := range events.Stream() {
+			// For now, just log the events. This can be replaced with frontend integration.
+			if event.WorkerID != "" {
+				berrt.Info(event.WorkerID, event.Message)
+			} else {
+				berrt.Info(event.Type, event.Message)
+			}
+		}
+	}(&wg)
+
 	seq.Start()
+
+	wg.Wait()
 
 	// Delete Qdrant collections
 	if err := deleteQdrantCollections(); err != nil {

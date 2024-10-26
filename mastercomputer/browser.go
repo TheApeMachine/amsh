@@ -1,26 +1,47 @@
 package mastercomputer
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/theapemachine/amsh/berrt"
 )
 
 type Browser struct {
+	url        string
+	javascript string
 }
 
-func NewBrowser() *Browser {
-	return &Browser{}
+func NewBrowser(parameters map[string]any) *Browser {
+	url, urlOk := parameters["url"].(string)
+	javascript, jsOk := parameters["javascript"].(string)
+
+	if !urlOk || !jsOk {
+		berrt.Error("browser", errors.New("invalid parameters for browser"))
+		return nil
+	}
+
+	return &Browser{
+		url:        url,
+		javascript: javascript,
+	}
 }
 
-func (browser *Browser) Run(args map[string]any) (string, error) {
+func (browser *Browser) Start() string {
+	if browser == nil {
+		berrt.Error("browser", errors.New("browser instance is nil"))
+		return ""
+	}
+
 	l := launcher.New().Headless(false) // Change to true in production
 
 	u, err := l.Launch()
 	if err != nil {
-		return "", err
+		berrt.Error("browser", err)
+		return ""
 	}
 
 	defer l.Cleanup()
@@ -33,7 +54,7 @@ func (browser *Browser) Run(args map[string]any) (string, error) {
 	}()
 
 	page := instance.MustPage(
-		args["url"].(string),
+		browser.url,
 	).MustWindowFullscreen()
 
 	// Wait for the page to load
@@ -41,7 +62,7 @@ func (browser *Browser) Run(args map[string]any) (string, error) {
 
 	// Execute the provided JavaScript function
 	result := page.MustEval(
-		args["javascript"].(string),
+		browser.javascript,
 	)
 
 	out := strings.TrimSpace(strings.ReplaceAll(result.String(), "\n", " "))
@@ -51,5 +72,7 @@ func (browser *Browser) Run(args map[string]any) (string, error) {
 		out = out[:2000]
 	}
 
-	return out, nil
+	berrt.Info("browser", out)
+
+	return out
 }

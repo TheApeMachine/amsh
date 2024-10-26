@@ -1,22 +1,22 @@
 package mastercomputer
 
 import (
+	"sync"
+
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
 )
 
 type Conversation struct {
 	context          []openai.ChatCompletionMessageParamUnion
 	maxContextTokens int
 	tokenCounts      []int64
+	lock             sync.Mutex
 }
 
-func NewConversation() *Conversation {
-	errnie.Trace()
-
+func NewConversation(name string) *Conversation {
 	return &Conversation{
 		context:          []openai.ChatCompletionMessageParamUnion{},
 		maxContextTokens: viper.GetViper().GetInt("ai.max_context_tokens"),
@@ -24,14 +24,19 @@ func NewConversation() *Conversation {
 	}
 }
 
+func (conversation *Conversation) Reset(task *Task) {
+	conversation.lock.Lock()
+	defer conversation.lock.Unlock()
+	conversation.context = []openai.ChatCompletionMessageParamUnion{task.system, task.user}
+}
+
 func (conversation *Conversation) Update(message openai.ChatCompletionMessageParamUnion) {
-	errnie.Trace()
+	conversation.lock.Lock()
+	defer conversation.lock.Unlock()
 	conversation.context = append(conversation.context, message)
 }
 
 func (conversation *Conversation) Truncate() []openai.ChatCompletionMessageParamUnion {
-	errnie.Trace()
-
 	maxTokens := conversation.maxContextTokens - 1024 // Reserve tokens for response
 	totalTokens := 0
 	var truncatedMessages []openai.ChatCompletionMessageParamUnion
@@ -58,13 +63,10 @@ func (conversation *Conversation) Truncate() []openai.ChatCompletionMessageParam
 }
 
 func (conversation *Conversation) UpdateTokenCounts(usage openai.CompletionUsage) {
-	errnie.Trace()
 	conversation.tokenCounts = append(conversation.tokenCounts, usage.TotalTokens)
 }
 
 func (conversation *Conversation) estimateTokens(msg openai.ChatCompletionMessageParamUnion) int {
-	errnie.Trace()
-
 	content := ""
 	role := ""
 	switch m := msg.(type) {

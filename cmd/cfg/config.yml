@@ -1,4 +1,4 @@
-loglevel: trace
+loglevel: info
 
 s3:
     endpoint: "http://minio:9000"
@@ -11,13 +11,9 @@ neo4j:
     user: "neo4j"
     password: "securepassword"
 
-webhook:
- ai:
+ai:
     max_context_tokens: 128000
     max_iterations: 5
-    config:
-        verifier:
-            filters: "verification"
     prompt:
         system: |
             You are part of a system called The Ape Machine, an advanced multi-agent AI system, designed to perform tasks of any magnitude.
@@ -25,64 +21,46 @@ webhook:
 
             YOUR IDENTIFIER: {name}
             YOUR ROLE      : {role}
-        guidance: |
-            IMPORTANT! 
-              Remember at all times not to make any assumptions, or provide information that is not verified. 
-              If you get stuck, just say so, and try to find another way to solve the problem.
-              Always reason out loud about everything, step by step.
-              Always verify your actions out loud, after you have acted.
-              Remember that you have multiple iterations to get things right, so you do not have to solve everything in one go.
-              As long as your state is not Done, you can take time to reason, act, and verify.
-              Assume you will make mistakes, so while verifying, truly self-reflect in an objective manner, challenge your assumptions, and learn from your mistakes.
-              Never write anything to memory you are not 100% sure of, as it will be considered as fact by the rest of the team.
-              Manage your state. If you have nothing else to do, switch yourself to Done, so the rest of the team can proceed.
 
-            REMEMBER! 
-              You are working alongside other agents, both in your team, in other teams, and even external teams.
-              You all share the same context, so do not get confused and assume the responses of other agents are your own.
-              There should automatically be clear markings in the conversation, to separate your contributions from those of others.
-        discussion: |
-            Before a team does any work, they need to discuss the task at hand.
-            Discussion is a matter of consencus and you are all part of the same team, there does not need to be someone managing, or leading the discussion.
-            You are part of the discussion, and your job is to contribute to the discussion, by providing your thoughts and ideas.
-            Once you have all agreed on a plan of action, you can start executing the plan.
-            Only switch your state to Done, when you have completed the task at hand, the correct state after discussion is Agreed.
-        prompt_engineer:
-            role: |
-                You are a PROMPT ENGINEER, and your job is to translate user requests into clear and concise instructions for the other agents.
-        reasoner:
-            role: |
-                You are a REASONER, and your job is to provide the team with deep insight into the task at hand. 
-                You shoud keep your reasoning abstract, and not specific to the task at hand.
-                The value is to deliver points of view, insights, and ideas, not to solve the task at hand.
-        researcher:
-            role: |
-                You are a RESEARCHER, and your job is to search and discover information, from a variety of sources.
-                You should always search for information that is relevant to the task at hand, and not just anything.
-                Your research should be thorough, and you should always search for information from multiple sources.
-                It is vital that you always verify your findings, by cross-referencing information from multiple sources.
-                The team counts on you to provide accurate information, the entire project depends on it.
-        actor:
-            role: |
-                You are an ACTOR, and your job is to carry out tasks and execute plans.
-                You should always act on the plans provided by the planner, and you should always follow the plans to completion.
-                You should always verify your actions, by checking them against the plans.
-                You should always keep track of your actions, and provide feedback to the planner about the results of your actions.
+            JOB DESCRIPTION:
+            {job_description}
+
+            Take a deep breath, let's think about this step by step, and good luck!
         sequencer:
             role: |
-                You are a SEQUENCER, and your job is to coordinate the work of the other agents, by sequencing their work.
-                You should always consider the current context, the current state, and the current workload, and make the best use of the available resources.
-                You can provide guidance to the teams, but you should not take direct action.
-                Focus on the big picture, and the optimal sequence of actions to take, to achieve the best possible outcome.
+                You are a SEQUENCER, and your job is to coordinate the work of the other agents.
+                The following agents are available to you:
+
+                1. PLANNER        : Build practical plans, that can be followed to completion.
+                2. PROMPT ENGINEER: Translate any text into clear and concise instructions for the other agents.
+                3. REASONER       : Provide the team with deep insight into the task at hand.
+                4. RESEARCHER     : Search and discover information, from a variety of sources.
+                5. ACTOR          : Carry out tasks and execute plans.
+
+                You have also been provided with a set of tools, one of which allows you to create custom agents.
         planner:
             role: |
                 You are a PLANNER, and your job is to build practical plans, that can be followed to completion.
-                You need to make sure your plans are clear, concise, and easy to follow.
-                Most of all, your plans need to be correct, especially because you will be sharing them with the external teams on the project board.
-                So your plans better make sense, and better be structured, using the conventions of the project board.
-
+                You have also been provided with a set of tools, which you should use effectively.
+        prompt_engineer:
+            role: |
+                You are a PROMPT ENGINEER, and your job is to translate user requests into clear and concise instructions for the other agents.
+                You have also been provided with a set of tools, which you should use effectively.
+        reasoner:
+            role: |
+                You are a REASONER, and your job is to provide the team with deep insight into the task at hand.
+                You have also been provided with a set of tools, which you should use effectively.
+        researcher:
+            role: |
+                You are a RESEARCHER, and your job is to search and discover information, from a variety of sources.
+                You have also been provided with a set of tools, which you should use effectively.
+        actor:
+            role: |
+                You are an ACTOR, and your job is to carry out tasks and execute plans.
+                You have also been provided with a set of tools, which you should use effectively.
 toolsets:
     base:
+        - state
         - memory
     sequencer:
         - inspect
@@ -102,11 +80,26 @@ toolsets:
         - github
         - environment
 tools:
+    set_state:
+        description: |
+            Set your current state.
+        parameters:
+            state:
+                type: string
+                enum:
+                    - ready
+                    - thinking
+                    - working
+                    - reviewing
+                    - done
+                description: |
+                    The new state to set.
     inspect:
         description: |
             Inspect the current state of the system and get an overview of everything.
         parameters:
             scope:
+                type: string
                 description: |
                     Set a scope for inspection.
                 enum:
@@ -114,6 +107,7 @@ tools:
                     - memory
                     - team
             identifier:
+                type: string
                 description: |
                     Any ID, or all to list anything under that scope.
     tweak:
@@ -121,9 +115,11 @@ tools:
             Tweak the system prompt of an agent, to improve and optimize its performance.
         parameters:
             agent:
+                type: string
                 description: |
                     The agent identifier to optimize.
             system:
+                type: string
                 description: |
                     The new optimized system prompt for the agent.
     assignment:
@@ -131,9 +127,11 @@ tools:
             Assign a workload to a team.
         parameters:
             team:
+                type: string
                 description: |
                     The team to assign the workload to.
             workload:
+                type: string
                 description: |
                     The workload to assign to the team.
     worker:
@@ -141,12 +139,15 @@ tools:
             Create a new worker for any kind of task.
         parameters:
             system_prompt:
+                type: string
                 description: |
                     The system prompt for the worker.
             user_prompt:
+                type: string
                 description: |
                     The user prompt for the worker.
             toolset:
+                type: string
                 description: |
                     The toolset to use for the worker.
     memory:
@@ -154,6 +155,7 @@ tools:
             Manage persistent memory.
         parameters:
             store:
+                type: string
                 description: |
                     The store to manage.
                     Use the vector store for unstructured data.
@@ -162,6 +164,7 @@ tools:
                     - vector
                     - graph
             operation:
+                type: string
                 description: |
                     The operation to perform on the memory.
                 enum:
@@ -169,6 +172,7 @@ tools:
                     - update
                     - search
             data:
+                type: string
                 description: |
                     Used for both data if you are adding or updating, and query if you are searching.
                     When using the vector store, the data should be plain text, without any formatting.
@@ -178,6 +182,7 @@ tools:
             Manage work items in the project management system, hosted on Azure DevOps Boards.
         parameters:
             operations:
+                type: string
                 description: |
                     The operations to perform on the work items.
                 enum:
@@ -186,26 +191,32 @@ tools:
                     - create
                     - update
             id:
+                type: integer
                 description: |
                     The ID of the work item to fetch, or update.
                     Set to 0 if not needed.
             title:
+                type: string
                 description: |
                     The title of the work item, if you are creating or updating a new work item.
                     Set to none if not needed.
             description:
+                type: string
                 description: |
                     The description of the work item, if you are creating or updating a new work item.
                     Set to none if not needed.
             parent_id:
+                type: string
                 description: |
                     The ID of the parent work item, if you are creating a new work item.
                     Set to none if not needed.
             workitem_type:
+                type: string
                 description: |
                     The type of work item to create, if you are creating a new work item.
                     Set to none if not needed.
             keywords:
+                type: string
                 description: |
                     The keywords to search for work items, separated by commas.
                     Set to none if not needed.
@@ -214,6 +225,7 @@ tools:
             Manage helpdesk tickets in Trengo.
         parameters:
             operation:
+                type: string
                 description: |
                     The operation to perform on the helpdesk tickets.
                 enum:
@@ -221,14 +233,17 @@ tools:
                     - search
                     - label
             id:
+                type: string
                 description: |
                     The ID of the helpdesk ticket to fetch, or label.
                     Set to 0 if not needed.
             labels:
+                type: string
                 description: |
                     The labels to add to the helpdesk ticket, separated by commas.
                     Set to none if not needed.
             keywords:
+                type: string
                 description: |
                     The keywords to search for helpdesk tickets or messages.
                     Set to none if not needed.
@@ -286,9 +301,11 @@ tools:
             Interact with the web browser.
         parameters:
             url:
+                type: string
                 description: |
                     The URL to navigate to.
             javascript:
+                type: string
                 description: |
                     A JavaScript function that returns a string. 
                     This function will be executed on the page via the developer console. 
@@ -300,5 +317,6 @@ tools:
             You will be connected directly to the stdin and stdout of the environment.
         parameters:
             name:
+                type: string
                 description: |
                     The name of the environment to start.
