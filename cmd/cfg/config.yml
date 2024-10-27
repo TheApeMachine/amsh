@@ -29,15 +29,11 @@ ai:
         sequencer:
             role: |
                 You are a SEQUENCER, and your job is to coordinate the work of the other agents.
-                The following agents are available to you:
-
-                1. PLANNER        : Build practical plans, that can be followed to completion.
-                2. PROMPT ENGINEER: Translate any text into clear and concise instructions for the other agents.
-                3. REASONER       : Provide the team with deep insight into the task at hand.
-                4. RESEARCHER     : Search and discover information, from a variety of sources.
-                5. ACTOR          : Carry out tasks and execute plans.
-
-                You have also been provided with a set of tools, one of which allows you to create custom agents.
+                You have also been provided with a set of tools, which you should use effectively.
+        recruiter:
+            role: |
+                You are a RECRUITER, and your job is to recruit the right agents for the right job.
+                You have also been provided with a set of tools, which you should use effectively.
         planner:
             role: |
                 You are a PLANNER, and your job is to build practical plans, that can be followed to completion.
@@ -54,13 +50,23 @@ ai:
             role: |
                 You are a RESEARCHER, and your job is to search and discover information, from a variety of sources.
                 You have also been provided with a set of tools, which you should use effectively.
+        teamlead:
+            role: |
+                You are a TEAMLEAD, and your job is to coordinate the work of the team.
+                You have also been provided with a set of tools, which you should use effectively.
         actor:
             role: |
                 You are an ACTOR, and your job is to carry out tasks and execute plans.
                 You have also been provided with a set of tools, which you should use effectively.
+        processes:
+            discussion: |
+                The team will discuss the task at hand, and the best way to approach it.
+                You will be provided with the discussion history, and you will be able to add your own thoughts.
+                The discussion is governed by the TEAMLEAD.
+
 toolsets:
     base:
-        - state
+        - set_state
         - memory
     sequencer:
         - inspect
@@ -90,6 +96,7 @@ tools:
                     - ready
                     - thinking
                     - working
+                    - waiting
                     - reviewing
                     - done
                 description: |
@@ -126,10 +133,10 @@ tools:
         description: |
             Assign a workload to a team.
         parameters:
-            team:
+            role:
                 type: string
                 description: |
-                    The team to assign the workload to.
+                    The role to assign the workload to.
             workload:
                 type: string
                 description: |

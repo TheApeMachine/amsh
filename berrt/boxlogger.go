@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/theckman/yacspin"
 )
 
@@ -17,6 +19,15 @@ import (
 BoxStyle represents different styles for the box logger.
 */
 type BoxStyle string
+
+var Dark = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#666666")).Render
+var Muted = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#999999")).Render
+var Highlight = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#EEEEEE")).Render
+var Blue = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#6E95F7")).Render
+var Red = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#F7746D")).Render
+var Yellow = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#F7B96D")).Render
+var Green = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#06C26F")).Render
+var Purple = lipgloss.NewStyle().TabWidth(2).Foreground(lipgloss.Color("#6C50FF")).Render
 
 const (
 	AIStyle      BoxStyle = "ai"
@@ -127,8 +138,8 @@ func Warning(title string, content any) {
 Error logs an error with a stack trace and code preview
 */
 func Error(title string, err error) {
-	stackTrace := bl.captureStackTrace()
-	codeSnippet := bl.captureCodeSnippet(stackTrace)
+	stackTrace, file, line := bl.captureStackTrace()
+	codeSnippet := bl.captureCodeSnippet(file, line, 5)
 
 	content := map[string]any{
 		"Error":        err.Error(),
@@ -144,56 +155,69 @@ care of dynamically adjusting the width of the box based on
 the content and the alignment of the title.
 */
 func (bl *BoxLogger) drawBox(title string, style BoxStyle, content any) string {
+	color := getColorForStyle(style)
 	emojiPrefix := getEmojiForStyle(style)
 	titleLine := bl.alignTitle(emojiPrefix, title)
 	contentStr := bl.renderValue(content, 1)
 	contentLines := strings.Split(contentStr, "\n")
-	maxContentWidth := len(titleLine)
 
-	for _, line := range contentLines {
-		if len(line) > maxContentWidth {
-			maxContentWidth = len(line)
-		}
-	}
+	maxContentWidth := 80
 
 	bl.Width = max(maxContentWidth+2, bl.Width)
-	top := fmt.Sprintf("╭%s╮", strings.Repeat("─", bl.Width))
-	wrappedContent := ""
-
-	for _, line := range contentLines {
-		wrappedContent += bl.wrapContentLine(line, bl.Width-2)
+	out := []string{
+		color("╭[") + Muted(titleLine) + color("]"+strings.Repeat("─", bl.Width-(len(titleLine)-3))+"╮"),
 	}
 
-	bottom := fmt.Sprintf("╰%s╯", strings.Repeat("─", bl.Width))
-	return fmt.Sprintf("%s\n%s%s", top, wrappedContent, bottom)
+	for _, line := range contentLines {
+		out = append(out, bl.wrapContentLine(line, bl.Width-2, color))
+	}
+
+	out = append(out, color("╰"+strings.Repeat("─", bl.Width)+"╯"))
+	return strings.Join(out, "\n")
 }
 
 /*
 wrapContentLine wraps a line of content to fit within the given width
 */
-func (bl *BoxLogger) wrapContentLine(line string, maxWidth int) string {
-	var wrappedContent strings.Builder
-	indent := "    " // The indentation to be used for wrapping
+func (bl *BoxLogger) wrapContentLine(line string, maxWidth int, color func(strs ...string) string) string {
+	out := []string{}
+	indent := "    "
+	remainingWidth := maxWidth - len(indent)
 	words := strings.Fields(line)
-	currentLine := ""
 
+	if len(words) == 0 {
+		// Handle empty line
+		padding := strings.Repeat(" ", maxWidth)
+		return color("│ " + padding + " │")
+	}
+
+	currentLine := indent
 	for _, word := range words {
-		if len(currentLine)+len(word)+1 > maxWidth-len(indent) {
-			wrappedContent.WriteString(fmt.Sprintf("│ %s%-*s │\n", indent, maxWidth-len(indent), currentLine))
-			currentLine = word
+		// Check if adding this word would exceed the width
+		if len(currentLine)+len(word)+1 > remainingWidth {
+			// Add current line to output with proper padding
+			padding := strings.Repeat(" ", maxWidth-len(currentLine))
+			out = append(out, color("│ "+Highlight(currentLine+padding)+color(" │")))
+
+			// Start new line with indent
+			currentLine = indent + word
 		} else {
-			if currentLine != "" {
-				currentLine += " "
+			// Add word to current line
+			if currentLine == indent {
+				currentLine += word
+			} else {
+				currentLine += " " + word
 			}
-			currentLine += word
 		}
 	}
 
-	if currentLine != "" {
-		wrappedContent.WriteString(fmt.Sprintf("│ %s%-*s │\n", indent, maxWidth-len(indent), currentLine))
+	// Add final line if there's anything left
+	if currentLine != indent {
+		padding := strings.Repeat(" ", maxWidth-len(currentLine))
+		out = append(out, color("│ "+Highlight(currentLine+padding)+color(" │")))
 	}
 
-	return wrappedContent.String()
+	return strings.Join(out, "\n")
 }
 
 /*
@@ -258,78 +282,83 @@ func (bl *BoxLogger) renderValue(value any, indentLevel int) string {
 /*
 captureStackTrace captures a stack trace for the current goroutine
 */
-func (bl *BoxLogger) captureStackTrace() string {
-	stackBuf := make([]byte, 1024)
-	n := runtime.Stack(stackBuf, false)
-	stack := strings.Split(string(stackBuf[:n]), "\n")
-	var formattedStack strings.Builder
+func (bl *BoxLogger) captureStackTrace() (string, string, int) {
+	const depth = 32
+	var pcs [depth]uintptr
+	n := runtime.Callers(3, pcs[:])
+	frames := runtime.CallersFrames(pcs[:n])
+	file := ""
+	line := 0
 
-	for _, line := range stack {
-		formattedStack.WriteString(fmt.Sprintf("  📌 %s\n", line))
+	out := []string{
+		"===[STACK TRACE]===",
 	}
 
-	return formattedStack.String()
+	for {
+		frame, more := frames.Next()
+		if !more {
+			break
+		}
+
+		if file == "" {
+			file = frame.File
+			line = frame.Line
+		}
+
+		// Format the function name
+		funcName := frame.Function
+		if lastSlash := strings.LastIndexByte(funcName, '/'); lastSlash >= 0 {
+			funcName = funcName[lastSlash+1:]
+		}
+		funcName = strings.Replace(funcName, ".", ":", 1)
+
+		// Construct the colored line
+		line := fmt.Sprintf("%s%s%s %s(%d)\n",
+			Blue(funcName),
+			Muted(" at "),
+			Green(filepath.Base(frame.File)),
+			Yellow("line"),
+			frame.Line,
+		)
+
+		out = append(out, line)
+	}
+
+	out = append(out, "===[/STACK TRACE]===")
+
+	return strings.Join(out, "\n"), file, line
 }
 
 /*
 captureCodeSnippet captures a snippet of the code from the error location
 */
-func (bl *BoxLogger) captureCodeSnippet(stackTrace string) string {
-	lines := strings.Split(stackTrace, "\n")
-	if len(lines) < 2 {
-		return "Could not determine the error location from the stack trace."
-	}
-
-	// Parse the filename and line number from the stack trace
-	lineParts := strings.Split(lines[1], " ")
-	if len(lineParts) < 2 {
-		return "Error parsing stack trace for code snippet."
-	}
-
-	fileInfo := lineParts[len(lineParts)-1]
-	fileAndLine := strings.Split(fileInfo, ":")
-	if len(fileAndLine) != 2 {
-		return "Error parsing file and line number."
-	}
-
-	filePath := fileAndLine[0]
-	lineNumber := 0
-	fmt.Sscanf(fileAndLine[1], "%d", &lineNumber)
-
-	// Read the source file
-	file, err := os.Open(filePath)
+func (bl *BoxLogger) captureCodeSnippet(file string, line, radius int) string {
+	fileHandle, err := os.Open(file)
 	if err != nil {
-		return fmt.Sprintf("Could not open source file: %s", filePath)
+		return ""
 	}
-	defer file.Close()
+	defer fileHandle.Close()
 
-	// Read and extract lines around the error
-	startLine := max(1, lineNumber-3)
-	endLine := lineNumber + 3
-	var snippet strings.Builder
-
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(fileHandle)
 	currentLine := 1
+	var snippet string
+
 	for scanner.Scan() {
-		if currentLine >= startLine && currentLine <= endLine {
-			lineContent := scanner.Text()
-			if currentLine == lineNumber {
-				snippet.WriteString(fmt.Sprintf("👉 %3d: %s\n", currentLine, lineContent))
-			} else {
-				snippet.WriteString(fmt.Sprintf("    %3d: %s\n", currentLine, lineContent))
+		if currentLine >= line-radius && currentLine <= line+radius {
+			prefix := "  "
+			if currentLine == line {
+				prefix = "> "
 			}
+			snippet += fmt.Sprintf("%s%d: %s\n", prefix, currentLine, scanner.Text())
 		}
 		currentLine++
-		if currentLine > endLine {
-			break
-		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "Error reading source file for code snippet."
+		return ""
 	}
 
-	return snippet.String()
+	return snippet
 }
 
 /*
@@ -350,6 +379,23 @@ func getEmojiForStyle(style BoxStyle) string {
 	default:
 		return "🟢"
 	}
+}
+
+func getColorForStyle(style BoxStyle) func(strs ...string) string {
+	switch style {
+	case AIStyle:
+		return Purple
+	case SuccessStyle:
+		return Green
+	case InfoStyle:
+		return Blue
+	case WarningStyle:
+		return Yellow
+	case ErrorStyle:
+		return Red
+	}
+
+	return Highlight
 }
 
 /*
