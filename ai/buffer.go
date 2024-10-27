@@ -2,6 +2,8 @@ package ai
 
 import (
 	"fmt"
+
+	"github.com/theapemachine/amsh/ai/provider"
 )
 
 /*
@@ -11,7 +13,7 @@ Buffer is a simple buffer, that can be used to store messages.
 type Buffer struct {
 	systemPrompt string
 	userPrompt   string
-	messages     []Message
+	messages     []provider.Message
 }
 
 // Message represents a conversation message
@@ -28,12 +30,12 @@ func NewBuffer(systemPrompt, userPrompt string) *Buffer {
 	return &Buffer{
 		systemPrompt: systemPrompt,
 		userPrompt:   userPrompt,
-		messages:     make([]Message, 0),
+		messages:     make([]provider.Message, 0),
 	}
 }
 
 // GetMessages returns all messages in the conversation
-func (b *Buffer) GetMessages() []Message {
+func (b *Buffer) GetMessages() []provider.Message {
 	// Calculate initial capacity
 	capacity := len(b.messages)
 	if b.systemPrompt != "" {
@@ -43,11 +45,11 @@ func (b *Buffer) GetMessages() []Message {
 		capacity++
 	}
 
-	messages := make([]Message, 0, capacity)
+	messages := make([]provider.Message, 0, capacity)
 
 	// Add system prompt first if it exists
 	if b.systemPrompt != "" {
-		messages = append(messages, Message{
+		messages = append(messages, provider.Message{
 			Role:    "system",
 			Content: b.systemPrompt,
 		})
@@ -55,7 +57,7 @@ func (b *Buffer) GetMessages() []Message {
 
 	// Add user prompt next if it exists
 	if b.userPrompt != "" {
-		messages = append(messages, Message{
+		messages = append(messages, provider.Message{
 			Role:    "user",
 			Content: b.userPrompt,
 		})
@@ -68,11 +70,11 @@ func (b *Buffer) GetMessages() []Message {
 }
 
 func (b *Buffer) AddMessage(role, content string) {
-	b.messages = append(b.messages, Message{Role: role, Content: content})
+	b.messages = append(b.messages, provider.Message{Role: role, Content: content})
 }
 
 func (b *Buffer) AddToolResult(name, result string) {
-	b.messages = append(b.messages, Message{
+	b.messages = append(b.messages, provider.Message{
 		Role:    "tool",
 		Content: fmt.Sprintf("Tool %s returned: %s", name, result),
 	})

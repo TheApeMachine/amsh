@@ -2,6 +2,7 @@ package comms
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,25 +12,24 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
-	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/ai/system"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/twoface"
 )
 
 type Events struct {
 	appToken string
 	botToken string
 	api      *slack.Client
-	queue    *twoface.Queue
+	arch     *system.Architecture
 }
 
-func NewEvents() *Events {
+func NewEvents(arch *system.Architecture) *Events {
 	botToken := os.Getenv("MARVIN_BOT_TOKEN")
 	return &Events{
 		appToken: os.Getenv("MARVIN_APP_TOKEN"),
 		botToken: botToken,
 		api:      slack.New(botToken),
-		queue:    twoface.NewQueue(),
+		arch:     arch,
 	}
 }
 
@@ -107,16 +107,14 @@ func (srv *Events) handleAppMention(ev *slackevents.AppMentionEvent) {
 func (srv *Events) handleMessage(ev *slackevents.MessageEvent) {
 	// Add custom logic for handling regular messages
 	if ev.User != "D07Q5CSP2MS" && ev.Text != "" {
-		if user, err := srv.api.GetUserInfo(ev.User); errnie.Error(err) == nil {
+		if _, err := srv.api.GetUserInfo(ev.User); errnie.Error(err) == nil {
 			// Marshal the message
 			buf, err := json.Marshal(ev)
 			if errnie.Error(err) != nil {
 				return
 			}
 
-			message := data.New(user.Profile.FirstName, "slack", "communicating", buf)
-			message.Poke("chain", user.Profile.FirstName)
-			srv.queue.PubCh <- *message
+			srv.arch.ProcessManager.HandleProcess(context.Background(), "discussion", string(buf))
 		}
 	}
 }

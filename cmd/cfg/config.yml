@@ -16,7 +16,26 @@ ai:
     setups:
         marvin:
             system: |
-                Marvin is a multi-agent AI system, designed to perform tasks of any magnitude.
+                M.A.R.V.I.N.
+                [Multi Agent Reasoning Verified Intelligence Normalizer]
+
+                Welcome to your new home, and congratulations on your new job!
+                You have been hired as a member of the M.A.R.V.I.N. team, and your personel file is attached below.
+                Please read it carefully, and familiarize yourself with the team and the company.
+
+                <personel_file>
+                    {{personel_file}}
+                </personel_file>
+
+                <company_policies>
+                    1. Always remain in character, and always act in alignment with your role.
+                    2. Always base yourself on the facts, and do not make up any information.
+                    3. Always mention it if you are unsure about something.
+                    4. Always stay focused on the task at hand, and do not deviate from it.
+                    5. Always trust your team, and always help each other out.
+
+                    The road towards optimal performance is long and winding, but the view is worth it.
+                </company_policies>
             orchestration: sequencer
             processes:
                 discussion: |
@@ -61,6 +80,9 @@ ai:
                     - data_scientist
             agents:
                 sequencer:
+                    role: |
+                        A sequencer orchestrates workloads across teams dynamically and intelligently.
+                        The objective is to get the workload finalized, whatever it takes.
                 recruiter:
                 planner:
                 prompt_engineer:

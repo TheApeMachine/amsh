@@ -2,9 +2,11 @@ package provider
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math/rand"
 	"time"
+
+	"github.com/theapemachine/amsh/berrt"
 )
 
 type RandomProvider struct {
@@ -12,7 +14,7 @@ type RandomProvider struct {
 	rng       *rand.Rand
 }
 
-func NewRandomProvider(apiKeys map[string]string) (*RandomProvider, error) {
+func NewRandomProvider(apiKeys map[string]string) *RandomProvider {
 	var providers []Provider
 
 	// Initialize OpenAI
@@ -40,13 +42,14 @@ func NewRandomProvider(apiKeys map[string]string) (*RandomProvider, error) {
 	}
 
 	if len(providers) == 0 {
-		return nil, fmt.Errorf("no providers available")
+		berrt.Error("RandomProvider", errors.New("no providers available"))
+		return nil
 	}
 
 	return &RandomProvider{
 		providers: providers,
 		rng:       rand.New(rand.NewSource(time.Now().UnixNano())),
-	}, nil
+	}
 }
 
 func (r *RandomProvider) Generate(ctx context.Context, messages []Message) <-chan Event {

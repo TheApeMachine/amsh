@@ -56,7 +56,7 @@ func TestAgent(t *testing.T) {
 			types.RoleResearcher,
 			systemPrompt,
 			userPrompt,
-			toolset,
+			toolset.GetToolsForRole(string(types.RoleResearcher)),
 			mockProvider,
 		)
 

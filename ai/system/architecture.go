@@ -11,8 +11,10 @@ import (
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"          // For Agent, Team, Toolset
 	"github.com/theapemachine/amsh/ai/provider" // For provider package
-	"github.com/theapemachine/amsh/ai/types"    // For Role and other types
+
+	// For Role and other types
 	"github.com/theapemachine/amsh/datalake"
+	"github.com/theapemachine/amsh/utils"
 )
 
 /*
@@ -63,7 +65,7 @@ func NewArchitecture(ctx context.Context, name string) (*Architecture, error) {
 	storage := datalake.NewConn("architectures")
 
 	// Initialize toolset first as it's needed by agents
-	toolset, err := ai.NewToolset()
+	toolset := ai.NewToolset()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize toolset: %w", err)
 	}
@@ -98,13 +100,6 @@ func NewArchitecture(ctx context.Context, name string) (*Architecture, error) {
 		return nil, fmt.Errorf("failed to initialize workload manager: %w", err)
 	}
 	arch.workloadManager = workloadManager
-
-	// Initialize the orchestrator agent if not restored
-	if arch.Orchestrator == nil {
-		if err := arch.initializeOrchestrator(); err != nil {
-			return nil, fmt.Errorf("failed to initialize orchestrator: %w", err)
-		}
-	}
 
 	// Initialize teams if not restored
 	if len(arch.Teams) == 0 {
@@ -201,33 +196,6 @@ func loadArchitectureConfig(name string) (*ArchitectureConfig, error) {
 }
 
 /*
-initializeOrchestrator creates and configures the orchestrator agent based on the architecture's configuration.
-*/
-func (arch *Architecture) initializeOrchestrator() error {
-	systemPrompt := arch.Config.System
-	orchestratorRole := viper.GetString(fmt.Sprintf("ai.prompt.%s.role", arch.Config.Orchestration))
-
-	provider := provider.NewOpenAI(
-		os.Getenv("OPENAI_API_KEY"),
-		"gpt-4o-mini",
-	)
-
-	orchestrator := ai.NewAgent(
-		arch.Config.Orchestration,
-		types.Role(arch.Config.Orchestration),
-		systemPrompt,
-		orchestratorRole,
-		arch.toolset,
-		provider,
-	)
-
-	arch.Orchestrator = orchestrator
-	arch.agentManager.RegisterAgent(orchestrator)
-
-	return nil
-}
-
-/*
 initializeTeams creates and configures all teams defined in the architecture's configuration.
 */
 func (arch *Architecture) initializeTeams() error {
@@ -235,20 +203,20 @@ func (arch *Architecture) initializeTeams() error {
 		team := ai.NewTeam(arch.toolset)
 
 		for _, memberName := range members {
-			roleConfig := viper.GetString(fmt.Sprintf("ai.prompt.%s.role", memberName))
-
-			provider := provider.NewOpenAI(
-				os.Getenv("OPENAI_API_KEY"),
-				"gpt-4o-mini",
-			)
+			v := viper.GetViper()
 
 			agent := ai.NewAgent(
-				memberName,
-				types.Role(memberName),
-				arch.Config.System,
-				roleConfig,
-				arch.toolset,
-				provider,
+				utils.NewName(),
+				"sequencer",
+				v.GetString("ai.setups.marvin.system"),
+				v.GetString("ai.setups.marvin.agents.sequencer.role"),
+				ai.NewToolset().GetToolsForRole(memberName),
+				provider.NewRandomProvider(map[string]string{
+					"openai":    os.Getenv("OPENAI_API_KEY"),
+					"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
+					"google":    os.Getenv("GOOGLE_API_KEY"),
+					"cohere":    os.Getenv("COHERE_API_KEY"),
+				}),
 			)
 
 			arch.agentManager.RegisterAgent(agent)

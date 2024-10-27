@@ -15,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/favicon"
 	"github.com/gofiber/fiber/v3/middleware/static"
 	"github.com/theapemachine/amsh/ai/system"
+	"github.com/theapemachine/amsh/berrt"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/comms"
@@ -54,7 +55,7 @@ func NewHTTPS() *HTTPS {
 			JSONEncoder:   json.Marshal,
 			JSONDecoder:   json.Unmarshal,
 		}),
-		slackEvents: comms.NewEvents(),
+		slackEvents: comms.NewEvents(arch),
 		arch:        arch, // Add the architecture
 	}
 }
@@ -137,20 +138,19 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 			message.Poke("chain", "websocket")
 
 			// Start discussion process
-			result, err := https.arch.ProcessManager.HandleProcess(
+			resultChan := https.arch.ProcessManager.HandleProcess(
 				r.Context(),
 				"discussion",
 				string(msg),
 			)
-			if err != nil {
-				errnie.Error(err)
+			if resultChan == nil {
+				errnie.Error(fmt.Errorf("process result channel not found"))
 				continue
 			}
 
 			// Send response back through websocket
-			err = wsutil.WriteServerMessage(conn, op, []byte(fmt.Sprintf("%v", result)))
-			if err != nil {
-				errnie.Error(err)
+			for result := range resultChan {
+				berrt.Error("Stream", wsutil.WriteServerMessage(conn, op, result))
 				break
 			}
 

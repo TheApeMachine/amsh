@@ -59,16 +59,18 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 
 			// Start helpdesk labelling process
 			go func() {
-				result, err := https.arch.ProcessManager.HandleProcess(
+				resultChan := https.arch.ProcessManager.HandleProcess(
 					ctx.Context(),
 					"helpdesk_labelling",
 					payload,
 				)
-				if err != nil {
-					errnie.Error(err)
+				if resultChan == nil {
+					errnie.Error(fmt.Errorf("process result channel not found"))
 					return
 				}
-				errnie.Debug(fmt.Sprintf("Process result: %v", result))
+				for result := range resultChan {
+					errnie.Debug(fmt.Sprintf("Process result: %v", result))
+				}
 			}()
 
 		case "github":
@@ -80,16 +82,18 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 
 			// Start code review process
 			go func() {
-				result, err := https.arch.ProcessManager.HandleProcess(
+				resultChan := https.arch.ProcessManager.HandleProcess(
 					ctx.Context(),
 					"code_review",
 					payload,
 				)
-				if err != nil {
-					errnie.Error(err)
+				if resultChan == nil {
+					errnie.Error(fmt.Errorf("process result channel not found"))
 					return
 				}
-				errnie.Debug(fmt.Sprintf("Process result: %v", result))
+				for result := range resultChan {
+					errnie.Debug(fmt.Sprintf("Process result: %v", result))
+				}
 			}()
 		}
 

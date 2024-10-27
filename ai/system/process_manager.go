@@ -2,149 +2,101 @@ package system
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/ai/tools"
+	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/ai/types"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 /*
-ProcessManager handles the orchestration of different processes across teams.
-It maps process keys to their configurations and manages their execution.
+ProcessManager handles the lifecycle of a workload, mapping it across teams, agents, and processes.
+It is ultimately controlled by an Agent called the Sequencer, which has been prompted to orchestrate
+all the moving parts needed to make the system work.
 */
 type ProcessManager struct {
 	arch      *Architecture
-	processes map[string]*Process
+	processes map[string]string
+	agent     *ai.Agent
 	mu        sync.RWMutex
 }
 
-// ProcessConfig holds the configuration for a specific process
-type ProcessConfig struct {
-	Team    string
-	Process string
-	Prompt  string
-}
-
-// Process represents a registered process with its configuration
-type Process struct {
-	Name        string
-	Description string
-	Teams       []string
-	Handler     func(ctx context.Context, input interface{}) (interface{}, error)
-}
-
-// NewProcessManager creates a new process manager
+/*
+NewProcessManager sets up the process manager, and the Agent that will act as the sequencer.
+*/
 func NewProcessManager(arch *Architecture) *ProcessManager {
+	v := viper.GetViper()
+
 	return &ProcessManager{
 		arch:      arch,
-		processes: make(map[string]*Process),
+		processes: make(map[string]string),
+		agent: ai.NewAgent(
+			utils.NewName(),
+			"sequencer",
+			v.GetString("ai.setups.marvin.system"),
+			v.GetString("ai.setups.marvin.agents.sequencer.role"),
+			ai.NewToolset().GetToolsForRole("sequencer"),
+			provider.NewRandomProvider(map[string]string{
+				"openai":    os.Getenv("OPENAI_API_KEY"),
+				"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
+				"google":    os.Getenv("GOOGLE_API_KEY"),
+				"cohere":    os.Getenv("COHERE_API_KEY"),
+			}),
+		),
 	}
-}
-
-/*
-getProcessConfig retrieves the process configuration from the YAML config.
-Returns team name, process prompt, and any error.
-*/
-func (pm *ProcessManager) getProcessConfig(processKey string) (*ProcessConfig, error) {
-	// Map process keys to their team and config path
-	processMap := map[string]ProcessConfig{
-		"code_review": {
-			Team:    "engineering",
-			Process: "code_review",
-		},
-		"helpdesk_labelling": {
-			Team:    "operations",
-			Process: "helpdesk.labelling",
-		},
-		"discussion": {
-			Team:    "management",
-			Process: "discussion",
-		},
-		"backlog_refinement": {
-			Team:    "management",
-			Process: "backlog_refinement",
-		},
-		"sprint_planning": {
-			Team:    "management",
-			Process: "sprint_planning",
-		},
-		"retrospective": {
-			Team:    "management",
-			Process: "retrospective",
-		},
-	}
-
-	config, exists := processMap[processKey]
-	if !exists {
-		return nil, fmt.Errorf("unknown process: %s", processKey)
-	}
-
-	// Get the process prompt from config
-	prompt := viper.GetString(fmt.Sprintf("ai.setups.marvin.processes.%s", config.Process))
-	if prompt == "" {
-		return nil, fmt.Errorf("process prompt not found: %s", processKey)
-	}
-
-	config.Prompt = prompt
-	return &config, nil
 }
 
 /*
 HandleProcess is the unified entry point for handling any process.
 It handles the routing to appropriate teams and agents based on the process key.
 */
-func (pm *ProcessManager) HandleProcess(ctx context.Context, processKey string, input interface{}) (interface{}, error) {
-	// Get process configuration
-	config, err := pm.getProcessConfig(processKey)
-	if err != nil {
-		return nil, err
+func (pm *ProcessManager) HandleProcess(ctx context.Context, userPrompt string) <-chan []byte {
+	pm.agent.Task = userPrompt
+
+	for evt := range pm.agent.ExecuteTaskStream() {
+		switch pm.agent.GetState() {
+		case types.StateDone:
+			return
+		}
 	}
 
-	// Prepare assignment tool args
-	args := map[string]interface{}{
-		"team":    config.Team,
-		"process": config.Process,
-	}
+	// Create a channel to stream responses
+	responseChan := make(chan []byte)
 
-	// Get the assignment tool
-	assignmentTool := tools.AssignmentTool
+	// Start a goroutine to handle the process and stream responses
+	go func() {
+		defer close(responseChan)
 
-	// Assign the process to the team
-	_, err = assignmentTool(ctx, args)
-	if err != nil {
-		errnie.Error(err)
-		return nil, err
-	}
+		// Send to teamlead for processing
+		teamlead.ReceiveMessage(processMsg)
 
-	// Get the team
-	team := pm.arch.GetTeam(config.Team)
-	if team == nil {
-		return nil, fmt.Errorf("team not found: %s", config.Team)
-	}
+		// Stream responses from the teamlead
+		for response := range teamlead.ExecuteTaskStream() {
+			responseChan <- pm.makeEvent(response)
+		}
+	}()
 
-	// Get the teamlead
-	teamlead := team.GetAgent("teamlead")
-	if teamlead == nil {
-		return nil, fmt.Errorf("teamlead not found for team: %s", config.Team)
-	}
+	return responseChan
+}
 
-	// Create the process message with the configuration prompt
-	processMsg := fmt.Sprintf("Process: %s\nPrompt: %s\nInput: %v",
-		processKey,
-		config.Prompt,
-		input,
+func (pm *ProcessManager) makeEvent(response provider.Event) []byte {
+	var (
+		buf []byte
+		err error
 	)
 
-	// Send to teamlead for processing
-	teamlead.ReceiveMessage(processMsg)
-	response, err := teamlead.ExecuteTask()
-	if err != nil {
-		return nil, err
+	if buf, err = json.Marshal(response); err != nil {
+		errnie.Error(err)
+		return nil
 	}
 
-	return response, nil
+	return buf
 }
 
 // RegisterProcess registers a new process with the manager

@@ -50,7 +50,7 @@ type AgentMetrics struct {
 }
 
 // NewAgent creates a new agent with the given parameters
-func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, toolset *Toolset, provider provider.Provider) *Agent {
+func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools map[string]types.Tool, provider provider.Provider) *Agent {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Agent{
@@ -60,7 +60,7 @@ func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools
 		Context:      systemPrompt,
 		Task:         userPrompt,
 		Buffer:       NewBuffer(systemPrompt, userPrompt),
-		Tools:        toolset.GetToolsForRole(string(role)),
+		Tools:        tools,
 		Messages:     make(chan string, 100),
 		Metrics:      &AgentMetrics{},
 		Capabilities: make(map[string]func(context.Context, map[string]interface{}) (string, error)),
@@ -147,6 +147,20 @@ func (a *Agent) GetTools() map[string]types.Tool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.Tools
+}
+
+func (a *Agent) ExecuteTaskStream() <-chan provider.Event {
+	responseChan := make(chan provider.Event)
+
+	go func() {
+		defer close(responseChan)
+
+		for event := range a.provider.Generate(a.ctx, a.Buffer.GetMessages()) {
+			responseChan <- event
+		}
+	}()
+
+	return responseChan
 }
 
 // ExecuteTask performs the agent's assigned task and returns the result

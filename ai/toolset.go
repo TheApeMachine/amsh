@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/types"
+	"github.com/theapemachine/amsh/berrt"
 )
 
 // Toolset manages a collection of tools available to an agent
@@ -18,7 +19,7 @@ type Toolset struct {
 }
 
 // NewToolset creates a new toolset and loads tools from configuration
-func NewToolset() (*Toolset, error) {
+func NewToolset() *Toolset {
 	ts := &Toolset{
 		tools:    make(map[string]types.Tool),
 		defaults: []string{},
@@ -26,11 +27,8 @@ func NewToolset() (*Toolset, error) {
 	}
 
 	// Load tool configurations from viper
-	if err := ts.loadFromConfig(); err != nil {
-		return nil, fmt.Errorf("failed to load tools from config: %w", err)
-	}
-
-	return ts, nil
+	berrt.Error("Toolset", ts.loadFromConfig())
+	return ts
 }
 
 func (ts *Toolset) loadFromConfig() error {
