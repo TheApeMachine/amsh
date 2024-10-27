@@ -4,10 +4,12 @@ package reasoning
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/theapemachine/amsh/ai/types"
 )
 
 type Validator struct {
-	chain         *ReasoningChain // Used to track validation history
+	chain         *types.ReasoningChain // Update to use types package
 	knowledgeBase *KnowledgeBase
 }
 
@@ -17,7 +19,7 @@ func NewValidator(kb *KnowledgeBase) *Validator {
 	}
 }
 
-func (v *Validator) ValidateChain(chain *ReasoningChain) error {
+func (v *Validator) ValidateChain(chain *types.ReasoningChain) error {
 	for i, step := range chain.Steps {
 		if err := v.validateStep(step); err != nil {
 			chain.Contradictions = append(chain.Contradictions,
@@ -29,7 +31,7 @@ func (v *Validator) ValidateChain(chain *ReasoningChain) error {
 	return nil
 }
 
-func (v *Validator) validateStep(step ReasoningStep) error {
+func (v *Validator) validateStep(step types.ReasoningStep) error {
 	// Validate premise
 	if err := v.knowledgeBase.ValidateExpression(step.Premise); err != nil {
 		return fmt.Errorf("invalid premise: %w", err)
@@ -53,7 +55,7 @@ func (v *Validator) validateStep(step ReasoningStep) error {
 	return nil
 }
 
-func (v *Validator) validateLogicalConnection(premise, conclusion LogicalExpression) error {
+func (v *Validator) validateLogicalConnection(premise, conclusion types.LogicalExpression) error {
 	// Check if premise has sufficient confidence
 	if premise.Confidence < 0.5 {
 		return fmt.Errorf("premise confidence too low: %.2f", premise.Confidence)
@@ -109,16 +111,4 @@ func (v *Validator) validateEvidence(evidence []string) error {
 	}
 
 	return nil
-}
-
-// Add helper method to KnowledgeBase
-func (kb *KnowledgeBase) HasFact(fact string) bool {
-	// Implementation depends on how facts are stored in the knowledge base
-	return true // Placeholder
-}
-
-// Add helper method to KnowledgeBase
-func (kb *KnowledgeBase) SupportsConclusion(evidence string, conclusion LogicalExpression) bool {
-	// Implementation depends on how we want to verify support
-	return true // Placeholder
 }

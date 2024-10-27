@@ -5,6 +5,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/theapemachine/amsh/ai/learning"
+	"github.com/theapemachine/amsh/ai/types"
 )
 
 // Engine represents the reasoning engine
@@ -13,6 +16,7 @@ type Engine struct {
 	Uncertainty  float64
 	MaxSteps     int
 	MetaReasoner *MetaReasoner
+	Learning     *learning.LearningAdapter
 }
 
 // NewEngine creates a new reasoning engine
@@ -22,12 +26,13 @@ func NewEngine(validator *Validator, metaReasoner *MetaReasoner) *Engine {
 		Uncertainty:  0.1,
 		MaxSteps:     10,
 		MetaReasoner: metaReasoner,
+		Learning:     learning.NewLearningAdapter(),
 	}
 }
 
 // Think performs the reasoning process
-func (e *Engine) Think(ctx context.Context, problem string) (*ReasoningChain, error) {
-	chain := &ReasoningChain{}
+func (e *Engine) Think(ctx context.Context, problem string) (*types.ReasoningChain, error) {
+	chain := &types.ReasoningChain{}
 
 	for steps := 0; steps < e.MaxSteps; steps++ {
 		step, err := e.GenerateStep(ctx, problem, chain)
@@ -41,6 +46,7 @@ func (e *Engine) Think(ctx context.Context, problem string) (*ReasoningChain, er
 		}
 	}
 
+	// Remove the conversion and use chain directly
 	if err := e.Validator.ValidateChain(chain); err != nil {
 		return chain, fmt.Errorf("validation failed: %w", err)
 	}
@@ -49,83 +55,74 @@ func (e *Engine) Think(ctx context.Context, problem string) (*ReasoningChain, er
 }
 
 // GenerateStep creates a new reasoning step based on the problem and current chain
-func (e *Engine) GenerateStep(ctx context.Context, problem string, chain *ReasoningChain) (ReasoningStep, error) {
-	// First, generate the initial reasoning step
-	step, err := e.generateInitialStep(ctx, problem, chain)
+func (e *Engine) GenerateStep(ctx context.Context, problem string, chain *types.ReasoningChain) (types.ReasoningStep, error) {
+	// Convert MetaStrategy to types.MetaStrategy
+	strategy, err := e.MetaReasoner.SelectStrategy(ctx, problem, e.deriveConstraints(chain))
 	if err != nil {
-		return ReasoningStep{}, err
+		return types.ReasoningStep{}, err
 	}
 
-	// Now add self-reflection and verification
-	verifications := []VerificationStep{
-		{
-			Assumption: "Initial counting/pattern recognition",
-			Method:     "Reverse check - count backwards",
-			Result:     "",
-			Confidence: 0.0,
-		},
-		{
-			Assumption: "Pattern completeness",
-			Method:     "Look for counter-examples",
-			Result:     "",
-			Confidence: 0.0,
-		},
-		{
-			Assumption: "Implicit biases",
-			Method:     "Challenge common misconceptions",
-			Result:     "",
-			Confidence: 0.0,
-		},
+	typesStrategy := &types.MetaStrategy{
+		Name:        strategy.Name,
+		Priority:    strategy.Priority,
+		Constraints: strategy.Constraints,
+		Resources:   strategy.Resources,
+		Keywords:    strategy.Keywords,
 	}
 
-	// Add verification prompts to the step
-	step.VerificationPrompts = []string{
-		"What assumptions am I making about this pattern?",
-		"How can I verify this count/pattern in multiple ways?",
-		"What are common mistakes in similar situations?",
-		"What would prove my current conclusion wrong?",
-		"Are there alternative perspectives I haven't considered?",
+	state := e.getCurrentState(problem, chain)
+	adaptedStrategy, err := e.Learning.AdaptStrategy(ctx, typesStrategy, state)
+	if err != nil {
+		return types.ReasoningStep{}, err
 	}
 
-	// Adjust confidence based on verification results
-	step.Confidence = e.adjustConfidence(step.Confidence, verifications)
+	step, err := e.generateStepWithStrategy(ctx, problem, chain, adaptedStrategy)
+	if err != nil {
+		return types.ReasoningStep{}, err
+	}
+
+	e.Learning.RecordStrategyExecution(adaptedStrategy, chain)
 
 	return step, nil
 }
 
-func (e *Engine) generateInitialStep(ctx context.Context, problem string, chain *ReasoningChain) (ReasoningStep, error) {
-	// Select appropriate strategy for this step
+func (e *Engine) generateInitialStep(ctx context.Context, problem string, chain *types.ReasoningChain) (types.ReasoningStep, error) {
 	constraints := e.deriveConstraints(chain)
 	strategy, err := e.MetaReasoner.SelectStrategy(ctx, problem, constraints)
 	if err != nil {
-		return ReasoningStep{}, fmt.Errorf("strategy selection failed: %w", err)
+		return types.ReasoningStep{}, fmt.Errorf("strategy selection failed: %w", err)
 	}
 
-	// Generate step using selected strategy
-	step := ReasoningStep{
-		Strategy: strategy,
+	typesStrategy := &types.MetaStrategy{
+		Name:        strategy.Name,
+		Priority:    strategy.Priority,
+		Constraints: strategy.Constraints,
+		Resources:   strategy.Resources,
+		Keywords:    strategy.Keywords,
 	}
 
-	// Build logical expressions for premise and conclusion
+	step := types.ReasoningStep{
+		Strategy: typesStrategy,
+	}
+
 	premise, err := e.buildLogicalExpression(ctx, problem, chain)
 	if err != nil {
-		return ReasoningStep{}, fmt.Errorf("premise construction failed: %w", err)
+		return types.ReasoningStep{}, fmt.Errorf("premise construction failed: %w", err)
 	}
 	step.Premise = premise
 
-	conclusion, err := e.deriveConclusion(ctx, premise, strategy)
+	conclusion, err := e.deriveConclusion(ctx, premise, typesStrategy)
 	if err != nil {
-		return ReasoningStep{}, fmt.Errorf("conclusion derivation failed: %w", err)
+		return types.ReasoningStep{}, fmt.Errorf("conclusion derivation failed: %w", err)
 	}
 	step.Conclusion = conclusion
 
-	// Calculate confidence based on premise strength and strategy reliability
-	step.Confidence = e.calculateConfidence(premise, conclusion, strategy)
+	step.Confidence = e.calculateConfidence(premise, conclusion, typesStrategy)
 
 	return step, nil
 }
 
-func (e *Engine) deriveConstraints(chain *ReasoningChain) []string {
+func (e *Engine) deriveConstraints(chain *types.ReasoningChain) []string {
 	// Extract constraints from current reasoning chain
 	var constraints []string
 
@@ -141,7 +138,7 @@ func (e *Engine) deriveConstraints(chain *ReasoningChain) []string {
 	return constraints
 }
 
-func (e *Engine) hasReachedConclusion(chain *ReasoningChain) bool {
+func (e *Engine) hasReachedConclusion(chain *types.ReasoningChain) bool {
 	if len(chain.Steps) == 0 {
 		return false
 	}
@@ -161,13 +158,13 @@ func (e *Engine) hasReachedConclusion(chain *ReasoningChain) bool {
 	return false
 }
 
-func (e *Engine) buildLogicalExpression(ctx context.Context, problem string, chain *ReasoningChain) (LogicalExpression, error) {
+func (e *Engine) buildLogicalExpression(ctx context.Context, problem string, chain *types.ReasoningChain) (types.LogicalExpression, error) {
 	select {
 	case <-ctx.Done():
-		return LogicalExpression{}, ctx.Err()
+		return types.LogicalExpression{}, ctx.Err()
 	default:
-		expr := LogicalExpression{
-			Operation: AND,
+		expr := types.LogicalExpression{
+			Operation: types.AND,
 			Operands:  []interface{}{problem},
 		}
 
@@ -180,10 +177,10 @@ func (e *Engine) buildLogicalExpression(ctx context.Context, problem string, cha
 	}
 }
 
-func (e *Engine) deriveConclusion(ctx context.Context, premise LogicalExpression, strategy *MetaStrategy) (LogicalExpression, error) {
+func (e *Engine) deriveConclusion(ctx context.Context, premise types.LogicalExpression, strategy *types.MetaStrategy) (types.LogicalExpression, error) {
 	select {
 	case <-ctx.Done():
-		return LogicalExpression{}, ctx.Err()
+		return types.LogicalExpression{}, ctx.Err()
 	default:
 		switch strategy.Name {
 		case "pattern_analysis":
@@ -197,15 +194,15 @@ func (e *Engine) deriveConclusion(ctx context.Context, premise LogicalExpression
 		case "abductive":
 			return e.applyAbductiveReasoning(premise)
 		default:
-			return LogicalExpression{}, fmt.Errorf("unsupported reasoning strategy: %s", strategy.Name)
+			return types.LogicalExpression{}, fmt.Errorf("unsupported reasoning strategy: %s", strategy.Name)
 		}
 	}
 }
 
-func (e *Engine) applyPatternAnalysis(premise LogicalExpression) (LogicalExpression, error) {
+func (e *Engine) applyPatternAnalysis(premise types.LogicalExpression) (types.LogicalExpression, error) {
 	// Use premise to inform the pattern analysis
-	conclusion := LogicalExpression{
-		Operation:  AND,
+	conclusion := types.LogicalExpression{
+		Operation:  types.AND,
 		Operands:   make([]interface{}, 0),
 		Confidence: 0.8,
 	}
@@ -227,10 +224,10 @@ func (e *Engine) applyPatternAnalysis(premise LogicalExpression) (LogicalExpress
 	return conclusion, nil
 }
 
-func (e *Engine) applyWordDecomposition(premise LogicalExpression) (LogicalExpression, error) {
+func (e *Engine) applyWordDecomposition(premise types.LogicalExpression) (types.LogicalExpression, error) {
 	// Use premise to guide word decomposition
-	conclusion := LogicalExpression{
-		Operation:  AND,
+	conclusion := types.LogicalExpression{
+		Operation:  types.AND,
 		Operands:   make([]interface{}, 0),
 		Confidence: 0.7,
 	}
@@ -252,10 +249,10 @@ func (e *Engine) applyWordDecomposition(premise LogicalExpression) (LogicalExpre
 	return conclusion, nil
 }
 
-func (e *Engine) applySemanticConnection(premise LogicalExpression) (LogicalExpression, error) {
+func (e *Engine) applySemanticConnection(premise types.LogicalExpression) (types.LogicalExpression, error) {
 	// Use premise to build semantic connections
-	conclusion := LogicalExpression{
-		Operation:  AND,
+	conclusion := types.LogicalExpression{
+		Operation:  types.AND,
 		Operands:   make([]interface{}, 0),
 		Confidence: 0.75,
 	}
@@ -277,7 +274,7 @@ func (e *Engine) applySemanticConnection(premise LogicalExpression) (LogicalExpr
 	return conclusion, nil
 }
 
-func (e *Engine) calculateConfidence(premise, conclusion LogicalExpression, strategy *MetaStrategy) float64 {
+func (e *Engine) calculateConfidence(premise, conclusion types.LogicalExpression, strategy *types.MetaStrategy) float64 {
 	// Base confidence from premise and conclusion
 	confidence := (premise.Confidence + conclusion.Confidence) / 2
 
@@ -300,7 +297,7 @@ func (e *Engine) calculateConfidence(premise, conclusion LogicalExpression, stra
 	return confidence
 }
 
-func (e *Engine) isDefinitiveConclusion(conclusion LogicalExpression) bool {
+func (e *Engine) isDefinitiveConclusion(conclusion types.LogicalExpression) bool {
 	// Check confidence threshold
 	if conclusion.Confidence < 0.95 {
 		return false
@@ -333,7 +330,7 @@ func (e *Engine) isDefinitiveConclusion(conclusion LogicalExpression) bool {
 	return false
 }
 
-func (e *Engine) getStrategyReliability(strategy *MetaStrategy) float64 {
+func (e *Engine) getStrategyReliability(strategy *types.MetaStrategy) float64 {
 	// Could be based on historical success rate or predefined values
 	reliabilityMap := map[string]float64{
 		"deduction": 0.95,
@@ -347,14 +344,14 @@ func (e *Engine) getStrategyReliability(strategy *MetaStrategy) float64 {
 	return 0.5 // default reliability for unknown strategies
 }
 
-func (e *Engine) applyDeductiveReasoning(premise LogicalExpression) (LogicalExpression, error) {
+func (e *Engine) applyDeductiveReasoning(premise types.LogicalExpression) (types.LogicalExpression, error) {
 	// Deductive reasoning: from general rules to specific conclusions
 	// Example: All humans are mortal (major premise)
 	//         Socrates is human (minor premise)
 	//         Therefore, Socrates is mortal (conclusion)
 
-	conclusion := LogicalExpression{
-		Operation:  IF,
+	conclusion := types.LogicalExpression{
+		Operation:  types.IF,
 		Operands:   []interface{}{premise},
 		Confidence: premise.Confidence * 0.95, // Deductive reasoning has high confidence
 	}
@@ -362,13 +359,13 @@ func (e *Engine) applyDeductiveReasoning(premise LogicalExpression) (LogicalExpr
 	return conclusion, nil
 }
 
-func (e *Engine) applyInductiveReasoning(premise LogicalExpression) (LogicalExpression, error) {
+func (e *Engine) applyInductiveReasoning(premise types.LogicalExpression) (types.LogicalExpression, error) {
 	// Inductive reasoning: from specific observations to general conclusions
 	// Example: All observed swans are white
 	//         Therefore, all swans are probably white
 
-	conclusion := LogicalExpression{
-		Operation:  AND,
+	conclusion := types.LogicalExpression{
+		Operation:  types.AND,
 		Operands:   []interface{}{premise},
 		Confidence: premise.Confidence * 0.85, // Inductive reasoning has medium confidence
 	}
@@ -376,14 +373,14 @@ func (e *Engine) applyInductiveReasoning(premise LogicalExpression) (LogicalExpr
 	return conclusion, nil
 }
 
-func (e *Engine) applyAbductiveReasoning(premise LogicalExpression) (LogicalExpression, error) {
+func (e *Engine) applyAbductiveReasoning(premise types.LogicalExpression) (types.LogicalExpression, error) {
 	// Abductive reasoning: inference to the best explanation
 	// Example: The grass is wet
 	//         If it rained, the grass would be wet
 	//         Therefore, it probably rained
 
-	conclusion := LogicalExpression{
-		Operation:  OR,
+	conclusion := types.LogicalExpression{
+		Operation:  types.OR,
 		Operands:   []interface{}{premise},
 		Confidence: premise.Confidence * 0.75, // Abductive reasoning has lower confidence
 	}
@@ -391,7 +388,7 @@ func (e *Engine) applyAbductiveReasoning(premise LogicalExpression) (LogicalExpr
 	return conclusion, nil
 }
 
-func (e *Engine) adjustConfidence(initial float64, verifications []VerificationStep) float64 {
+func (e *Engine) adjustConfidence(initial float64, verifications []types.VerificationStep) float64 {
 	// Start with initial confidence
 	confidence := initial
 
@@ -404,4 +401,39 @@ func (e *Engine) adjustConfidence(initial float64, verifications []VerificationS
 	}
 
 	return confidence
+}
+
+func (e *Engine) getCurrentState(problem string, chain *types.ReasoningChain) map[string]interface{} {
+	state := make(map[string]interface{})
+	state["problem"] = problem
+	state["steps_count"] = len(chain.Steps)
+	if len(chain.Steps) > 0 {
+		state["last_confidence"] = chain.Steps[len(chain.Steps)-1].Confidence
+	}
+	return state
+}
+
+// Add the missing generateStepWithStrategy method
+func (e *Engine) generateStepWithStrategy(ctx context.Context, problem string, chain *types.ReasoningChain, strategy *types.MetaStrategy) (types.ReasoningStep, error) {
+	step := types.ReasoningStep{
+		Strategy: strategy,
+	}
+
+	// Build logical expressions for premise and conclusion
+	premise, err := e.buildLogicalExpression(ctx, problem, chain)
+	if err != nil {
+		return types.ReasoningStep{}, fmt.Errorf("premise construction failed: %w", err)
+	}
+	step.Premise = premise
+
+	conclusion, err := e.deriveConclusion(ctx, premise, strategy)
+	if err != nil {
+		return types.ReasoningStep{}, fmt.Errorf("conclusion derivation failed: %w", err)
+	}
+	step.Conclusion = conclusion
+
+	// Calculate confidence
+	step.Confidence = e.calculateConfidence(premise, conclusion, strategy)
+
+	return step, nil
 }

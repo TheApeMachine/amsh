@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/ai/learning"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/reasoning"
 	"github.com/theapemachine/amsh/ai/types"
@@ -29,24 +30,17 @@ func runTest(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create toolset: %w", err)
 	}
 
-	// Create a new team
+	// Create a new team and get agents
 	team := ai.NewTeam(toolset)
+	researcher := team.GetResearcher()
+	analyst := team.GetAnalyst()
 
-	// Add provider
-	// provider, err := provider.NewRandomProvider(map[string]string{
-	// 	"openai":    os.Getenv("OPENAI_API_KEY"),
-	// 	"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
-	// 	"google":    os.Getenv("GEMINI_API_KEY"),
-	// 	"cohere":    os.Getenv("COHERE_API_KEY"),
-	// })
-	provider := provider.NewOpenAI(
+	// Initialize the LLM provider
+	llm := provider.NewOpenAI(
 		os.Getenv("OPENAI_API_KEY"),
-		"gpt-4o",
+		"gpt-4",
 	)
-
-	if err != nil {
-		return fmt.Errorf("failed to create provider: %w", err)
-	}
+	team.SetProvider(llm)
 
 	// Initialize reasoning system
 	kb := reasoning.NewKnowledgeBase()
@@ -94,150 +88,99 @@ func runTest(cmd *cobra.Command, args []string) error {
 	// Create engine using constructor
 	engine := reasoning.NewEngine(validator, metaReasoner)
 
-	// Set up the riddle
-	riddle := "In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight."
-
-	// Create researcher with more specific prompt
-	researcher := ai.NewAgent(
-		fmt.Sprintf("agent-%d", team.GetNextAgentID()),
-		types.RoleResearcher,
-		`You are a riddle researcher who emphasizes careful verification and challenges assumptions.
-		For each finding:
-		1. Question your initial assumptions
-		2. Look for alternative interpretations
-		3. Consider common cognitive biases
-		4. Verify patterns in multiple ways
-		5. Actively seek counter-evidence
-		
-		Remember: The most obvious pattern might be misleading.`,
-		fmt.Sprintf(`Analyze this riddle with particular attention to:
-		1. Multiple ways to verify patterns
-		2. Potential cognitive biases in pattern recognition
-		3. Alternative interpretations of "hidden" and "three"
-		4. Counter-examples to test each assumption
-		
-		Riddle: %s`, riddle),
-		toolset,
-		provider,
-	)
-
-	// Create analyst with more specific prompt
-	analyst := ai.NewAgent(
-		fmt.Sprintf("agent-%d", team.GetNextAgentID()),
-		types.RoleAnalyst,
-		`You are a riddle solver who specializes in challenging assumptions.
-		For each potential solution:
-		1. Question your counting method
-		2. Verify patterns from multiple angles
-		3. Look for cognitive biases
-		4. Consider alternative interpretations
-		5. Actively seek evidence that would disprove your solution
-		
-		Remember: Simple counting tasks are often where we make the most basic mistakes.`,
-		`Based on the research findings, solve the riddle by:
-		1. Listing all assumptions made
-		2. Verifying each pattern in multiple ways
-		3. Challenging each conclusion
-		4. Looking for counter-evidence
-		5. Considering alternative interpretations
-		
-		Document your verification process and any challenges to your assumptions.`,
-		toolset,
-		provider,
-	)
-
-	if err := team.AddAgent(researcher); err != nil {
-		return fmt.Errorf("failed to add researcher: %w", err)
-	}
-	if err := team.AddAgent(analyst); err != nil {
-		return fmt.Errorf("failed to add analyst: %w", err)
-	}
-
-	log.Printf("Starting riddle analysis...")
-	log.Printf("\nRiddle: %s\n", riddle)
-
-	// Research phase
-	researcher.SetState(types.StateWorking)
-	researchResult, err := researcher.ExecuteTask()
-	if err != nil {
-		log.Printf("Research error: %v", err)
-	}
-	log.Printf("\nResearch findings:\n%s", researchResult)
-
-	// Add initial knowledge to guide reasoning
-	kb.AddFact("riddle_components", reasoning.LogicalExpression{
-		Operation: reasoning.AND,
-		Operands: []interface{}{
-			"The answer is hidden in a fruit name",
-			"Something appears three times in this fruit name",
-			"The fruit is described as sweet",
+	// Create initial strategy as types.MetaStrategy
+	baseStrategy := &types.MetaStrategy{
+		Name:     "pattern_analysis",
+		Priority: 8,
+		Resources: map[string]float64{
+			"cpu":    0.5,
+			"memory": 0.3,
 		},
-		Confidence: 1.0,
-	})
-
-	kb.AddFact("common_fruits", reasoning.LogicalExpression{
-		Operation: reasoning.OR,
-		Operands: []interface{}{
-			"banana", "apple", "orange", "grape", "papaya",
-			"mango", "cherry", "strawberry", "blueberry",
-		},
-		Confidence: 1.0,
-	})
-
-	// Convert research into logical expressions
-	premise := reasoning.LogicalExpression{
-		Operation:  reasoning.AND,
-		Operands:   []interface{}{researchResult},
-		Confidence: 0.9,
+		Constraints: []string{"pattern_matching", "word_analysis"},
 	}
-	kb.AddFact("research_findings", premise)
 
-	// Analysis phase with reasoning
-	log.Printf("\nStarting reasoning process...")
-	chain := &reasoning.ReasoningChain{}
+	// Initialize learning system
+	learningAdapter := learning.NewLearningAdapter()
 
-	for i := 0; i < 3; i++ {
-		step, err := engine.GenerateStep(cmd.Context(), researchResult, chain)
-		if err != nil {
-			log.Printf("Reasoning step %d error: %v", i, err)
-			continue
+	// Create a slice of test riddles to demonstrate learning
+	riddles := []string{
+		"In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight.",
+		"Round as a button, deep as a cup, all the king's horses can't fill it up.",
+		"What has keys but no locks, space but no room, and you can enter but not go in?",
+	}
+
+	log.Printf("Starting adaptive learning test with multiple riddles...\n")
+
+	for i, riddle := range riddles {
+		log.Printf("\n=== Riddle %d ===\n%s\n", i+1, riddle)
+
+		state := map[string]interface{}{
+			"problem_type": "riddle",
+			"complexity":   "medium",
+			"attempt":      i + 1,
 		}
 
-		log.Printf("\nReasoning Step %d:", i+1)
-		log.Printf("Strategy: %s", step.Strategy.Name)
-		log.Printf("Premise: %+v", step.Premise)
-		log.Printf("Conclusion: %+v", step.Conclusion)
-		log.Printf("Confidence: %.2f", step.Confidence)
+		adaptedStrategy, err := learningAdapter.AdaptStrategy(cmd.Context(), baseStrategy, state)
+		if err != nil {
+			log.Printf("Strategy adaptation warning: %v", err)
+		}
 
-		chain.Steps = append(chain.Steps, step)
+		// Convert types.MetaStrategy to reasoning.MetaStrategy for the meta reasoner
+		reasoningStrategy := reasoning.MetaStrategy{
+			Name:        adaptedStrategy.Name,
+			Priority:    adaptedStrategy.Priority,
+			Resources:   adaptedStrategy.Resources,
+			Constraints: adaptedStrategy.Constraints,
+		}
+		metaReasoner.RegisterStrategy(reasoningStrategy)
+
+		// Research phase
+		researcher.SetState(types.StateWorking)
+		researchResult, err := researcher.ExecuteTask()
+		if err != nil {
+			log.Printf("Research error: %v", err)
+		}
+		log.Printf("\nResearch findings:\n%s", researchResult)
+
+		// Reasoning phase with type conversion
+		typesChain := &types.ReasoningChain{}
+		for step := 0; step < 3; step++ {
+			reasoningStep, err := engine.GenerateStep(cmd.Context(), researchResult, typesChain)
+			if err != nil {
+				log.Printf("Reasoning step %d error: %v", step, err)
+				continue
+			}
+
+			typesChain.Steps = append(typesChain.Steps, reasoningStep)
+			log.Printf("\nReasoning Step %d:", step+1)
+			log.Printf("Strategy: %s", reasoningStep.Strategy.Name)
+			log.Printf("Confidence: %.2f", reasoningStep.Confidence)
+		}
+
+		// Analysis phase
+		analyst.SetState(types.StateWorking)
+		if err := analyst.ReceiveMessage(fmt.Sprintf("%v", typesChain)); err != nil {
+			log.Printf("Error passing reasoning chain to analyst: %v", err)
+		}
+
+		solution, err := analyst.ExecuteTask()
+		if err != nil {
+			log.Printf("Analysis error: %v", err)
+		}
+		log.Printf("\nProposed Solution:\n%s", solution)
+
+		// Record the experience
+		learningAdapter.RecordStrategyExecution(adaptedStrategy, typesChain)
+
+		// Display learning metrics
+		log.Printf("\n=== Learning Metrics ===")
+		log.Printf("Success Rate: %.2f", calculateSuccessRate(typesChain))
+		log.Printf("Confidence Gain: %.2f", calculateConfidenceGain(typesChain))
+		log.Printf("Strategy Reliability: %.2f", float64(adaptedStrategy.Priority)/float64(baseStrategy.Priority))
 	}
 
-	// Validate reasoning
-	if err := validator.ValidateChain(chain); err != nil {
-		log.Printf("\nWarning: Reasoning chain validation: %v", err)
-	}
-
-	log.Printf("\nFinal Analysis:")
-	log.Printf("Confidence: %.2f", chain.Confidence)
-	log.Printf("Contradictions: %v", chain.Contradictions)
-
-	// Pass to analyst for final solution
-	analyst.SetState(types.StateWorking)
-	if err := analyst.ReceiveMessage(fmt.Sprintf("%v", chain)); err != nil {
-		log.Printf("Error passing reasoning chain to analyst: %v", err)
-	}
-
-	solution, err := analyst.ExecuteTask()
-	if err != nil {
-		log.Printf("Analysis error: %v", err)
-	}
-	log.Printf("\nProposed Solution:\n%s", solution)
-
-	// Demonstrate team collaboration
-	log.Printf("\nTeam Status Report:")
-	log.Printf("Researcher state: %s", researcher.GetState())
-	log.Printf("Analyst state: %s", analyst.GetState())
-	log.Printf("Total messages processed: %d", team.GetMessageCount())
+	// Display final learning statistics
+	displayLearningStats(learningAdapter)
 
 	// Clean up
 	team.Shutdown()
@@ -297,4 +240,54 @@ func init() {
 	os.Setenv("LOGFILE", "test.log")
 	os.Setenv("QDRANT_URL", "http://localhost:6333")
 	os.Setenv("NEO4J_URL", "neo4j://localhost:7474")
+}
+
+func calculateSuccessRate(chain *types.ReasoningChain) float64 {
+	if len(chain.Steps) == 0 {
+		return 0.0
+	}
+
+	successfulSteps := 0
+	for _, step := range chain.Steps {
+		if step.Confidence > 0.7 {
+			successfulSteps++
+		}
+	}
+
+	return float64(successfulSteps) / float64(len(chain.Steps))
+}
+
+func calculateConfidenceGain(chain *types.ReasoningChain) float64 {
+	if len(chain.Steps) < 2 {
+		return 0.0
+	}
+
+	initialConfidence := chain.Steps[0].Confidence
+	finalConfidence := chain.Steps[len(chain.Steps)-1].Confidence
+
+	return finalConfidence - initialConfidence
+}
+
+func displayLearningStats(adapter *learning.LearningAdapter) {
+	stats := adapter.GetDetailedStats()
+
+	log.Printf("=== Learning System Statistics ===")
+	log.Printf("Total Experiences: %d", stats.TotalExperiences)
+	log.Printf("Unique Strategies: %d", stats.UniqueStrategies)
+	log.Printf("Total Patterns: %d", stats.TotalPatterns)
+	log.Printf("Average Confidence: %.2f", stats.AverageConfidence)
+
+	log.Printf("\nPer-Strategy Performance:")
+	for strategy, stratStats := range stats.StrategyStats {
+		log.Printf("\n  Strategy: %s", strategy)
+		log.Printf("    Use Count: %d", stratStats.UseCount)
+		log.Printf("    Success Rate: %.2f", stratStats.SuccessRate)
+		log.Printf("    Average Confidence: %.2f", stratStats.AverageConfidence)
+		log.Printf("    Improvement Rate: %.2f", stratStats.ImprovementRate)
+	}
+
+	log.Printf("\nTime-Based Analysis:")
+	log.Printf("  Last Hour Success Rate: %.2f", stats.TimeBasedStats.LastHourSuccess)
+	log.Printf("  Last Day Success Rate: %.2f", stats.TimeBasedStats.LastDaySuccess)
+	log.Printf("  Learning Trend: %.2f", stats.TimeBasedStats.TrendSlope)
 }

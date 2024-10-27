@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/theapemachine/amsh/ai/types"
 )
 
 func TestEngine(t *testing.T) {
 	Convey("Given a reasoning engine", t, func() {
 		validator := &Validator{
-			chain:         NewReasoningChain(),
+			chain:         &types.ReasoningChain{},
 			knowledgeBase: NewKnowledgeBase(),
 		}
 		metaReasoner := NewMetaReasoner()
@@ -25,7 +26,7 @@ func TestEngine(t *testing.T) {
 
 		Convey("When generating a reasoning step", func() {
 			problem := "test problem"
-			chain := NewReasoningChain()
+			chain := &types.ReasoningChain{}
 
 			step, err := engine.GenerateStep(context.Background(), problem, chain)
 

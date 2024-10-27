@@ -5,20 +5,10 @@ import (
 	"fmt"
 
 	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/ai/types"
 )
 
-// Tool represents a function that can be called by an AI agent
-type Tool interface {
-	Execute(ctx context.Context, args map[string]interface{}) (string, error)
-	GetSchema() ToolSchema
-}
-
-// ToolSchema defines the structure and requirements of a tool
-type ToolSchema struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
-}
+// Tool interface is now defined in types package
 
 // ToolHandler is a function that implements the actual tool logic
 type ToolHandler func(ctx context.Context, args map[string]interface{}) (string, error)
@@ -50,8 +40,8 @@ func (t *BaseTool) Execute(ctx context.Context, args map[string]interface{}) (st
 }
 
 // GetSchema returns the tool's schema
-func (t *BaseTool) GetSchema() ToolSchema {
-	return ToolSchema{
+func (t *BaseTool) GetSchema() types.ToolSchema {
+	return types.ToolSchema{
 		Name:        t.name,
 		Description: t.description,
 		Parameters:  t.parameters,

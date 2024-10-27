@@ -4,109 +4,128 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
-// Team represents a group of agents working together
+// Team represents a group of AI agents working together
 type Team struct {
-	agents  map[string][]*Agent // Changed from Role to string
-	toolset *Toolset
-	mu      sync.RWMutex
+	toolset  *Toolset
+	agents   map[string]*Agent
+	provider provider.Provider
+	mu       sync.RWMutex
 }
 
-// NewTeam creates a new team instance
+// NewTeam creates a new team with the given toolset
 func NewTeam(toolset *Toolset) *Team {
-	return &Team{
-		agents:  make(map[string][]*Agent),
+	team := &Team{
 		toolset: toolset,
+		agents:  make(map[string]*Agent),
 	}
+
+	// Initialize agents from config
+	if err := team.initializeAgents(); err != nil {
+		// Log error but continue with empty team
+		fmt.Printf("warning: failed to initialize agents: %v\n", err)
+	}
+
+	return team
 }
 
-// GetNextAgentID generates a unique ID for a new agent
-func (t *Team) GetNextAgentID() int {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+func (t *Team) initializeAgents() error {
+	// Get agent configurations from viper
+	agentRoles := viper.GetStringMap("ai.prompt")
 
-	// Count total agents across all roles
-	total := 0
-	for _, agents := range t.agents {
-		total += len(agents)
+	for role := range agentRoles {
+		if role == "system" || role == "processes" {
+			continue // Skip system prompt and processes
+		}
+
+		// Get role-specific configuration
+		roleConfig := viper.GetString(fmt.Sprintf("ai.prompt.%s.role", role))
+		if roleConfig == "" {
+			continue
+		}
+
+		// Get system prompt and replace placeholders
+		systemPrompt := viper.GetString("ai.prompt.system")
+		systemPrompt = fmt.Sprintf(systemPrompt,
+			map[string]interface{}{
+				"name":            role,
+				"role":            role,
+				"job_description": roleConfig,
+			},
+		)
+
+		// Map config roles to types.Role
+		var agentRole types.Role
+		switch role {
+		case "researcher":
+			agentRole = types.RoleResearcher
+		case "analyst":
+			agentRole = types.RoleAnalyst
+		default:
+			// Skip roles that aren't defined in types.Role
+			continue
+		}
+
+		// Create agent with configuration from YAML
+		agent := NewAgent(
+			role,         // id
+			agentRole,    // role (using predefined type)
+			systemPrompt, // system prompt
+			roleConfig,   // user prompt/job description
+			t.toolset,    // toolset
+			nil,          // provider will be set later
+		)
+
+		t.mu.Lock()
+		t.agents[role] = agent
+		t.mu.Unlock()
 	}
 
-	return total + 1
-}
-
-// AddAgent adds a new agent to the team
-func (t *Team) AddAgent(agent *Agent) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if agent == nil {
-		return fmt.Errorf("cannot add nil agent")
-	}
-
-	role := string(agent.GetRole()) // Convert types.Role to string for map key
-
-	// Initialize the role slice if it doesn't exist
-	if _, exists := t.agents[role]; !exists {
-		t.agents[role] = make([]*Agent, 0)
-	}
-
-	// Add the agent to the appropriate role slice
-	t.agents[role] = append(t.agents[role], agent)
 	return nil
 }
 
-// GetAgentsByRole returns all agents with the specified role
-func (t *Team) GetAgentsByRole(role types.Role) []*Agent {
+// GetAgent returns an agent by role
+func (t *Team) GetAgent(role string) *Agent {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-
-	return t.agents[string(role)]
+	return t.agents[role]
 }
 
-// GetAllAgents returns all agents in the team
-func (t *Team) GetAllAgents() []*Agent {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	var allAgents []*Agent
-	for _, agents := range t.agents {
-		allAgents = append(allAgents, agents...)
-	}
-	return allAgents
+// GetResearcher returns the research agent
+func (t *Team) GetResearcher() *Agent {
+	return t.GetAgent("researcher")
 }
 
-// GetToolset returns the team's toolset
-func (t *Team) GetToolset() *Toolset {
-	return t.toolset
+// GetAnalyst returns the analyst agent
+func (t *Team) GetAnalyst() *Agent {
+	return t.GetAgent("analyst")
 }
 
-// Shutdown gracefully shuts down all agents in the team
-func (t *Team) Shutdown() {
+// SetProvider sets the LLM provider for the team
+func (t *Team) SetProvider(p provider.Provider) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	for _, agents := range t.agents {
-		for _, agent := range agents {
-			agent.Shutdown()
+	t.provider = p
+	for _, agent := range t.agents {
+		if agent != nil {
+			agent.provider = p
 		}
 	}
-
-	// Clear the agents map
-	t.agents = make(map[string][]*Agent)
 }
 
-// GetMessageCount returns the total number of messages processed by the team
-func (t *Team) GetMessageCount() int {
+// Shutdown performs cleanup for all team members
+func (t *Team) Shutdown() {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	var count int
-	for _, agents := range t.agents {
-		for _, agent := range agents {
-			count += agent.GetMessageCount()
+	for _, agent := range t.agents {
+		if agent != nil {
+			agent.Shutdown()
 		}
 	}
-	return count
 }

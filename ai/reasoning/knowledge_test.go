@@ -1,8 +1,10 @@
 package reasoning
 
 import (
-	. "github.com/smartystreets/goconvey/convey"
 	"testing"
+
+	. "github.com/smartystreets/goconvey/convey"
+	"github.com/theapemachine/amsh/ai/types"
 )
 
 func TestKnowledgeBase(t *testing.T) {
@@ -10,8 +12,8 @@ func TestKnowledgeBase(t *testing.T) {
 		kb := NewKnowledgeBase()
 
 		Convey("When adding a fact", func() {
-			fact := LogicalExpression{
-				Operation:  AND,
+			fact := types.LogicalExpression{
+				Operation:  types.AND,
 				Operands:   []interface{}{"Socrates", "is human"},
 				Confidence: 1.0,
 			}
@@ -25,8 +27,8 @@ func TestKnowledgeBase(t *testing.T) {
 		})
 
 		Convey("When adding a rule", func() {
-			rule := LogicalExpression{
-				Operation: IF,
+			rule := types.LogicalExpression{
+				Operation: types.IF,
 				Operands: []interface{}{
 					"IF human THEN mortal",
 				},
@@ -42,8 +44,8 @@ func TestKnowledgeBase(t *testing.T) {
 		})
 
 		Convey("When validating an expression", func() {
-			expr := LogicalExpression{
-				Operation: AND,
+			expr := types.LogicalExpression{
+				Operation: types.AND,
 				Operands: []interface{}{
 					"Socrates is mortal",
 				},
@@ -53,6 +55,7 @@ func TestKnowledgeBase(t *testing.T) {
 			err := kb.ValidateExpression(expr)
 
 			Convey("Then it should not return an error", func() {
+				So(err, ShouldBeNil)
 				So(err, ShouldBeNil)
 			})
 		})
