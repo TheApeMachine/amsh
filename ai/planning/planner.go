@@ -50,6 +50,8 @@ type Task struct {
 	Status       TaskStatus
 	Duration     time.Duration
 	Progress     float64
+	StartTime    time.Time // Added field
+	EndTime      time.Time // Added field
 }
 
 type Timeline struct {
@@ -141,7 +143,7 @@ func (p *Planner) UpdatePlan(ctx context.Context, planID string, updates PlanUpd
 
 	plan, exists := p.plans[planID]
 	if !exists {
-		return ErrPlanNotFound // Now using local error definition
+		return ErrPlanNotFound
 	}
 
 	// Update progress and status
@@ -163,21 +165,156 @@ func (p *Planner) UpdatePlan(ctx context.Context, planID string, updates PlanUpd
 
 // Helper functions for plan management
 func (p *Planner) updateTaskProgress(plan *Plan, update TaskUpdate) {
-	// Implementation for updating task progress
+	for _, goal := range plan.Goals {
+		for _, objective := range goal.Objectives {
+			for i, task := range objective.Tasks {
+				if task.ID == update.TaskID {
+					task.Progress = update.Progress
+					task.Status = update.Status
+					objective.Tasks[i] = task
+					break
+				}
+			}
+		}
+	}
 }
 
 func (p *Planner) identifyBlockedTasks(plan *Plan) {
-	// Implementation for identifying blocked tasks
+	for _, goal := range plan.Goals {
+		for _, objective := range goal.Objectives {
+			for i, task := range objective.Tasks {
+				blocked := false
+				for _, depID := range task.Dependencies {
+					if !p.isTaskComplete(plan, depID) {
+						blocked = true
+						break
+					}
+				}
+				if blocked {
+					task.Status = TaskStatusBlocked
+				} else if task.Status == TaskStatusBlocked {
+					task.Status = TaskStatusPending
+				}
+				objective.Tasks[i] = task
+			}
+		}
+	}
+}
+
+func (p *Planner) isTaskComplete(plan *Plan, taskID string) bool {
+	for _, goal := range plan.Goals {
+		for _, objective := range goal.Objectives {
+			for _, task := range objective.Tasks {
+				if task.ID == taskID {
+					return task.Status == TaskStatusComplete
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (p *Planner) resolveResourceConflicts(plan *Plan) {
-	// Implementation for resolving resource conflicts
+	// Build a map of resource allocations
+	resourceUsage := make(map[string]float64)
+	for _, goal := range plan.Goals {
+		for _, objective := range goal.Objectives {
+			for _, task := range objective.Tasks {
+				if task.Status == TaskStatusActive {
+					for res, amount := range task.Resources.Custom {
+						resourceUsage[res] += amount
+					}
+				}
+			}
+		}
+	}
+
+	// Check for over-allocations and adjust
+	for res, used := range resourceUsage {
+		available := plan.Resources.GetAvailable(res)
+		if used > available {
+			// Find tasks to adjust
+			for _, goal := range plan.Goals {
+				for _, objective := range goal.Objectives {
+					for i, task := range objective.Tasks {
+						if task.Status == TaskStatusActive && task.Resources.Custom[res] > 0 {
+							// Reduce resource usage or postpone task
+							task.Status = TaskStatusBlocked
+							objective.Tasks[i] = task
+							used -= task.Resources.Custom[res]
+							if used <= available {
+								break
+							}
+						}
+					}
+					if used <= available {
+						break
+					}
+				}
+				if used <= available {
+					break
+				}
+			}
+		}
+	}
 }
 
 func (p *Planner) updateTimeline(plan *Plan) {
-	// Implementation for updating timeline
+	// Update task start and end times based on dependencies and progress
+	for _, goal := range plan.Goals {
+		for _, objective := range goal.Objectives {
+			for i, task := range objective.Tasks {
+				if task.Status == TaskStatusPending || task.Status == TaskStatusActive {
+					earliestStart := plan.Timeline.StartTime
+					for _, depID := range task.Dependencies {
+						depTask := p.findTaskByID(plan, depID)
+						if depTask != nil {
+							depEndTime := depTask.StartTime.Add(depTask.Duration)
+							if depEndTime.After(earliestStart) {
+								earliestStart = depEndTime
+							}
+						}
+					}
+					task.StartTime = earliestStart
+					task.EndTime = task.StartTime.Add(task.Duration)
+					objective.Tasks[i] = task
+				}
+			}
+		}
+	}
 }
 
 func (p *Planner) recalculateCriticalPath(plan *Plan) {
-	// Implementation for recalculating critical path
+	// Use Critical Path Method (CPM)
+	// Calculate earliest and latest start times
+	// Identify tasks with zero slack
+	criticalTasks := []string{}
+	projectEndTime := plan.Timeline.EndTime
+
+	for _, goal := range plan.Goals {
+		for _, objective := range goal.Objectives {
+			for _, task := range objective.Tasks {
+				// For simplicity, assume tasks with the latest end time are critical
+				if task.EndTime.Equal(projectEndTime) || task.EndTime.After(projectEndTime) {
+					criticalTasks = append(criticalTasks, task.ID)
+				}
+			}
+		}
+	}
+
+	plan.Timeline.CriticalPath = criticalTasks
+}
+
+// Helper method to find a task by its ID
+func (p *Planner) findTaskByID(plan *Plan, taskID string) *Task {
+	for _, goal := range plan.Goals {
+		for _, objective := range goal.Objectives {
+			for _, task := range objective.Tasks {
+				if task.ID == taskID {
+					return &task
+				}
+			}
+		}
+	}
+	return nil
 }

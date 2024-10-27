@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
@@ -23,20 +24,29 @@ const (
 
 // Agent represents an AI agent that can perform tasks and communicate with other agents
 type Agent struct {
-	id       string
-	role     types.Role
-	state    types.AgentState
-	tools    map[string]types.Tool
-	buffer   *Buffer // You'll need to implement this
-	mu       sync.RWMutex
-	ctx      context.Context
-	cancel   context.CancelFunc
-	messages chan string
-	// Add these new fields
-	context  string
-	task     string
-	toolset  *Toolset
-	provider provider.Provider // Add this line
+	id           string
+	role         types.Role
+	state        types.AgentState
+	tools        map[string]types.Tool
+	buffer       *Buffer
+	mu           sync.RWMutex
+	ctx          context.Context
+	cancel       context.CancelFunc
+	messages     chan string
+	context      string
+	task         string
+	toolset      *Toolset
+	provider     provider.Provider
+	capabilities map[string]func(context.Context, map[string]interface{}) (string, error)
+	metrics      *AgentMetrics
+}
+
+type AgentMetrics struct {
+	successRate   float64
+	responseTime  time.Duration
+	taskCount     int64
+	lastOptimized time.Time
+	mu            sync.RWMutex
 }
 
 // NewAgent creates a new agent with the given parameters
@@ -44,19 +54,20 @@ func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Agent{
-		id:       id,
-		role:     role,
-		state:    types.StateIdle,
-		tools:    toolset.GetToolsForRole(string(role)),
-		buffer:   NewBuffer(systemPrompt, userPrompt), // You'll need to implement this
-		ctx:      ctx,
-		cancel:   cancel,
-		messages: make(chan string, 100),
-		// Add these new fields
-		context:  systemPrompt, // Set the context
-		task:     userPrompt,   // Set the task
-		toolset:  toolset,
-		provider: provider, // Add this line
+		id:           id,
+		role:         role,
+		state:        types.StateIdle,
+		tools:        toolset.GetToolsForRole(string(role)),
+		buffer:       NewBuffer(systemPrompt, userPrompt),
+		ctx:          ctx,
+		cancel:       cancel,
+		messages:     make(chan string, 100),
+		context:      systemPrompt,
+		task:         userPrompt,
+		toolset:      toolset,
+		provider:     provider,
+		capabilities: make(map[string]func(context.Context, map[string]interface{}) (string, error)),
+		metrics:      &AgentMetrics{},
 	}
 }
 
@@ -114,13 +125,8 @@ func (a *Agent) Shutdown() {
 		a.cancel()
 	}
 
-	// Close message channel
 	close(a.messages)
-
-	// Clear tools
 	a.tools = nil
-
-	// Set state to done
 	a.state = types.StateDone
 }
 
@@ -180,4 +186,27 @@ func (a *Agent) GetMessageCount() int {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return len(a.messages)
+}
+
+// UpdateMetrics records performance metrics for the agent
+func (a *Agent) UpdateMetrics(success bool, duration time.Duration) {
+	a.metrics.mu.Lock()
+	defer a.metrics.mu.Unlock()
+
+	a.metrics.taskCount++
+	a.metrics.responseTime = (a.metrics.responseTime + duration) / 2
+
+	if success {
+		// Weighted moving average for success rate
+		a.metrics.successRate = (a.metrics.successRate * 0.8) + (1.0 * 0.2)
+	} else {
+		a.metrics.successRate = (a.metrics.successRate * 0.8) + (0.0 * 0.2)
+	}
+}
+
+// GetPerformanceMetrics returns the current performance metrics
+func (a *Agent) GetPerformanceMetrics() (float64, time.Duration, int64) {
+	a.metrics.mu.RLock()
+	defer a.metrics.mu.RUnlock()
+	return a.metrics.successRate, a.metrics.responseTime, a.metrics.taskCount
 }

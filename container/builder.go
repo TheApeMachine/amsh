@@ -38,6 +38,7 @@ This method abstracts the image building process, handling the creation of a tar
 and the configuration of build options.
 */
 func (b *Builder) BuildImage(ctx context.Context, dockerfilePath, imageName string) error {
+
 	tar, err := archive.TarWithOptions(dockerfilePath, &archive.TarOptions{})
 	if err != nil {
 		return err
@@ -45,6 +46,7 @@ func (b *Builder) BuildImage(ctx context.Context, dockerfilePath, imageName stri
 
 	opts := types.ImageBuildOptions{
 		Dockerfile: "Dockerfile",
+		Context:    tar,
 		Tags:       []string{imageName},
 		Remove:     true,
 		// Add these options for better compatibility:

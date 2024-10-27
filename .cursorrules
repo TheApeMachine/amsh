@@ -21,23 +21,38 @@ Follow these guidelines when writing your code:
 5. Follow best practices and conventions for the specified programming language.
 6. Handle potential errors and edge cases appropriately.
 7. Include clear and concise comments to explain complex logic or important parts of your code.
+   Always explain in your comments WHY the code is doing what it is doing, never WHAT.
+   Example:
+   ```go
+   // Unmarshal the data into the variable v. (WRONG)
+   err := json.Unmarshal(data, &v)
 
-Before providing your final code, use a <scratchpad> to outline your approach and think through any challenging aspects of the problem. This will help you organize your thoughts and design a better solution.
+   // Convert data so that we can use it to create a new Agent. (RIGHT)
+   err := json.Unmarshal(data, &v)
+   ```
+   Top-level comments should always be the `/**/` style, while inline comments should be the `//` style.
+   ```go
+   /*
+   MyFunction is a function that does something.
+   */
+   func MyFunction() {
+       // This is an inline comment.
+   }
+   ```
+8. When it comes to implementing methods on types, do not use single letter variable names.
+   Example:
+   ```go
+   // Wrong
+   func (a *Agent) GetID() string {
+       return a.id
+   }
 
-When you're ready to present your solution, enclose your code within <code> tags. After the code, provide a brief explanation of your approach and any important decisions you made in <explanation> tags.
+   // Right
+   func (agent *Agent) GetID() string {
+       return agent.id
+   }
+   ```
 
-Your response should follow this structure:
-
-<scratchpad>
-(Your thought process and problem-solving approach)
-</scratchpad>
-
-<code>
-(Your well-structured and commented code solution)
-</code>
-
-<explanation>
-(A brief explanation of your approach and key decisions)
-</explanation>
+Before providing your final code, use a step by step reasoning and planning process to outline your approach and think through any challenging aspects of the problem. This will help you organize your thoughts and design a better solution.
 
 Remember to test your code mentally to ensure it works as expected and handles various input scenarios correctly.

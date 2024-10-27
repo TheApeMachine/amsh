@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/errnie"
 )
 
@@ -61,11 +62,10 @@ var (
 	}
 )
 
-func NewConn(wg *sync.WaitGroup, bucket string) *Conn {
+func NewConn() *Conn {
 	return &Conn{
-		wg:     wg,
-		bucket: bucket,      // Add bucket parameter to initialize the bucket
-		client: getClient(), // Initialize the S3 client here
+		bucket: viper.GetViper().GetString("datalake.bucket"), // Add bucket parameter to initialize the bucket
+		client: getClient(),                                   // Initialize the S3 client here
 	}
 }
 

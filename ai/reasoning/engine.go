@@ -17,17 +17,51 @@ type Engine struct {
 	MaxSteps     int
 	MetaReasoner *MetaReasoner
 	Learning     *learning.LearningAdapter
+	BayesianNet  *BayesianNetwork // Added BayesianNet field
 }
 
 // NewEngine creates a new reasoning engine
 func NewEngine(validator *Validator, metaReasoner *MetaReasoner) *Engine {
+	bayesianNet := initializeBayesianNetwork()
 	return &Engine{
 		Validator:    validator,
 		Uncertainty:  0.1,
 		MaxSteps:     10,
 		MetaReasoner: metaReasoner,
 		Learning:     learning.NewLearningAdapter(),
+		BayesianNet:  bayesianNet,
 	}
+}
+
+// initializeBayesianNetwork initializes the Bayesian network
+func initializeBayesianNetwork() *BayesianNetwork {
+	bn := NewBayesianNetwork()
+
+	// Example nodes and relationships
+	// Node: StrategyEffective
+	_, err := bn.AddNode("StrategyEffective", 0.7) // Prior probability that a strategy is effective
+	if err != nil {
+		// In a real implementation, you might want to handle this error differently
+		panic(err)
+	}
+
+	// Node: CorrectConclusion depends on StrategyEffective
+	conclusionNode, err := bn.AddNode("CorrectConclusion", 0.0) // Prior will be defined in CPT
+	if err != nil {
+		panic(err)
+	}
+
+	// Add edge: CorrectConclusion <- StrategyEffective
+	bn.AddEdge("CorrectConclusion", "StrategyEffective")
+
+	// Instead of SetCPT, we should update the node's probability directly
+	// This assumes BayesianNode has a Probability field that can be updated
+	conclusionNode.Probability = map[string]float64{
+		"T": 0.9, // If StrategyEffective is True, then CorrectConclusion probability is 0.9
+		"F": 0.2, // If StrategyEffective is False, then CorrectConclusion probability is 0.2
+	}
+
+	return bn
 }
 
 // Think performs the reasoning process
@@ -276,27 +310,36 @@ func (e *Engine) applySemanticConnection(premise types.LogicalExpression) (types
 	return conclusion, nil
 }
 
+// CalculateConfidence calculates confidence using the Bayesian network
 func (e *Engine) calculateConfidence(premise, conclusion types.LogicalExpression, strategy *types.MetaStrategy) float64 {
-	// Base confidence from premise and conclusion
-	confidence := (premise.Confidence + conclusion.Confidence) / 2
-
-	// Adjust based on strategy reliability
-	confidence *= e.getStrategyReliability(strategy)
-
-	// Account for uncertainty in the reasoning chain
-	confidence *= (1 - e.Uncertainty)
-
-	// Adjust based on verifications if any
-	if len(premise.Verifications) > 0 {
-		confidence = e.adjustConfidence(confidence, premise.Verifications)
+	// Use Bayesian network to calculate the probability of CorrectConclusion
+	evidence := map[string]bool{
+		// Assume we have evidence about the strategy's effectiveness
+		"StrategyEffective": e.strategyEffectiveness(strategy),
 	}
 
-	// Normalize to [0,1]
+	prob, err := e.BayesianNet.CalculateProbability("CorrectConclusion", evidence)
+	if err != nil {
+		// Fallback to averaging premise and conclusion confidence
+		return (premise.Confidence + conclusion.Confidence) / 2
+	}
+
+	// Adjust for uncertainty
+	confidence := prob * (1 - e.Uncertainty)
+
+	// Ensure confidence is within [0,1]
 	if confidence > 1.0 {
 		confidence = 1.0
+	} else if confidence < 0.0 {
+		confidence = 0.0
 	}
 
 	return confidence
+}
+
+// strategyEffectiveness estimates if a strategy is effective based on meta-reasoning or learning
+func (e *Engine) strategyEffectiveness(strategy *types.MetaStrategy) bool {
+	return strategy.Priority <= 2
 }
 
 func (e *Engine) isDefinitiveConclusion(conclusion types.LogicalExpression) bool {
@@ -449,6 +492,17 @@ func (e *Engine) ProcessReasoning(ctx context.Context, input string) (*types.Rea
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate initial step: %w", err)
 	}
+
+	// Verify and adjust confidence of initial step using Validator
+	if err := e.Validator.validateStep(initialStep); err == nil {
+		// If validation passes, boost confidence
+		initialStep.Confidence = e.adjustConfidence(initialStep.Confidence, []types.VerificationStep{{
+			Method:     "validation",
+			Result:     "initial validation",
+			Assumption: "step is valid",
+			Confidence: 0.9,
+		}})
+	}
 	chain.Steps = append(chain.Steps, initialStep)
 
 	// Continue generating steps until we reach a conclusion or max steps
@@ -461,10 +515,33 @@ func (e *Engine) ProcessReasoning(ctx context.Context, input string) (*types.Rea
 		if err != nil {
 			return chain, fmt.Errorf("failed to generate step %d: %w", i, err)
 		}
+
+		// Use existing Validator and adjust confidence based on validation results
+		validationErr := e.Validator.validateStep(step)
+		confidence := 0.3
+		if validationErr == nil {
+			confidence = 0.9
+		}
+		verifications := []types.VerificationStep{
+			{
+				Method:     "validation",
+				Result:     "step validation",
+				Assumption: "step follows logical progression",
+				Confidence: confidence,
+			},
+			{
+				Method:     "strategy_reliability",
+				Result:     "strategy evaluation",
+				Assumption: "strategy is appropriate for the problem",
+				Confidence: e.getStrategyReliability(step.Strategy),
+			},
+		}
+
+		step.Confidence = e.adjustConfidence(step.Confidence, verifications)
 		chain.Steps = append(chain.Steps, step)
 	}
 
-	// Validate the final chain
+	// Final chain validation
 	if err := e.Validator.ValidateChain(chain); err != nil {
 		return chain, fmt.Errorf("chain validation failed: %w", err)
 	}

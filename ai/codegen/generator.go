@@ -133,25 +133,25 @@ func (g *Generator) Generate(ctx context.Context, req CodeRequest) (*GenerationR
 	defer out.Close()
 
 	// Generate the code
-	code, err := g.generateCode(ctx, req)
+	code, err := g.generateCode(req)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a new branch
 	branchName := fmt.Sprintf("aigenerated/%s_%s", req.Name, time.Now().Format("20060102150405"))
-	if err := g.runner.ExecuteCommand(ctx, []string{
+	if output := g.runner.ExecuteCommand(ctx, []string{
 		"git", "checkout", "-b", branchName,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to create branch: %w", err)
+	}); output == nil {
+		return nil, fmt.Errorf("failed to create branch")
 	}
 
 	// Write the generated code to file
 	filePath := fmt.Sprintf("%s/%s.go", req.Name, req.Name)
-	if err := g.runner.ExecuteCommand(ctx, []string{
+	if output := g.runner.ExecuteCommand(ctx, []string{
 		"bash", "-c", fmt.Sprintf("echo '%s' > %s", code, filePath),
-	}); err != nil {
-		return nil, fmt.Errorf("failed to write code: %w", err)
+	}); output == nil {
+		return nil, fmt.Errorf("failed to write code")
 	}
 
 	// Create PR
@@ -167,7 +167,7 @@ func (g *Generator) Generate(ctx context.Context, req CodeRequest) (*GenerationR
 	}, nil
 }
 
-func (g *Generator) generateCode(ctx context.Context, req CodeRequest) (string, error) {
+func (g *Generator) generateCode(req CodeRequest) (string, error) {
 	var code strings.Builder
 
 	// Add package declaration
@@ -291,8 +291,8 @@ func (g *Generator) createPullRequest(ctx context.Context, branch string, req Co
 	}
 
 	for _, cmd := range cmds {
-		if err := g.runner.ExecuteCommand(ctx, cmd); err != nil {
-			return nil, fmt.Errorf("git command failed: %w", err)
+		if output := g.runner.ExecuteCommand(ctx, cmd); output == nil {
+			return nil, fmt.Errorf("git command failed: %s", strings.Join(cmd, " "))
 		}
 	}
 
@@ -305,9 +305,8 @@ func (g *Generator) createPullRequest(ctx context.Context, branch string, req Co
 		"--head", branch,
 	}
 
-	// Create PR using GitHub API
-	if err := g.runner.ExecuteCommand(ctx, prCmd); err != nil {
-		return nil, fmt.Errorf("failed to create PR: %w", err)
+	if output := g.runner.ExecuteCommand(ctx, prCmd); output == nil {
+		return nil, fmt.Errorf("failed to create PR")
 	}
 
 	return &PullRequest{
