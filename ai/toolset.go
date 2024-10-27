@@ -213,3 +213,16 @@ func (ts *Toolset) GetRoleTools(role string) []string {
 	copy(roleTools, tools)
 	return roleTools
 }
+
+// AddTool adds a new tool to the toolset
+func (ts *Toolset) AddTool(name string, tool types.Tool) error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	if _, exists := ts.tools[name]; exists {
+		return fmt.Errorf("tool %s already exists", name)
+	}
+
+	ts.tools[name] = tool
+	return nil
+}
