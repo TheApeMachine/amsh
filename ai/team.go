@@ -2,10 +2,13 @@ package ai
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
+	"github.com/theapemachine/amsh/utils"
 )
 
 // Team represents a group of AI agents working together
@@ -32,55 +35,27 @@ func NewTeam(toolset *Toolset) *Team {
 	return team
 }
 
+/*
+initializeAgents initializes the agents for the team from the configuration file.
+*/
 func (team *Team) initializeAgents() error {
-	// Get agent configurations from viper
-	agentRoles := viper.GetStringMap("ai.prompt")
+	agentRoles := viper.GetStringSlice("ai.setups.marvin.teams." + team.Name)
 
-	for role := range agentRoles {
-		if role == "system" || role == "processes" {
-			continue // Skip system prompt and processes
-		}
-
-		// Get role-specific configuration
-		roleConfig := viper.GetString(fmt.Sprintf("ai.prompt.%s.role", role))
-		if roleConfig == "" {
-			continue
-		}
-
-		// Get system prompt and replace placeholders
-		systemPrompt := viper.GetString("ai.prompt.system")
-		systemPrompt = fmt.Sprintf(systemPrompt,
-			map[string]interface{}{
-				"name":            role,
-				"role":            role,
-				"job_description": roleConfig,
-			},
-		)
-
-		// Map config roles to types.Role
-		var agentRole types.Role
-		switch role {
-		case "researcher":
-			agentRole = types.RoleResearcher
-		case "analyst":
-			agentRole = types.RoleAnalyst
-		default:
-			// Skip roles that aren't defined in types.Role
-			continue
-		}
-
-		// Create agent with configuration from YAML
-		agent := NewAgent(
-			role,         // id
-			agentRole,    // role (using predefined type)
-			systemPrompt, // system prompt
-			roleConfig,   // user prompt/job description
-			team.Toolset, // toolset
-			nil,          // provider will be set later
-		)
-
+	for _, role := range agentRoles {
 		team.mu.Lock()
-		team.Agents[role] = agent
+		team.Agents[role] = NewAgent(
+			utils.NewName(),
+			types.Role(role),
+			viper.GetString(fmt.Sprintf("ai.setups.marvin.system")),
+			viper.GetString(fmt.Sprintf("ai.setups.marvin.teams.%s.%s", team.Name, role)),
+			team.Toolset.GetToolsForRole(string(types.Role(role))),
+			provider.NewRandomProvider(map[string]string{
+				"openai":    os.Getenv("OPENAI_API_KEY"),
+				"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
+				"gemini":    os.Getenv("GOOGLE_API_KEY"),
+				"cohere":    os.Getenv("COHERE_API_KEY"),
+			}),
+		)
 		team.mu.Unlock()
 	}
 
