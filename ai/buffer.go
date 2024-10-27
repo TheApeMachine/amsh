@@ -12,9 +12,10 @@ type Buffer struct {
 	messages     []Message
 }
 
+// Message represents a conversation message
 type Message struct {
-	Role    string
-	Content string
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 /*
@@ -28,11 +29,33 @@ func NewBuffer(systemPrompt, userPrompt string) *Buffer {
 	}
 }
 
+// GetMessages returns all messages in the conversation
 func (b *Buffer) GetMessages() []Message {
-	// Start with system and user prompts
-	messages := []Message{
-		{Role: "system", Content: b.systemPrompt},
-		{Role: "user", Content: b.userPrompt},
+	// Calculate initial capacity
+	capacity := len(b.messages)
+	if b.systemPrompt != "" {
+		capacity++
+	}
+	if b.userPrompt != "" {
+		capacity++
+	}
+
+	messages := make([]Message, 0, capacity)
+
+	// Add system prompt first if it exists
+	if b.systemPrompt != "" {
+		messages = append(messages, Message{
+			Role:    "system",
+			Content: b.systemPrompt,
+		})
+	}
+
+	// Add user prompt next if it exists
+	if b.userPrompt != "" {
+		messages = append(messages, Message{
+			Role:    "user",
+			Content: b.userPrompt,
+		})
 	}
 
 	// Add conversation history

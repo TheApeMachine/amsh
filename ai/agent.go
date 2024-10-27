@@ -88,8 +88,15 @@ func (a *Agent) SetState(state types.AgentState) {
 	a.state = state
 }
 
-// ReceiveMessage adds a message to the agent's message queue
+// ReceiveMessage adds a message to the agent's message queue and buffer
 func (a *Agent) ReceiveMessage(message string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Add to buffer first
+	a.buffer.AddMessage("user", message)
+
+	// Then try to add to channel
 	select {
 	case a.messages <- message:
 		return nil
@@ -131,23 +138,17 @@ func (a *Agent) GetTools() map[string]types.Tool {
 
 // ExecuteTask performs the agent's assigned task and returns the result
 func (a *Agent) ExecuteTask() (string, error) {
+	if a.provider == nil {
+		return "", fmt.Errorf("provider not set for agent %s", a.id)
+	}
+
 	a.SetState(types.StateWorking)
 
 	// Get messages from buffer
 	bufferMsgs := a.buffer.GetMessages()
-	messages := make([]provider.Message, 0, len(bufferMsgs)+2)
+	messages := make([]provider.Message, 0, len(bufferMsgs))
 
-	// Add system and user messages first
-	messages = append(messages, provider.Message{
-		Role:    "system",
-		Content: a.context,
-	})
-	messages = append(messages, provider.Message{
-		Role:    "user",
-		Content: a.task,
-	})
-
-	// Add any additional messages from the buffer
+	// Convert Buffer messages to Provider messages
 	for _, msg := range bufferMsgs {
 		messages = append(messages, provider.Message{
 			Role:    msg.Role,
@@ -155,8 +156,15 @@ func (a *Agent) ExecuteTask() (string, error) {
 		})
 	}
 
+	// Ensure we have messages to process
+	if len(messages) == 0 {
+		a.SetState(types.StateIdle)
+		return "", fmt.Errorf("no messages to process for agent %s", a.id)
+	}
+
 	response, err := a.provider.GenerateSync(a.ctx, messages)
 	if err != nil {
+		a.SetState(types.StateIdle)
 		return "", fmt.Errorf("task execution failed: %w", err)
 	}
 

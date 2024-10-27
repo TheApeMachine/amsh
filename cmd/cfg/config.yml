@@ -46,6 +46,10 @@ ai:
             role: |
                 You are a REASONER, and your job is to provide the team with deep insight into the task at hand.
                 You have also been provided with a set of tools, which you should use effectively.
+        analyst:
+            role: |
+                You are an ANALYST, and your job is to provide the team with deep insight into the task at hand.
+                You have also been provided with a set of tools, which you should use effectively.
         researcher:
             role: |
                 You are a RESEARCHER, and your job is to search and discover information, from a variety of sources.

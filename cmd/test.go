@@ -173,8 +173,8 @@ func runTest(cmd *cobra.Command, args []string) error {
 			log.Printf("Confidence: %.2f", step.Confidence)
 		}
 
-		// Send reasoning chain to analyst
-		if err := analyst.ReceiveMessage(fmt.Sprintf("%v", typesChain)); err != nil {
+		// Pass research findings along with the chain
+		if err := passChainToAnalyst(analyst, typesChain, riddle, findings); err != nil {
 			log.Printf("Error passing reasoning chain to analyst: %v", err)
 			continue
 		}
@@ -307,4 +307,38 @@ func displayLearningStats(adapter *learning.LearningAdapter) {
 	log.Printf("  Last Hour Success Rate: %.2f", stats.TimeBasedStats.LastHourSuccess)
 	log.Printf("  Last Day Success Rate: %.2f", stats.TimeBasedStats.LastDaySuccess)
 	log.Printf("  Learning Trend: %.2f", stats.TimeBasedStats.TrendSlope)
+}
+
+// Update the logging format for strategies and chain
+func logReasoningStep(step types.ReasoningStep, index int) {
+	log.Printf("\nReasoning Step %d:", index+1)
+	if step.Strategy != nil {
+		log.Printf("Strategy: %s", step.Strategy.Name)
+		log.Printf("Priority: %d", step.Strategy.Priority)
+		log.Printf("Constraints: %v", step.Strategy.Constraints)
+		log.Printf("Confidence: %.2f", step.Confidence)
+	}
+}
+
+// Update how we pass the chain to the analyst
+func passChainToAnalyst(analyst *ai.Agent, chain *types.ReasoningChain, riddle, research string) error {
+	// Format the chain in a way the analyst can understand
+	analysis := fmt.Sprintf(`
+Riddle: %s
+
+Research Findings: %s
+
+Reasoning Steps:
+`, riddle, research)
+
+	for i, step := range chain.Steps {
+		analysis += fmt.Sprintf(`
+Step %d:
+- Strategy: %s
+- Confidence: %.2f
+- Conclusion: %s
+`, i+1, step.Strategy.Name, step.Confidence, step.Conclusion)
+	}
+
+	return analyst.ReceiveMessage(analysis)
 }
