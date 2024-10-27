@@ -114,7 +114,7 @@ func (srv *Events) handleMessage(ev *slackevents.MessageEvent) {
 				return
 			}
 
-			srv.arch.ProcessManager.HandleProcess(context.Background(), "discussion", string(buf))
+			srv.arch.ProcessManager.HandleProcess(context.Background(), string(buf))
 		}
 	}
 }

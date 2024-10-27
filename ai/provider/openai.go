@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 )
 
@@ -33,7 +34,8 @@ func (o *OpenAI) GenerateStream(ctx context.Context, messages []Message) <-chan 
 }
 
 func (o *OpenAI) generateEvents(ctx context.Context, messages []Message) <-chan Event {
-	events := make(chan Event)
+	log.Info("generating with", "provider", "openai")
+	events := make(chan Event, 64)
 
 	go func() {
 		defer close(events)
@@ -154,4 +156,9 @@ func mustMarshal(v interface{}) []byte {
 
 func (openai *OpenAI) Generate(ctx context.Context, messages []Message) <-chan Event {
 	return openai.generateEvents(ctx, messages)
+}
+
+// Add Configure method
+func (openai *OpenAI) Configure(config map[string]interface{}) {
+	// OpenAI-specific configuration can be added here if needed
 }

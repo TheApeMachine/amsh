@@ -60,10 +60,5 @@ func TweakTool(ctx context.Context, args map[string]interface{}) (string, error)
 		return "", fmt.Errorf("failed to store history: %w", err)
 	}
 
-	// Update the agent's prompt
-	if err := agent.SetSystem(newPrompt); err != nil {
-		return "", fmt.Errorf("failed to update prompt: %w", err)
-	}
-
 	return fmt.Sprintf("Successfully updated system prompt for agent %s", agentID), nil
 }

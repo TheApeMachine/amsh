@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
@@ -28,7 +29,8 @@ func NewGoogle(apiKey string, model string) (*Google, error) {
 }
 
 func (g *Google) Generate(ctx context.Context, messages []Message) <-chan Event {
-	events := make(chan Event)
+	log.Info("generating with", "provider", "google")
+	events := make(chan Event, 64)
 
 	go func() {
 		defer close(events)
@@ -92,4 +94,9 @@ func (g *Google) GenerateSync(ctx context.Context, messages []Message) (string, 
 	}
 
 	return result, nil
+}
+
+// Add Configure method
+func (google *Google) Configure(config map[string]interface{}) {
+	// Google-specific configuration can be added here if needed
 }

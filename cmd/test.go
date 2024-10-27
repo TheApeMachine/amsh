@@ -29,10 +29,7 @@ var testCmd = &cobra.Command{
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
-	toolset, err := ai.NewToolset()
-	if err != nil {
-		return fmt.Errorf("failed to create toolset: %w", err)
-	}
+	toolset := ai.NewToolset()
 
 	// Create a new team and get agents
 	team := ai.NewTeam(toolset)

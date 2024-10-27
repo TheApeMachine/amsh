@@ -7,10 +7,10 @@ import (
 	"os"
 	"sync"
 
+	"github.com/charmbracelet/log"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/ai/types"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
@@ -57,14 +57,8 @@ HandleProcess is the unified entry point for handling any process.
 It handles the routing to appropriate teams and agents based on the process key.
 */
 func (pm *ProcessManager) HandleProcess(ctx context.Context, userPrompt string) <-chan []byte {
-	pm.agent.Task = userPrompt
-
-	for evt := range pm.agent.ExecuteTaskStream() {
-		switch pm.agent.GetState() {
-		case types.StateDone:
-			return
-		}
-	}
+	log.Info("Handling process", "userPrompt", userPrompt)
+	pm.agent.Update(userPrompt)
 
 	// Create a channel to stream responses
 	responseChan := make(chan []byte)
@@ -74,10 +68,8 @@ func (pm *ProcessManager) HandleProcess(ctx context.Context, userPrompt string) 
 		defer close(responseChan)
 
 		// Send to teamlead for processing
-		teamlead.ReceiveMessage(processMsg)
-
-		// Stream responses from the teamlead
-		for response := range teamlead.ExecuteTaskStream() {
+		for response := range pm.agent.ExecuteTaskStream() {
+			fmt.Printf(response.Content)
 			responseChan <- pm.makeEvent(response)
 		}
 	}()
@@ -97,39 +89,4 @@ func (pm *ProcessManager) makeEvent(response provider.Event) []byte {
 	}
 
 	return buf
-}
-
-// RegisterProcess registers a new process with the manager
-func (pm *ProcessManager) RegisterProcess(name, description string, teams []string, handler func(ctx context.Context, input interface{}) (interface{}, error)) error {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	// Check if process already exists
-	if _, exists := pm.processes[name]; exists {
-		return fmt.Errorf("process %s already registered", name)
-	}
-
-	// Register the new process
-	pm.processes[name] = &Process{
-		Name:        name,
-		Description: description,
-		Teams:       teams,
-		Handler:     handler,
-	}
-
-	return nil
-}
-
-// StartProcess executes a registered process with the given input
-func (pm *ProcessManager) StartProcess(ctx context.Context, name string, input interface{}) (interface{}, error) {
-	pm.mu.RLock()
-	process, exists := pm.processes[name]
-	pm.mu.RUnlock()
-
-	if !exists {
-		return nil, fmt.Errorf("process %s not found", name)
-	}
-
-	// Execute the process handler
-	return process.Handler(ctx, input)
 }

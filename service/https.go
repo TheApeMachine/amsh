@@ -140,7 +140,6 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 			// Start discussion process
 			resultChan := https.arch.ProcessManager.HandleProcess(
 				r.Context(),
-				"discussion",
 				string(msg),
 			)
 			if resultChan == nil {

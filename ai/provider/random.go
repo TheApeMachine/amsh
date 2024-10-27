@@ -61,3 +61,8 @@ func (r *RandomProvider) GenerateSync(ctx context.Context, messages []Message) (
 	provider := r.providers[r.rng.Intn(len(r.providers))]
 	return provider.GenerateSync(ctx, messages)
 }
+
+// Add Configure method to RandomProvider
+func (provider *RandomProvider) Configure(config map[string]interface{}) {
+	// RandomProvider-specific configuration can be added here if needed
+}

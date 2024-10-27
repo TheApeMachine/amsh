@@ -28,6 +28,9 @@ type Provider interface {
 
 	// GenerateSync generates a complete response synchronously
 	GenerateSync(ctx context.Context, messages []Message) (string, error)
+
+	// Configure allows provider-specific configuration
+	Configure(config map[string]interface{})
 }
 
 // Message represents a chat message

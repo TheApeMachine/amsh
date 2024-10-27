@@ -61,8 +61,7 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 			go func() {
 				resultChan := https.arch.ProcessManager.HandleProcess(
 					ctx.Context(),
-					"helpdesk_labelling",
-					payload,
+					payload.Message,
 				)
 				if resultChan == nil {
 					errnie.Error(fmt.Errorf("process result channel not found"))
@@ -84,8 +83,7 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 			go func() {
 				resultChan := https.arch.ProcessManager.HandleProcess(
 					ctx.Context(),
-					"code_review",
-					payload,
+					payload.Review.Body,
 				)
 				if resultChan == nil {
 					errnie.Error(fmt.Errorf("process result channel not found"))

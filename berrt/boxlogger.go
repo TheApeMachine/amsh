@@ -138,6 +138,10 @@ func Warning(title string, content any) {
 Error logs an error with a stack trace and code preview
 */
 func Error(title string, err error) {
+	if err == nil {
+		return
+	}
+
 	stackTrace, file, line := bl.captureStackTrace()
 	codeSnippet := bl.captureCodeSnippet(file, line, 5)
 

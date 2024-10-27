@@ -2,14 +2,17 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/charmbracelet/log"
 )
 
 type Anthropic struct {
 	client    *anthropic.Client
 	model     string
-	maxTokens int
+	maxTokens int64
+	system    string // Add system message field
 }
 
 func NewAnthropic(apiKey string, model string) *Anthropic {
@@ -21,55 +24,126 @@ func NewAnthropic(apiKey string, model string) *Anthropic {
 	}
 }
 
+func (a *Anthropic) Configure(config map[string]interface{}) {
+	if systemMsg, ok := config["system_message"].(string); ok {
+		a.system = systemMsg
+	}
+}
+
 func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Event {
-	events := make(chan Event)
+	log.Info("generating with", "provider", "anthropic")
+	events := make(chan Event, 64)
 
 	go func() {
 		defer close(events)
 
-		stream := a.client.Messages.NewStreaming(context.TODO(), anthropic.MessageNewParams{
-			Model:    anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
-			Messages: anthropic.F(convertToAnthropicMessages(messages)),
-		})
+		// Initial debug logging
+		log.Info("Starting Anthropic generation", "messages", messages)
 
+		// Parse the user's message from JSON
+		var userMsg struct {
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal([]byte(messages[len(messages)-1].Content), &userMsg); err != nil {
+			log.Error("Failed to parse user message", "error", err)
+			events <- Event{Type: EventError, Error: err}
+			return
+		}
+
+		log.Info("Extracted user message", "text", userMsg.Text)
+
+		// Create the messages array with the user's message
+		processedMessages := []Message{
+			{
+				Role:    "user",
+				Content: userMsg.Text,
+			},
+		}
+
+		log.Info("Processed messages", "messages", processedMessages)
+
+		// Prepare the request parameters
+		params := anthropic.MessageNewParams{
+			Model:     anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
+			Messages:  anthropic.F(convertToAnthropicMessages(processedMessages)),
+			MaxTokens: anthropic.F(a.maxTokens),
+		}
+
+		// Only add system message if it's not empty
+		if a.system != "" {
+			params.System = anthropic.F([]anthropic.TextBlockParam{{
+				Text: anthropic.F(a.system),
+				Type: anthropic.F(anthropic.TextBlockParamTypeText),
+			}})
+		}
+
+		log.Info("Sending request to Anthropic", "params", params)
+
+		stream := a.client.Messages.NewStreaming(ctx, params)
 		message := anthropic.Message{}
+
+		log.Info("Starting stream processing")
+
 		for stream.Next() {
 			event := stream.Current()
+			log.Debug("Received event from Anthropic", "event", event)
+
 			err := message.Accumulate(event)
 			if err != nil {
-				panic(err)
+				log.Error("Error accumulating message", "error", err)
+				events <- Event{Type: EventError, Error: err}
+				return
 			}
 
 			switch event := event.AsUnion().(type) {
-			case anthropic.ContentBlockStartEvent:
-				if event.ContentBlock.Name != "" {
-					print(event.ContentBlock.Name + ": ")
-				}
 			case anthropic.ContentBlockDeltaEvent:
-				print(event.Delta.Text)
-				print(event.Delta.PartialJSON)
-			case anthropic.ContentBlockStopEvent:
-				println()
-				println()
+				if event.Delta.Text != "" {
+					log.Debug("Sending token", "content", event.Delta.Text)
+					events <- Event{Type: EventToken, Content: event.Delta.Text}
+				}
 			case anthropic.MessageStopEvent:
-				println()
+				log.Info("Stream completed")
+				events <- Event{Type: EventDone}
+				return
 			}
 		}
 
-		if stream.Err() != nil {
-			panic(stream.Err())
+		if err := stream.Err(); err != nil {
+			log.Error("Stream error", "error", err)
+			events <- Event{Type: EventError, Error: err}
+			return
 		}
+
+		log.Info("Generation completed")
 	}()
 
 	return events
 }
 
 func (a *Anthropic) GenerateSync(ctx context.Context, messages []Message) (string, error) {
-	message, err := a.client.Messages.New(context.TODO(), anthropic.MessageNewParams{
-		Model:    anthropic.F(a.model),
-		Messages: anthropic.F(convertToAnthropicMessages(messages)),
-	})
+	// Filter out system messages as they're handled separately
+	var filteredMessages []Message
+	for _, msg := range messages {
+		if msg.Role != "system" {
+			filteredMessages = append(filteredMessages, msg)
+		}
+	}
 
+	// Prepare the request parameters
+	params := anthropic.MessageNewParams{
+		Model:    anthropic.F(a.model),
+		Messages: anthropic.F(convertToAnthropicMessages(filteredMessages)),
+	}
+
+	// Only add system message if it's not empty
+	if a.system != "" {
+		params.System = anthropic.F([]anthropic.TextBlockParam{{
+			Text: anthropic.F(a.system),
+			Type: anthropic.F(anthropic.TextBlockParamTypeText),
+		}})
+	}
+
+	message, err := a.client.Messages.New(ctx, params)
 	if err != nil {
 		return "", err
 	}
@@ -77,19 +151,26 @@ func (a *Anthropic) GenerateSync(ctx context.Context, messages []Message) (strin
 	return message.Content[0].Text, nil
 }
 
-// Add this helper function
+// Helper function to convert our messages to Anthropic format
 func convertToAnthropicMessages(msgs []Message) []anthropic.MessageParam {
 	anthropicMsgs := make([]anthropic.MessageParam, len(msgs))
 	for i, msg := range msgs {
+		role := anthropic.MessageParamRoleUser
+		if msg.Role == "assistant" {
+			role = anthropic.MessageParamRoleAssistant
+		}
+
 		anthropicMsgs[i] = anthropic.MessageParam{
-			Role: anthropic.F(anthropic.MessageParamRole(msg.Role)), // Use proper Role type
-			Content: anthropic.F([]anthropic.MessageParamContentUnion{ // Use proper Content type
+			Role: anthropic.F(role),
+			Content: anthropic.F([]anthropic.MessageParamContentUnion{
 				anthropic.MessageParamContent{
-					Text: anthropic.F(msg.Content),
 					Type: anthropic.F(anthropic.MessageParamContentTypeText),
+					Text: anthropic.F(msg.Content),
 				},
 			}),
 		}
 	}
+
+	log.Debug("Converted messages", "anthropicMsgs", anthropicMsgs)
 	return anthropicMsgs
 }

@@ -13,6 +13,11 @@ type MockProvider struct {
 	response string
 }
 
+// Add Configure method to satisfy the Provider interface
+func (m *MockProvider) Configure(config map[string]interface{}) {
+	// Mock provider doesn't need configuration for testing
+}
+
 // Update Generate to match the provider.Provider interface
 func (m *MockProvider) Generate(ctx context.Context, messages []provider.Message) <-chan provider.Event {
 	ch := make(chan provider.Event)

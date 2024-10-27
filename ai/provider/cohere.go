@@ -2,8 +2,10 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"io"
 
+	"github.com/charmbracelet/log"
 	cohere "github.com/cohere-ai/cohere-go/v2"
 	cohereclient "github.com/cohere-ai/cohere-go/v2/client"
 )
@@ -15,7 +17,18 @@ type Cohere struct {
 }
 
 func NewCohere(apiKey string, model string) (*Cohere, error) {
-	client := cohereclient.NewClient(cohereclient.WithToken(apiKey))
+	// Create client with proper API key configuration
+	client := cohereclient.NewClient(
+		cohereclient.WithToken(apiKey),
+	)
+
+	// Validate that we have required parameters
+	if apiKey == "" {
+		return nil, fmt.Errorf("cohere: API key is required")
+	}
+	if model == "" {
+		model = "command" // Set default model if none specified
+	}
 
 	return &Cohere{
 		client:    client,
@@ -25,15 +38,23 @@ func NewCohere(apiKey string, model string) (*Cohere, error) {
 }
 
 func (c *Cohere) Generate(ctx context.Context, messages []Message) <-chan Event {
-	events := make(chan Event)
+	log.Info("generating with", "provider", "cohere")
+	events := make(chan Event, 64)
 
 	go func() {
 		defer close(events)
+
+		// Check for nil client
+		if c.client == nil {
+			events <- Event{Type: EventError, Error: fmt.Errorf("cohere: client not initialized")}
+			return
+		}
 
 		prompt := convertMessagesToCoherePrompt(messages)
 
 		stream, err := c.client.ChatStream(ctx, &cohere.ChatStreamRequest{
 			Message: prompt,
+			Model:   &c.model,
 		})
 		if err != nil {
 			events <- Event{Type: EventError, Error: err}
@@ -42,7 +63,7 @@ func (c *Cohere) Generate(ctx context.Context, messages []Message) <-chan Event 
 		defer stream.Close()
 
 		for {
-			message, err := stream.Recv()
+			resp, err := stream.Recv()
 			if err == io.EOF {
 				events <- Event{Type: EventDone}
 				return
@@ -52,7 +73,10 @@ func (c *Cohere) Generate(ctx context.Context, messages []Message) <-chan Event 
 				return
 			}
 
-			events <- Event{Type: EventToken, Content: message.TextGeneration.Text}
+			// Check if response has text content
+			if resp.TextGeneration != nil {
+				events <- Event{Type: EventToken, Content: resp.TextGeneration.Text}
+			}
 		}
 	}()
 
@@ -87,4 +111,9 @@ func convertMessagesToCoherePrompt(messages []Message) string {
 		}
 	}
 	return prompt
+}
+
+// Add Configure method
+func (cohere *Cohere) Configure(config map[string]interface{}) {
+	// Cohere-specific configuration can be added here if needed
 }

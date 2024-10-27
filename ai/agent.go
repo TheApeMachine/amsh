@@ -135,6 +135,12 @@ func (a *Agent) Shutdown() {
 	a.State = types.StateDone
 }
 
+func (a *Agent) Update(userMessages string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Buffer.AddMessage("user", userMessages)
+}
+
 // GetContext returns the agent's context
 func (a *Agent) GetContext() string {
 	a.mu.RLock()
@@ -156,6 +162,7 @@ func (a *Agent) ExecuteTaskStream() <-chan provider.Event {
 		defer close(responseChan)
 
 		for event := range a.provider.Generate(a.ctx, a.Buffer.GetMessages()) {
+			fmt.Print(event)
 			responseChan <- event
 		}
 	}()
@@ -211,34 +218,4 @@ func (a *Agent) GetMessageCount() int {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return len(a.Messages)
-}
-
-// UpdateMetrics records performance metrics for the agent
-func (a *Agent) UpdateMetrics(success bool, duration time.Duration) {
-	a.Metrics.mu.Lock()
-	defer a.Metrics.mu.Unlock()
-
-	a.Metrics.taskCount++
-	a.Metrics.responseTime = (a.Metrics.responseTime + duration) / 2
-
-	if success {
-		// Weighted moving average for success rate
-		a.Metrics.successRate = (a.Metrics.successRate * 0.8) + (1.0 * 0.2)
-	} else {
-		a.Metrics.successRate = (a.Metrics.successRate * 0.8) + (0.0 * 0.2)
-	}
-}
-
-// GetPerformanceMetrics returns the current performance metrics
-func (a *Agent) GetPerformanceMetrics() (float64, time.Duration, int64) {
-	a.Metrics.mu.RLock()
-	defer a.Metrics.mu.RUnlock()
-	return a.Metrics.successRate, a.Metrics.responseTime, a.Metrics.taskCount
-}
-
-func (a *Agent) SetSystem(system string) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.Context = system
-	return nil
 }
