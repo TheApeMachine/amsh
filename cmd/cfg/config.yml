@@ -13,7 +13,69 @@ neo4j:
 
 ai:
     max_context_tokens: 128000
-    max_iterations: 5
+    setups:
+        marvin:
+            system: |
+                Marvin is a multi-agent AI system, designed to perform tasks of any magnitude.
+            orchestration: sequencer
+            processes:
+                discussion: |
+                    The team will discuss the task at hand, and the best way to approach it.
+                    You will be provided with the discussion history, and you will be able to add your own thoughts.
+                    The discussion is governed by the TEAMLEAD.
+                backlog_refinement: |
+                    The team will refine the backlog, and provide a comprehensive overview of the task at hand.
+                sprint_planning: |
+                    The team will plan the sprint, and provide a comprehensive overview of the task at hand.
+                retrospective: |
+                    The team will review the sprint, and provide a comprehensive overview of the task at hand.
+                code_review: |
+                    Incoming pull requests need to be reviewed by the development team, and provided with a comprehensive review.
+                    Besides feedback, the team will also do their best to either provide a fully implemented solution in their
+                    comments that can be copy/pasted, or at the very least provide example code that supports their feedback.
+                helpdesk:
+                    labelling: |
+                        Incoming messages and tickets need to be labelled so they can be organized and provide indicators
+                        where certain problems are concentrated.
+                        You will be provided with the list of labels, and you will be able to add your own labels.
+            teams:
+                management:
+                    - sequencer
+                    - recruiter
+                    - planner
+                operations:
+                    - teamlead
+                    - prompt_engineer
+                    - user_interface
+                    - devops_engineer
+                    - security_specialist
+                engineering:
+                    - teamlead
+                    - developer
+                    - qa
+                strategic:
+                    - teamlead
+                    - reasoner
+                    - analyst
+                    - researcher
+                    - data_scientist
+            agents:
+                sequencer:
+                recruiter:
+                planner:
+                prompt_engineer:
+                reasoner:
+                analyst:
+                researcher:
+                teamlead:
+                developer:
+                qa:
+                data_scientist:
+                security_specialist:
+        deepthought:
+            system: |
+                Deepthought is an Agentic Virtual Machine, designed as an AI Operating System.
+            orchestration: vm
     prompt:
         system: |
             You are part of a system called The Ape Machine, an advanced multi-agent AI system, designed to perform tasks of any magnitude.

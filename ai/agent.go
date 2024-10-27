@@ -24,21 +24,21 @@ const (
 
 // Agent represents an AI agent that can perform tasks and communicate with other agents
 type Agent struct {
-	id           string
-	role         types.Role
-	state        types.AgentState
-	tools        map[string]types.Tool
-	buffer       *Buffer
-	mu           sync.RWMutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	messages     chan string
-	context      string
-	task         string
-	toolset      *Toolset
-	provider     provider.Provider
-	capabilities map[string]func(context.Context, map[string]interface{}) (string, error)
-	metrics      *AgentMetrics
+	ID           string                                                                   `json:"id"`
+	Role         types.Role                                                               `json:"role"`
+	State        types.AgentState                                                         `json:"state"`
+	Context      string                                                                   `json:"context"`
+	Task         string                                                                   `json:"task"`
+	Buffer       *Buffer                                                                  `json:"buffer"`
+	Tools        map[string]types.Tool                                                    `json:"tools"`
+	Messages     chan string                                                              `json:"-"`
+	Metrics      *AgentMetrics                                                            `json:"-"`
+	Capabilities map[string]func(context.Context, map[string]interface{}) (string, error) `json:"-"`
+
+	ctx      context.Context    `json:"-"`
+	cancel   context.CancelFunc `json:"-"`
+	provider provider.Provider  `json:"-"`
+	mu       sync.RWMutex       `json:"-"`
 }
 
 type AgentMetrics struct {
@@ -54,20 +54,19 @@ func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Agent{
-		id:           id,
-		role:         role,
-		state:        types.StateIdle,
-		tools:        toolset.GetToolsForRole(string(role)),
-		buffer:       NewBuffer(systemPrompt, userPrompt),
+		ID:           id,
+		Role:         role,
+		State:        types.StateIdle,
+		Context:      systemPrompt,
+		Task:         userPrompt,
+		Buffer:       NewBuffer(systemPrompt, userPrompt),
+		Tools:        toolset.GetToolsForRole(string(role)),
+		Messages:     make(chan string, 100),
+		Metrics:      &AgentMetrics{},
+		Capabilities: make(map[string]func(context.Context, map[string]interface{}) (string, error)),
 		ctx:          ctx,
 		cancel:       cancel,
-		messages:     make(chan string, 100),
-		context:      systemPrompt,
-		task:         userPrompt,
-		toolset:      toolset,
 		provider:     provider,
-		capabilities: make(map[string]func(context.Context, map[string]interface{}) (string, error)),
-		metrics:      &AgentMetrics{},
 	}
 }
 
@@ -75,28 +74,34 @@ func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools
 func (a *Agent) GetID() string {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.id
+	return a.ID
 }
 
 // GetRole returns the agent's role
 func (a *Agent) GetRole() types.Role {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.role
+	return a.Role
 }
 
 // GetState returns the agent's current state
 func (a *Agent) GetState() types.AgentState {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.state
+	return a.State
 }
 
 // SetState updates the agent's state
 func (a *Agent) SetState(state types.AgentState) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.state = state
+	a.State = state
+}
+
+func (a *Agent) GetBuffer() *Buffer {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.Buffer
 }
 
 // ReceiveMessage adds a message to the agent's message queue and buffer
@@ -105,14 +110,14 @@ func (a *Agent) ReceiveMessage(message string) error {
 	defer a.mu.Unlock()
 
 	// Add to buffer first
-	a.buffer.AddMessage("user", message)
+	a.Buffer.AddMessage("user", message)
 
 	// Then try to add to channel
 	select {
-	case a.messages <- message:
+	case a.Messages <- message:
 		return nil
 	default:
-		return fmt.Errorf("message queue full for agent %s", a.id)
+		return fmt.Errorf("message queue full for agent %s", a.ID)
 	}
 }
 
@@ -125,33 +130,35 @@ func (a *Agent) Shutdown() {
 		a.cancel()
 	}
 
-	close(a.messages)
-	a.tools = nil
-	a.state = types.StateDone
+	close(a.Messages)
+	a.Tools = nil
+	a.State = types.StateDone
 }
 
 // GetContext returns the agent's context
-func (a *Agent) GetContext() context.Context {
-	return a.ctx
+func (a *Agent) GetContext() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.Context
 }
 
 // GetTools returns the agent's available tools
 func (a *Agent) GetTools() map[string]types.Tool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.tools
+	return a.Tools
 }
 
 // ExecuteTask performs the agent's assigned task and returns the result
 func (a *Agent) ExecuteTask() (string, error) {
 	if a.provider == nil {
-		return "", fmt.Errorf("provider not set for agent %s", a.id)
+		return "", fmt.Errorf("provider not set for agent %s", a.ID)
 	}
 
 	a.SetState(types.StateWorking)
 
 	// Get messages from buffer
-	bufferMsgs := a.buffer.GetMessages()
+	bufferMsgs := a.Buffer.GetMessages()
 	messages := make([]provider.Message, 0, len(bufferMsgs))
 
 	// Convert Buffer messages to Provider messages
@@ -165,48 +172,59 @@ func (a *Agent) ExecuteTask() (string, error) {
 	// Ensure we have messages to process
 	if len(messages) == 0 {
 		a.SetState(types.StateIdle)
-		return "", fmt.Errorf("no messages to process for agent %s", a.id)
+		return "", fmt.Errorf("no messages to process for agent %s", a.ID)
 	}
 
-	response, err := a.provider.GenerateSync(a.ctx, messages)
-	if err != nil {
-		a.SetState(types.StateIdle)
-		return "", fmt.Errorf("task execution failed: %w", err)
+	// Use the streaming interface and collect the results
+	var result string
+	for event := range a.provider.Generate(a.ctx, messages) {
+		if event.Error != nil {
+			a.SetState(types.StateIdle)
+			return "", fmt.Errorf("task execution failed: %w", event.Error)
+		}
+		result += event.Content
 	}
 
 	// Add the response to the buffer
-	a.buffer.AddMessage("assistant", response)
+	a.Buffer.AddMessage("assistant", result)
 
 	a.SetState(types.StateDone)
-	return response, nil
+	return result, nil
 }
 
 // GetMessageCount returns the number of messages processed by this agent
 func (a *Agent) GetMessageCount() int {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return len(a.messages)
+	return len(a.Messages)
 }
 
 // UpdateMetrics records performance metrics for the agent
 func (a *Agent) UpdateMetrics(success bool, duration time.Duration) {
-	a.metrics.mu.Lock()
-	defer a.metrics.mu.Unlock()
+	a.Metrics.mu.Lock()
+	defer a.Metrics.mu.Unlock()
 
-	a.metrics.taskCount++
-	a.metrics.responseTime = (a.metrics.responseTime + duration) / 2
+	a.Metrics.taskCount++
+	a.Metrics.responseTime = (a.Metrics.responseTime + duration) / 2
 
 	if success {
 		// Weighted moving average for success rate
-		a.metrics.successRate = (a.metrics.successRate * 0.8) + (1.0 * 0.2)
+		a.Metrics.successRate = (a.Metrics.successRate * 0.8) + (1.0 * 0.2)
 	} else {
-		a.metrics.successRate = (a.metrics.successRate * 0.8) + (0.0 * 0.2)
+		a.Metrics.successRate = (a.Metrics.successRate * 0.8) + (0.0 * 0.2)
 	}
 }
 
 // GetPerformanceMetrics returns the current performance metrics
 func (a *Agent) GetPerformanceMetrics() (float64, time.Duration, int64) {
-	a.metrics.mu.RLock()
-	defer a.metrics.mu.RUnlock()
-	return a.metrics.successRate, a.metrics.responseTime, a.metrics.taskCount
+	a.Metrics.mu.RLock()
+	defer a.Metrics.mu.RUnlock()
+	return a.Metrics.successRate, a.Metrics.responseTime, a.Metrics.taskCount
+}
+
+func (a *Agent) SetSystem(system string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Context = system
+	return nil
 }

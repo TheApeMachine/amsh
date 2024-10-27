@@ -21,7 +21,18 @@ func NewOpenAI(apiKey string, model string) *OpenAI {
 	}
 }
 
-func (o *OpenAI) Generate(ctx context.Context, messages []Message) <-chan Event {
+func (o *OpenAI) GenerateStream(ctx context.Context, messages []Message) <-chan string {
+	eventChan := make(chan string)
+	go func() {
+		defer close(eventChan)
+		for event := range o.generateEvents(ctx, messages) {
+			eventChan <- event.Content
+		}
+	}()
+	return eventChan
+}
+
+func (o *OpenAI) generateEvents(ctx context.Context, messages []Message) <-chan Event {
 	events := make(chan Event)
 
 	go func() {
@@ -139,4 +150,8 @@ func mustMarshal(v interface{}) []byte {
 		panic(err)
 	}
 	return b
+}
+
+func (openai *OpenAI) Generate(ctx context.Context, messages []Message) <-chan Event {
+	return openai.generateEvents(ctx, messages)
 }

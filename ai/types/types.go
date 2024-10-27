@@ -43,6 +43,7 @@ type AgentContext interface {
 	SetState(state AgentState)
 	GetState() AgentState
 	GetRole() Role
+	ReceiveMessage(message string) error // Add this line
 }
 
 // TeamManager interface defines the methods required for team management
@@ -50,6 +51,7 @@ type TeamManager interface {
 	GetNextAgentID() int
 	AddAgent(AgentContext) error
 	GetToolset() ToolsetManager
+	GetTeam(name string) (*Team, error) // Updated to match implementation
 }
 
 // ToolsetManager defines the methods required for toolset management
@@ -64,4 +66,10 @@ type LogicalExpression struct {
 	Operands      []interface{}
 	Confidence    float64
 	Verifications []VerificationStep
+}
+
+// Team represents a group of agents working together
+type Team struct {
+	Name   string
+	Agents map[string]AgentContext
 }

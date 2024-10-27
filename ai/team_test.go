@@ -7,7 +7,6 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -85,18 +84,6 @@ tools:
 			})
 		})
 
-		Convey("When setting the provider", func() {
-			mockProvider := &MockProvider{}
-			team.SetProvider(mockProvider)
-
-			Convey("Then all agents should receive the provider", func() {
-				researcher := team.GetResearcher()
-				analyst := team.GetAnalyst()
-				So(researcher.provider, ShouldEqual, mockProvider)
-				So(analyst.provider, ShouldEqual, mockProvider)
-			})
-		})
-
 		Convey("When getting an agent by role", func() {
 			Convey("Then it should return the correct agent for valid roles", func() {
 				researcher := team.GetAgent("researcher")
@@ -111,7 +98,6 @@ tools:
 		})
 
 		Convey("When shutting down the team", func() {
-			team.SetProvider(&MockProvider{})
 			researcher := team.GetResearcher()
 			analyst := team.GetAnalyst()
 
@@ -139,7 +125,6 @@ tools:
 					go func() {
 						team.GetResearcher()
 						team.GetAnalyst()
-						team.SetProvider(&MockProvider{})
 						done <- true
 					}()
 				}
@@ -155,7 +140,7 @@ tools:
 	})
 }
 
-func (m *MockProvider) GenerateStream(ctx context.Context, messages []provider.Message) (<-chan string, <-chan error) {
+func (m *MockProvider) GenerateStream(ctx context.Context, messages []Message) <-chan string {
 	responseChan := make(chan string)
 	errChan := make(chan error)
 	go func() {
@@ -163,5 +148,5 @@ func (m *MockProvider) GenerateStream(ctx context.Context, messages []provider.M
 		close(responseChan)
 		close(errChan)
 	}()
-	return responseChan, errChan
+	return responseChan
 }

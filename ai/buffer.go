@@ -1,6 +1,8 @@
 package ai
 
-import "fmt"
+import (
+	"fmt"
+)
 
 /*
 Buffer is a simple buffer, that can be used to store messages.
@@ -14,6 +16,7 @@ type Buffer struct {
 
 // Message represents a conversation message
 type Message struct {
+	Name    string `json:"name"`
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
@@ -77,4 +80,8 @@ func (b *Buffer) AddToolResult(name, result string) {
 
 func (b *Buffer) Clear() {
 	b.messages = b.messages[:0]
+}
+
+func (b *Buffer) GetSystemPrompt() string {
+	return b.systemPrompt
 }

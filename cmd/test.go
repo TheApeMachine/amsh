@@ -16,7 +16,6 @@ import (
 	"github.com/theapemachine/amsh/ai/codegen"
 	"github.com/theapemachine/amsh/ai/learning"
 	"github.com/theapemachine/amsh/ai/planning" // Add this import
-	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/reasoning"
 	"github.com/theapemachine/amsh/ai/tools"
 	"github.com/theapemachine/amsh/ai/types"
@@ -46,13 +45,6 @@ func runTest(cmd *cobra.Command, args []string) error {
 	if analyst == nil {
 		return fmt.Errorf("failed to get analyst agent")
 	}
-
-	// Initialize the LLM provider
-	llm := provider.NewOpenAI(
-		os.Getenv("OPENAI_API_KEY"),
-		"gpt-4",
-	)
-	team.SetProvider(llm)
 
 	// Initialize reasoning system
 	kb := reasoning.NewKnowledgeBase()

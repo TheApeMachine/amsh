@@ -3,11 +3,9 @@ package learning
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -93,51 +91,8 @@ func calculateConfidenceGain(chain *types.ReasoningChain) float64 {
 }
 
 func extractKeywords(pattern *Pattern) []string {
-	// Create a prompt that describes the pattern
-	prompt := buildPatternPrompt(pattern)
 
-	// Create messages for the LLM
-	messages := []provider.Message{
-		{
-			Role: "system",
-			Content: `You are a keyword extraction expert. Extract relevant keywords that could help identify similar patterns in the future. 
-			Focus on action names, state conditions, and constraints. Return only a comma-separated list of keywords, no other text.`,
-		},
-		{
-			Role:    "user",
-			Content: prompt,
-		},
-	}
-
-	// Get provider instance (assuming we have a way to get the default provider)
-	llm, err := provider.NewRandomProvider(map[string]string{
-		"openai":    os.Getenv("OPENAI_API_KEY"),
-		"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
-		"gemini":    os.Getenv("GOOGLE_API_KEY"),
-		"cohere":    os.Getenv("COHERE_API_KEY"),
-	})
-
-	if err != nil {
-		return []string{}
-	}
-
-	// Generate keywords
-	response, err := llm.GenerateSync(context.Background(), messages)
-	if err != nil {
-		// If there's an error, return empty slice rather than failing
-		return []string{}
-	}
-
-	// Split response into keywords and clean them
-	keywords := strings.Split(response, ",")
-	cleanedKeywords := make([]string, 0, len(keywords))
-
-	for _, keyword := range keywords {
-		keyword = strings.TrimSpace(keyword)
-		if keyword != "" {
-			cleanedKeywords = append(cleanedKeywords, strings.ToLower(keyword))
-		}
-	}
+	cleanedKeywords := make([]string, 0)
 
 	return cleanedKeywords
 }

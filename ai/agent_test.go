@@ -13,26 +13,21 @@ type MockProvider struct {
 	response string
 }
 
-func (m *MockProvider) GenerateSync(ctx context.Context, messages []provider.Message) (string, error) {
-	return m.response, nil
-}
-
-// Add the Generate method to satisfy the Provider interface
+// Update Generate to match the provider.Provider interface
 func (m *MockProvider) Generate(ctx context.Context, messages []provider.Message) <-chan provider.Event {
-	responseChan := make(chan provider.Event, 1)
-	errChan := make(chan error, 1)
-
+	ch := make(chan provider.Event)
 	go func() {
-		defer close(responseChan)
-		defer close(errChan)
-		responseChan <- provider.Event{
-			Type:    provider.EventToken,
+		defer close(ch)
+		ch <- provider.Event{
 			Content: m.response,
-			Error:   nil,
 		}
 	}()
+	return ch
+}
 
-	return responseChan
+// Update GenerateSync to match the provider.Provider interface
+func (m *MockProvider) GenerateSync(ctx context.Context, messages []provider.Message) (string, error) {
+	return m.response, nil
 }
 
 func TestAgent(t *testing.T) {
@@ -69,13 +64,13 @@ func TestAgent(t *testing.T) {
 			So(agent.GetID(), ShouldEqual, "test-agent")
 			So(agent.GetRole(), ShouldEqual, types.RoleResearcher)
 			So(agent.GetState(), ShouldEqual, types.StateIdle)
-			So(agent.context, ShouldEqual, systemPrompt)
-			So(agent.task, ShouldEqual, userPrompt)
+			So(agent.Context, ShouldEqual, systemPrompt)
+			So(agent.Task, ShouldEqual, userPrompt)
 		})
 
 		Convey("When executing a task", func() {
 			// Clear the buffer before executing the task
-			agent.buffer = NewBuffer(systemPrompt, userPrompt)
+			agent.Buffer = NewBuffer(systemPrompt, userPrompt)
 
 			response, err := agent.ExecuteTask()
 
@@ -83,15 +78,15 @@ func TestAgent(t *testing.T) {
 				So(err, ShouldBeNil)
 				So(response, ShouldEqual, "Test response")
 				So(agent.GetState(), ShouldEqual, types.StateDone)
-				So(agent.buffer.GetMessages(), ShouldHaveLength, 3) // Only expecting the assistant's response
+				So(agent.Buffer.GetMessages(), ShouldHaveLength, 3)
 			})
 
 			Convey("And the buffer should contain the conversation", func() {
-				messages := agent.buffer.GetMessages()
-				So(len(messages), ShouldEqual, 3) // Only expecting the assistant's response
+				messages := agent.Buffer.GetMessages()
+				So(len(messages), ShouldEqual, 3)
 				So(messages[2].Role, ShouldEqual, "assistant")
 				So(messages[2].Content, ShouldEqual, "Test response")
-				So(agent.buffer.GetMessages(), ShouldHaveLength, 3) // Only expecting the assistant's response
+				So(agent.Buffer.GetMessages(), ShouldHaveLength, 3)
 			})
 		})
 
@@ -109,7 +104,7 @@ func TestAgent(t *testing.T) {
 
 			Convey("Then it should be in done state", func() {
 				So(agent.GetState(), ShouldEqual, types.StateDone)
-				So(agent.tools, ShouldBeNil)
+				So(agent.Tools, ShouldBeNil)
 			})
 		})
 	})

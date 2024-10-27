@@ -62,10 +62,11 @@ var (
 	}
 )
 
-func NewConn() *Conn {
+func NewConn(prefix string) *Conn {
 	return &Conn{
 		bucket: viper.GetViper().GetString("datalake.bucket"), // Add bucket parameter to initialize the bucket
 		client: getClient(),                                   // Initialize the S3 client here
+		key:    prefix,
 	}
 }
 
@@ -184,4 +185,8 @@ func (conn *Conn) ListFiles() []byte {
 
 func (conn *Conn) SetKey(key string) {
 	conn.key = key
+}
+
+func (conn *Conn) Close() error {
+	return nil
 }

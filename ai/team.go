@@ -5,23 +5,22 @@ import (
 	"sync"
 
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
 // Team represents a group of AI agents working together
 type Team struct {
-	toolset  *Toolset
-	agents   map[string]*Agent
-	provider provider.Provider
-	mu       sync.RWMutex
+	Name    string            `json:"name"`
+	Agents  map[string]*Agent `json:"agents"`
+	Toolset *Toolset          `json:"toolset"`
+	mu      sync.RWMutex      `json:"-"`
 }
 
 // NewTeam creates a new team with the given toolset
 func NewTeam(toolset *Toolset) *Team {
 	team := &Team{
-		toolset: toolset,
-		agents:  make(map[string]*Agent),
+		Toolset: toolset,
+		Agents:  make(map[string]*Agent),
 	}
 
 	// Initialize agents from config
@@ -33,7 +32,7 @@ func NewTeam(toolset *Toolset) *Team {
 	return team
 }
 
-func (t *Team) initializeAgents() error {
+func (team *Team) initializeAgents() error {
 	// Get agent configurations from viper
 	agentRoles := viper.GetStringMap("ai.prompt")
 
@@ -76,56 +75,54 @@ func (t *Team) initializeAgents() error {
 			agentRole,    // role (using predefined type)
 			systemPrompt, // system prompt
 			roleConfig,   // user prompt/job description
-			t.toolset,    // toolset
+			team.Toolset, // toolset
 			nil,          // provider will be set later
 		)
 
-		t.mu.Lock()
-		t.agents[role] = agent
-		t.mu.Unlock()
+		team.mu.Lock()
+		team.Agents[role] = agent
+		team.mu.Unlock()
 	}
 
 	return nil
 }
 
 // GetAgent returns an agent by role
-func (t *Team) GetAgent(role string) *Agent {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.agents[role]
+func (team *Team) GetAgent(role string) *Agent {
+	team.mu.RLock()
+	defer team.mu.RUnlock()
+	return team.Agents[role]
 }
 
 // GetResearcher returns the research agent
-func (t *Team) GetResearcher() *Agent {
-	return t.GetAgent("researcher")
+func (team *Team) GetResearcher() *Agent {
+	return team.GetAgent("researcher")
 }
 
 // GetAnalyst returns the analyst agent
-func (t *Team) GetAnalyst() *Agent {
-	return t.GetAgent("analyst")
-}
-
-// SetProvider sets the LLM provider for the team
-func (t *Team) SetProvider(p provider.Provider) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	t.provider = p
-	for _, agent := range t.agents {
-		if agent != nil {
-			agent.provider = p
-		}
-	}
+func (team *Team) GetAnalyst() *Agent {
+	return team.GetAgent("analyst")
 }
 
 // Shutdown performs cleanup for all team members
-func (t *Team) Shutdown() {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
+func (team *Team) Shutdown() {
+	team.mu.RLock()
+	defer team.mu.RUnlock()
 
-	for _, agent := range t.agents {
+	for _, agent := range team.Agents {
 		if agent != nil {
 			agent.Shutdown()
 		}
 	}
+}
+
+// AddMember adds a new agent to the team
+func (team *Team) AddMember(agent *Agent) {
+	team.mu.Lock()
+	defer team.mu.Unlock()
+
+	if team.Agents == nil {
+		team.Agents = make(map[string]*Agent)
+	}
+	team.Agents[agent.GetID()] = agent
 }

@@ -24,7 +24,7 @@ func GetAgentManager() *AgentManager {
 	once.Do(func() {
 		manager = &AgentManager{
 			agents:  make(map[string]*Agent),
-			storage: datalake.NewConn(), // Or whatever storage implementation
+			storage: datalake.NewConn("agents"),
 		}
 	})
 	return manager

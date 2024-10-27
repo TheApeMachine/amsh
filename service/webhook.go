@@ -1,9 +1,12 @@
 package service
 
 import (
-	"github.com/goccy/go-json"
+	"encoding/json"
+	"fmt"
+
 	"github.com/gofiber/fiber/v3"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Inbound struct {
@@ -36,8 +39,59 @@ type GitHubReviewPayload struct {
 
 func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 	return func(ctx fiber.Ctx) (err error) {
+		if https.arch == nil {
+			errnie.Error(fmt.Errorf("architecture not initialized"))
+			return ctx.SendStatus(fiber.StatusInternalServerError)
+		}
+
+		// Create data message
 		message := data.New("webhook", origin, scope, ctx.Body())
 		message.Poke("chain", origin)
+
+		// Route to appropriate process based on origin
+		switch origin {
+		case "trengo":
+			var payload Inbound
+			if err := json.Unmarshal(ctx.Body(), &payload); err != nil {
+				errnie.Error(err)
+				return ctx.SendStatus(fiber.StatusBadRequest)
+			}
+
+			// Start helpdesk labelling process
+			go func() {
+				result, err := https.arch.ProcessManager.HandleProcess(
+					ctx.Context(),
+					"helpdesk_labelling",
+					payload,
+				)
+				if err != nil {
+					errnie.Error(err)
+					return
+				}
+				errnie.Debug(fmt.Sprintf("Process result: %v", result))
+			}()
+
+		case "github":
+			var payload GitHubReviewPayload
+			if err := json.Unmarshal(ctx.Body(), &payload); err != nil {
+				errnie.Error(err)
+				return ctx.SendStatus(fiber.StatusBadRequest)
+			}
+
+			// Start code review process
+			go func() {
+				result, err := https.arch.ProcessManager.HandleProcess(
+					ctx.Context(),
+					"code_review",
+					payload,
+				)
+				if err != nil {
+					errnie.Error(err)
+					return
+				}
+				errnie.Debug(fmt.Sprintf("Process result: %v", result))
+			}()
+		}
 
 		return ctx.SendStatus(fiber.StatusOK)
 	}

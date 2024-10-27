@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/favicon"
 	"github.com/gofiber/fiber/v3/middleware/static"
+	"github.com/theapemachine/amsh/ai/system"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/comms"
@@ -27,6 +30,7 @@ type HTTPS struct {
 	app         *fiber.App
 	queue       *twoface.Queue
 	slackEvents *comms.Events
+	arch        *system.Architecture
 }
 
 /*
@@ -34,6 +38,12 @@ NewHTTPS creates a new HTTPS service, configures the mapping to internal service
 from the config file, and sets up fiber (v3) to serve TLS requests.
 */
 func NewHTTPS() *HTTPS {
+	// Initialize the architecture
+	arch, err := system.NewArchitecture(context.Background(), "amsh")
+	if err != nil {
+		errnie.Error(err)
+		return nil
+	}
 
 	return &HTTPS{
 		app: fiber.New(fiber.Config{
@@ -45,6 +55,7 @@ func NewHTTPS() *HTTPS {
 			JSONDecoder:   json.Unmarshal,
 		}),
 		slackEvents: comms.NewEvents(),
+		arch:        arch, // Add the architecture
 	}
 }
 
@@ -93,6 +104,12 @@ func handler(f http.HandlerFunc) http.Handler {
 }
 
 func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
+	// Add architecture check
+	if https.arch == nil {
+		errnie.Error(fmt.Errorf("architecture not initialized"))
+		return
+	}
+
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		errnie.Error(err)
@@ -115,19 +132,29 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			// Create a new message and place it on the queue
+			// Create a new message
 			message := data.New(utils.NewName(), "task", "managing", msg)
 			message.Poke("chain", "websocket")
 
-			https.queue.PubCh <- *message
+			// Start discussion process
+			result, err := https.arch.ProcessManager.HandleProcess(
+				r.Context(),
+				"discussion",
+				string(msg),
+			)
+			if err != nil {
+				errnie.Error(err)
+				continue
+			}
 
-			// Send an acknowledgment back to the client
-			response := []byte("Prompt received and queued for processing")
-			err = wsutil.WriteServerMessage(conn, op, response)
+			// Send response back through websocket
+			err = wsutil.WriteServerMessage(conn, op, []byte(fmt.Sprintf("%v", result)))
 			if err != nil {
 				errnie.Error(err)
 				break
 			}
+
+			https.queue.PubCh <- *message
 		}
 	}()
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -28,29 +29,50 @@ func IsValidRole(role string) bool {
 	return false
 }
 
-// AssignmentTool handles assigning workloads to teams
+// IsValidProcess checks if a process exists in the configuration
+func IsValidProcess(process string) bool {
+	processes := viper.GetStringMap("ai.setups.marvin.processes")
+	_, exists := processes[process]
+	return exists
+}
+
+// GetProcessPrompt retrieves the process prompt from configuration
+func GetProcessPrompt(process string) string {
+	return viper.GetString(fmt.Sprintf("ai.setups.marvin.processes.%s", process))
+}
+
+// AssignmentTool handles assigning workloads to teams and processes
 func AssignmentTool(ctx context.Context, args map[string]interface{}) (string, error) {
 	// Get the required parameters
-	role, ok := args["role"].(string)
+	teamName, ok := args["team"].(string)
 	if !ok {
-		return "", fmt.Errorf("role parameter is required")
+		return "", fmt.Errorf("team parameter is required")
 	}
 
-	// Validate the role exists
-	if !IsValidRole(role) {
-		return "", fmt.Errorf("invalid role: %s", role)
-	}
-
-	// Get the workload parameter but don't validate it yet
-	_, ok = args["workload"].(string)
+	process, ok := args["process"].(string)
 	if !ok {
-		return "", fmt.Errorf("workload parameter is required")
+		return "", fmt.Errorf("process parameter is required")
 	}
 
-	// Get the team manager from context but don't use it yet
-	if _, ok := ctx.Value("team").(types.TeamManager); !ok {
+	// Validate the process exists
+	if !IsValidProcess(process) {
+		return "", fmt.Errorf("invalid process: %s", process)
+	}
+
+	// Get the team manager from context
+	teamManager, ok := ctx.Value("team").(types.TeamManager)
+	if !ok {
 		return "", fmt.Errorf("team manager not found in context")
 	}
 
-	return fmt.Sprintf("Successfully validated role %s for assignment", role), nil
+	// Get the team
+	team, err := teamManager.GetTeam(teamName)
+	if err != nil {
+		return "", fmt.Errorf("failed to find team %s: %w", teamName, err)
+	}
+	if team == nil {
+		return "", fmt.Errorf("team not found: %s", teamName)
+	}
+
+	return fmt.Sprintf("Successfully assigned process %s to team %s", process, teamName), nil
 }
