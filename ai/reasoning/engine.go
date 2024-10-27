@@ -183,6 +183,8 @@ func (e *Engine) deriveConclusion(ctx context.Context, premise types.LogicalExpr
 		return types.LogicalExpression{}, ctx.Err()
 	default:
 		switch strategy.Name {
+		case "deductive":
+			return e.applyDeductiveReasoning(premise)
 		case "pattern_analysis":
 			return e.applyPatternAnalysis(premise)
 		case "word_decomposition":
@@ -284,9 +286,9 @@ func (e *Engine) calculateConfidence(premise, conclusion types.LogicalExpression
 	// Account for uncertainty in the reasoning chain
 	confidence *= (1 - e.Uncertainty)
 
-	// Penalize if conclusion has too many operands (complexity penalty)
-	if len(conclusion.Operands) > len(premise.Operands) {
-		confidence *= 0.9
+	// Adjust based on verifications if any
+	if len(premise.Verifications) > 0 {
+		confidence = e.adjustConfidence(confidence, premise.Verifications)
 	}
 
 	// Normalize to [0,1]
@@ -436,4 +438,36 @@ func (e *Engine) generateStepWithStrategy(ctx context.Context, problem string, c
 	step.Confidence = e.calculateConfidence(premise, conclusion, strategy)
 
 	return step, nil
+}
+
+// ProcessReasoning processes the input and returns a reasoning chain
+func (e *Engine) ProcessReasoning(ctx context.Context, input string) (*types.ReasoningChain, error) {
+	chain := &types.ReasoningChain{}
+
+	// Generate initial step
+	initialStep, err := e.generateInitialStep(ctx, input, chain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate initial step: %w", err)
+	}
+	chain.Steps = append(chain.Steps, initialStep)
+
+	// Continue generating steps until we reach a conclusion or max steps
+	for i := 1; i < e.MaxSteps; i++ {
+		if e.hasReachedConclusion(chain) {
+			break
+		}
+
+		step, err := e.GenerateStep(ctx, input, chain)
+		if err != nil {
+			return chain, fmt.Errorf("failed to generate step %d: %w", i, err)
+		}
+		chain.Steps = append(chain.Steps, step)
+	}
+
+	// Validate the final chain
+	if err := e.Validator.ValidateChain(chain); err != nil {
+		return chain, fmt.Errorf("chain validation failed: %w", err)
+	}
+
+	return chain, nil
 }

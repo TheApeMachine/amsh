@@ -29,13 +29,6 @@ type ReasoningStep struct {
 	Verifications       []VerificationStep
 }
 
-// LogicalExpression represents a formal logic structure
-type LogicalExpression struct {
-	Operation  LogicalOperation
-	Operands   []interface{}
-	Confidence float64
-}
-
 type LogicalOperation string
 
 const (

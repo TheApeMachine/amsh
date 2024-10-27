@@ -33,7 +33,14 @@ func runTest(cmd *cobra.Command, args []string) error {
 	// Create a new team and get agents
 	team := ai.NewTeam(toolset)
 	researcher := team.GetResearcher()
+	if researcher == nil {
+		return fmt.Errorf("failed to get researcher agent")
+	}
+
 	analyst := team.GetAnalyst()
+	if analyst == nil {
+		return fmt.Errorf("failed to get analyst agent")
+	}
 
 	// Initialize the LLM provider
 	llm := provider.NewOpenAI(
@@ -123,49 +130,59 @@ func runTest(cmd *cobra.Command, args []string) error {
 		adaptedStrategy, err := learningAdapter.AdaptStrategy(cmd.Context(), baseStrategy, state)
 		if err != nil {
 			log.Printf("Strategy adaptation warning: %v", err)
+			continue
 		}
 
-		// Convert types.MetaStrategy to reasoning.MetaStrategy for the meta reasoner
-		reasoningStrategy := reasoning.MetaStrategy{
-			Name:        adaptedStrategy.Name,
-			Priority:    adaptedStrategy.Priority,
-			Resources:   adaptedStrategy.Resources,
-			Constraints: adaptedStrategy.Constraints,
+		// Send riddle to researcher
+		if err := researcher.ReceiveMessage(riddle); err != nil {
+			log.Printf("Error sending riddle to researcher: %v", err)
+			continue
 		}
-		metaReasoner.RegisterStrategy(reasoningStrategy)
 
-		// Research phase
-		researcher.SetState(types.StateWorking)
-		researchResult, err := researcher.ExecuteTask()
+		// Get research findings
+		findings, err := researcher.ExecuteTask()
 		if err != nil {
 			log.Printf("Research error: %v", err)
+			continue
 		}
-		log.Printf("\nResearch findings:\n%s", researchResult)
+		log.Printf("\nResearch findings:\n%s", findings)
 
-		// Reasoning phase with type conversion
-		typesChain := &types.ReasoningChain{}
-		for step := 0; step < 3; step++ {
-			reasoningStep, err := engine.GenerateStep(cmd.Context(), researchResult, typesChain)
-			if err != nil {
-				log.Printf("Reasoning step %d error: %v", step, err)
-				continue
+		// Process reasoning chain
+		chain, err := engine.ProcessReasoning(cmd.Context(), riddle)
+		if err != nil {
+			log.Printf("Error processing reasoning chain: %v", err)
+			continue
+		}
+		if chain == nil {
+			log.Printf("Error: nil reasoning chain")
+			continue
+		}
+
+		// Convert reasoning chain for analyst
+		typesChain := &types.ReasoningChain{
+			Steps: make([]types.ReasoningStep, len(chain.Steps)),
+		}
+
+		for i, step := range chain.Steps {
+			typesChain.Steps[i] = types.ReasoningStep{
+				Strategy:   step.Strategy,
+				Confidence: step.Confidence,
 			}
-
-			typesChain.Steps = append(typesChain.Steps, reasoningStep)
-			log.Printf("\nReasoning Step %d:", step+1)
-			log.Printf("Strategy: %s", reasoningStep.Strategy.Name)
-			log.Printf("Confidence: %.2f", reasoningStep.Confidence)
+			log.Printf("\nReasoning Step %d:", i+1)
+			log.Printf("Strategy: %s", step.Strategy)
+			log.Printf("Confidence: %.2f", step.Confidence)
 		}
 
-		// Analysis phase
-		analyst.SetState(types.StateWorking)
+		// Send reasoning chain to analyst
 		if err := analyst.ReceiveMessage(fmt.Sprintf("%v", typesChain)); err != nil {
 			log.Printf("Error passing reasoning chain to analyst: %v", err)
+			continue
 		}
 
 		solution, err := analyst.ExecuteTask()
 		if err != nil {
 			log.Printf("Analysis error: %v", err)
+			continue
 		}
 		log.Printf("\nProposed Solution:\n%s", solution)
 

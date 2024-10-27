@@ -57,3 +57,11 @@ type ToolsetManager interface {
 	GetToolsForRole(role string) map[string]Tool
 	RegisterToolHandler(name string, handler ToolHandler) error
 }
+
+// LogicalExpression represents a logical statement or operation
+type LogicalExpression struct {
+	Operation     LogicalOperation
+	Operands      []interface{}
+	Confidence    float64
+	Verifications []VerificationStep
+}
