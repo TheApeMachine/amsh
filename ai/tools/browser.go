@@ -3,13 +3,15 @@ package tools
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"log"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/go-rod/stealth"
 	"github.com/spf13/cast"
 	"github.com/theapemachine/amsh/ai/types"
 )
@@ -62,10 +64,10 @@ func (b *Browser) SetProxy(proxyURL string) error {
 	return nil
 }
 
-// StartSession initializes a new browsing session with enhanced options
+// StartSession initializes a new browsing session with stealth mode
 func (b *Browser) StartSession() error {
 	l := launcher.New().
-		Headless(true).
+		Headless(false).
 		Set("disable-web-security", "").
 		Set("disable-setuid-sandbox", "").
 		Set("no-sandbox", "")
@@ -83,6 +85,13 @@ func (b *Browser) StartSession() error {
 		ControlURL(url).
 		MustConnect()
 
+	// Create a new stealth page instead of regular page
+	page, err := stealth.Page(b.Instance)
+	if err != nil {
+		return fmt.Errorf("failed to create stealth page: %w", err)
+	}
+	b.page = page
+
 	// Enable stealth mode and network interception
 	b.Instance.MustIgnoreCertErrors(true)
 
@@ -91,10 +100,10 @@ func (b *Browser) StartSession() error {
 
 // Navigate goes to a URL and waits for the page to load
 func (b *Browser) Navigate(url string) error {
-	var err error
-	b.page, err = b.Instance.Page(proto.TargetCreateTarget{URL: url})
+	// Instead of creating a new page, use the existing stealth page
+	err := b.page.Navigate(url)
 	if err != nil {
-		return fmt.Errorf("failed to create page: %w", err)
+		return fmt.Errorf("failed to navigate: %w", err)
 	}
 
 	err = b.page.WaitLoad()
@@ -264,6 +273,10 @@ func (b *Browser) Screenshot(selector string, filepath string) error {
 			Format:      proto.PageCaptureScreenshotFormatPng,
 			FromSurface: true,
 		})
+
+		if err != nil {
+			return fmt.Errorf("failed to capture screenshot: %w", err)
+		}
 	} else {
 		// Capture specific element
 		el, err := b.page.Element(selector)
@@ -271,13 +284,12 @@ func (b *Browser) Screenshot(selector string, filepath string) error {
 			return fmt.Errorf("failed to find element for screenshot: %w", err)
 		}
 		img, err = el.Screenshot(proto.PageCaptureScreenshotFormatPng, 1)
+		if err != nil {
+			return fmt.Errorf("failed to capture screenshot: %w", err)
+		}
 	}
 
-	if err != nil {
-		return fmt.Errorf("failed to capture screenshot: %w", err)
-	}
-
-	err = ioutil.WriteFile(filepath, img, 0644)
+	err = os.WriteFile(filepath, img, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to save screenshot: %w", err)
 	}
@@ -464,4 +476,32 @@ func getStringArg(args map[string]interface{}, key string, defaultValue string) 
 		return defaultValue, nil
 	}
 	return cast.ToStringE(value)
+}
+
+// TestStealth checks if our stealth configuration is working
+func (b *Browser) TestStealth() error {
+	// Navigate to the bot detection test site
+	if err := b.Navigate("https://bot.sannysoft.com"); err != nil {
+		return fmt.Errorf("failed to navigate to test site: %w", err)
+	}
+
+	// Wait for results to load
+	if err := b.WaitForElement("#broken-image-dimensions.passed", 10*time.Second); err != nil {
+		return fmt.Errorf("failed to load test results: %w", err)
+	}
+
+	// Extract and log results
+	results, err := b.Extract("table")
+	if err != nil {
+		return fmt.Errorf("failed to extract results: %w", err)
+	}
+
+	log.Printf("Stealth Test Results:\n%s", results)
+
+	// Optionally save a screenshot
+	if err := b.Screenshot("", "stealth_test.png"); err != nil {
+		log.Printf("Failed to save screenshot: %v", err)
+	}
+
+	return nil
 }
