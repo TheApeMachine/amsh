@@ -66,9 +66,6 @@ func NewArchitecture(ctx context.Context, name string) (*Architecture, error) {
 
 	// Initialize toolset first as it's needed by agents
 	toolset := ai.NewToolset()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize toolset: %w", err)
-	}
 
 	// Initialize the agent manager
 	agentManager := ai.GetAgentManager()

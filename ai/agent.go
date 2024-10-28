@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
@@ -32,21 +31,12 @@ type Agent struct {
 	Buffer       *Buffer                                                                  `json:"buffer"`
 	Tools        map[string]types.Tool                                                    `json:"tools"`
 	Messages     chan string                                                              `json:"-"`
-	Metrics      *AgentMetrics                                                            `json:"-"`
 	Capabilities map[string]func(context.Context, map[string]interface{}) (string, error) `json:"-"`
 
 	ctx      context.Context    `json:"-"`
 	cancel   context.CancelFunc `json:"-"`
 	provider provider.Provider  `json:"-"`
 	mu       sync.RWMutex       `json:"-"`
-}
-
-type AgentMetrics struct {
-	successRate   float64
-	responseTime  time.Duration
-	taskCount     int64
-	lastOptimized time.Time
-	mu            sync.RWMutex
 }
 
 // NewAgent creates a new agent with the given parameters
@@ -62,7 +52,6 @@ func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools
 		Buffer:       NewBuffer(systemPrompt, userPrompt),
 		Tools:        tools,
 		Messages:     make(chan string, 100),
-		Metrics:      &AgentMetrics{},
 		Capabilities: make(map[string]func(context.Context, map[string]interface{}) (string, error)),
 		ctx:          ctx,
 		cancel:       cancel,
