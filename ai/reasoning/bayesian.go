@@ -211,8 +211,8 @@ func parentStateProbability(state ParentState) float64 {
 	return prob
 }
 
-// Helper function to serialize ParentState
-func serializeParentState(state ParentState) string {
+// SerializeParentState converts a ParentState to its string representation
+func SerializeParentState(state ParentState) string {
 	keys := make([]string, 0, len(state.States))
 	for k := range state.States {
 		keys = append(keys, k)

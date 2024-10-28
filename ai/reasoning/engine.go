@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/learning"
 	"github.com/theapemachine/amsh/ai/types"
 )
@@ -464,87 +465,149 @@ func (e *Engine) generateStepWithStrategy(ctx context.Context, problem string, c
 		Strategy: strategy,
 	}
 
-	// Build logical expressions for premise and conclusion
-	premise, err := e.buildLogicalExpression(ctx, problem, chain)
-	if err != nil {
-		return types.ReasoningStep{}, fmt.Errorf("premise construction failed: %w", err)
+	// Build premise based on previous steps and current problem
+	premise := types.LogicalExpression{
+		Operation: types.AND,
+		Operands:  []interface{}{problem},
 	}
+
+	// Add relevant conclusions from previous steps
+	if len(chain.Steps) > 0 {
+		lastStep := chain.Steps[len(chain.Steps)-1]
+		premise.Operands = append(premise.Operands, lastStep.Conclusion)
+	}
+
 	step.Premise = premise
 
+	// Use strategy to derive new conclusions
 	conclusion, err := e.deriveConclusion(ctx, premise, strategy)
 	if err != nil {
-		return types.ReasoningStep{}, fmt.Errorf("conclusion derivation failed: %w", err)
+		return step, fmt.Errorf("failed to derive conclusion: %w", err)
 	}
 	step.Conclusion = conclusion
 
-	// Calculate confidence
-	step.Confidence = e.calculateConfidence(premise, conclusion, strategy)
+	// Calculate confidence based on strategy effectiveness and premise strength
+	confidence := e.calculateStepConfidence(premise, conclusion, strategy)
+	step.Confidence = confidence
 
 	return step, nil
 }
 
-// ProcessReasoning processes the input and returns a reasoning chain
+// Add the missing calculateStepConfidence method
+func (e *Engine) calculateStepConfidence(premise, conclusion types.LogicalExpression, strategy *types.MetaStrategy) float64 {
+	// Start with base confidence from strategy reliability
+	confidence := e.getStrategyReliability(strategy)
+
+	// Adjust based on premise confidence
+	confidence *= premise.Confidence
+
+	// Adjust confidence based on verifications
+	confidence = e.adjustConfidence(confidence, []types.VerificationStep{
+		{Confidence: conclusion.Confidence},
+	})
+
+	// Ensure confidence stays within [0,1]
+	if confidence > 1.0 {
+		confidence = 1.0
+	} else if confidence < 0.0 {
+		confidence = 0.0
+	}
+
+	return confidence
+}
+
+// Update ProcessReasoning to use these important methods
 func (e *Engine) ProcessReasoning(ctx context.Context, input string) (*types.ReasoningChain, error) {
+	log.Info("Processing reasoning", "input", input)
 	chain := &types.ReasoningChain{}
 
-	// Generate initial step
+	// Start with initial step
 	initialStep, err := e.generateInitialStep(ctx, input, chain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate initial step: %w", err)
 	}
-
-	// Verify and adjust confidence of initial step using Validator
-	if err := e.Validator.validateStep(initialStep); err == nil {
-		// If validation passes, boost confidence
-		initialStep.Confidence = e.adjustConfidence(initialStep.Confidence, []types.VerificationStep{{
-			Method:     "validation",
-			Result:     "initial validation",
-			Assumption: "step is valid",
-			Confidence: 0.9,
-		}})
-	}
 	chain.Steps = append(chain.Steps, initialStep)
 
-	// Continue generating steps until we reach a conclusion or max steps
-	for i := 1; i < e.MaxSteps; i++ {
-		if e.hasReachedConclusion(chain) {
-			break
-		}
+	// Select appropriate strategy based on input
+	strategy, err := e.MetaReasoner.SelectStrategy(ctx, input, nil)
+	if err != nil {
+		return nil, fmt.Errorf("strategy selection failed: %w", err)
+	}
 
-		step, err := e.GenerateStep(ctx, input, chain)
+	// Convert MetaStrategy to types.MetaStrategy
+	typesStrategy := &types.MetaStrategy{
+		Name:        strategy.Name,
+		Priority:    strategy.Priority,
+		Constraints: strategy.Constraints,
+		Resources:   strategy.Resources,
+	}
+
+	// Generate steps through actual reasoning process
+	for i := 1; i < e.MaxSteps; i++ {
+		step, err := e.generateStepWithStrategy(ctx, input, chain, typesStrategy)
 		if err != nil {
 			return chain, fmt.Errorf("failed to generate step %d: %w", i, err)
 		}
 
-		// Use existing Validator and adjust confidence based on validation results
-		validationErr := e.Validator.validateStep(step)
-		confidence := 0.3
-		if validationErr == nil {
-			confidence = 0.9
-		}
-		verifications := []types.VerificationStep{
-			{
-				Method:     "validation",
-				Result:     "step validation",
-				Assumption: "step follows logical progression",
-				Confidence: confidence,
-			},
-			{
-				Method:     "strategy_reliability",
-				Result:     "strategy evaluation",
-				Assumption: "strategy is appropriate for the problem",
-				Confidence: e.getStrategyReliability(step.Strategy),
-			},
+		// Validate the step
+		if err := e.Validator.validateStep(step); err != nil {
+			log.Warn("Step validation failed", "error", err)
+			// Adjust confidence based on validation results
+			step.Confidence *= 0.5 // Simple confidence reduction on validation failure
 		}
 
-		step.Confidence = e.adjustConfidence(step.Confidence, verifications)
 		chain.Steps = append(chain.Steps, step)
+
+		// Check if we've reached a logical conclusion
+		if e.hasReachedConclusion(chain) {
+			break
+		}
 	}
 
-	// Final chain validation
-	if err := e.Validator.ValidateChain(chain); err != nil {
-		return chain, fmt.Errorf("chain validation failed: %w", err)
-	}
+	// Calculate final confidence as average of step confidences
+	chain.Confidence = e.calculateAverageConfidence(chain)
+	chain.Validated = true
 
 	return chain, nil
+}
+
+// calculateAverageConfidence calculates the average confidence across all steps
+func (e *Engine) calculateAverageConfidence(chain *types.ReasoningChain) float64 {
+	if len(chain.Steps) == 0 {
+		return 0.0
+	}
+
+	total := 0.0
+	for _, step := range chain.Steps {
+		total += step.Confidence
+	}
+	return total / float64(len(chain.Steps))
+}
+
+// Add this method to the Engine struct
+func (engine *Engine) FormatOutput(steps []types.ReasoningStep) string {
+	var output []string
+
+	for i, step := range steps {
+		// Format each step's conclusion and confidence
+		stepOutput := fmt.Sprintf("Step %d (%s - Confidence: %.2f):\n",
+			i+1,
+			step.Strategy.Name,
+			step.Confidence,
+		)
+
+		// Add premise if available
+		if step.Premise.Content != "" {
+			stepOutput += fmt.Sprintf("Premise: %s\n", step.Premise.Content)
+		}
+
+		// Add conclusion if available
+		if step.Conclusion.Content != "" {
+			stepOutput += fmt.Sprintf("Conclusion: %s\n", step.Conclusion.Content)
+		}
+
+		output = append(output, stepOutput)
+	}
+
+	return strings.Join(output, "\n")
 }

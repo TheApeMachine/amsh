@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/log"
 )
 
 // Plan represents a hierarchical execution plan
@@ -88,6 +90,7 @@ func NewPlanner() *Planner {
 
 // CreatePlan creates a new hierarchical plan
 func (p *Planner) CreatePlan(ctx context.Context, req CreatePlanRequest) (*Plan, error) {
+	log.Info("Creating plan", "name", req.Name)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -96,7 +97,13 @@ func TestLearningAdapter(t *testing.T) {
 				Reliability: 0.8,
 			}
 
-			keywords := extractKeywords(pattern)
+			prvdr := provider.NewRandomProvider(map[string]string{
+				"openai":    os.Getenv("OPENAI_API_KEY"),
+				"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
+				"google":    os.Getenv("GOOGLE_API_KEY"),
+				"cohere":    os.Getenv("CLAUDE_API_KEY"),
+			})
+			keywords := extractKeywords(pattern, prvdr)
 
 			Convey("Then it should return relevant keywords", func() {
 				So(keywords, ShouldNotBeEmpty)
@@ -215,7 +222,13 @@ func TestLearningAdapter(t *testing.T) {
 				Reliability: 0.8,
 			}
 
-			adaptedStrategy := adapter.applyPattern(strategy, pattern)
+			prvdr := provider.NewRandomProvider(map[string]string{
+				"openai":    os.Getenv("OPENAI_API_KEY"),
+				"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
+				"google":    os.Getenv("GOOGLE_API_KEY"),
+				"cohere":    os.Getenv("CLAUDE_API_KEY"),
+			})
+			adaptedStrategy := adapter.applyPattern(strategy, pattern, prvdr)
 
 			Convey("Then it should create an adapted strategy", func() {
 				So(adaptedStrategy, ShouldNotBeNil)

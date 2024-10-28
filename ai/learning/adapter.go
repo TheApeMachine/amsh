@@ -3,9 +3,11 @@ package learning
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -24,7 +26,13 @@ func (la *LearningAdapter) AdaptStrategy(ctx context.Context, strategy *types.Me
 	pattern, score := la.experienceBank.GetBestPattern(state, strategy.Constraints)
 	if pattern != nil && score > 0.7 { // Threshold for using learned patterns
 		// Adapt strategy based on learned pattern
-		return la.applyPattern(strategy, pattern), nil
+		prvdr := provider.NewRandomProvider(map[string]string{
+			"openai":    os.Getenv("OPENAI_API_KEY"),
+			"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
+			"google":    os.Getenv("GOOGLE_API_KEY"),
+			"cohere":    os.Getenv("CLAUDE_API_KEY"),
+		})
+		return la.applyPattern(strategy, pattern, prvdr), nil
 	}
 	return strategy, nil
 }
@@ -45,7 +53,7 @@ func (la *LearningAdapter) RecordStrategyExecution(strategy *types.MetaStrategy,
 	la.experienceBank.RecordExperience(exp)
 }
 
-func (la *LearningAdapter) applyPattern(strategy *types.MetaStrategy, pattern *Pattern) *types.MetaStrategy {
+func (la *LearningAdapter) applyPattern(strategy *types.MetaStrategy, pattern *Pattern, provider provider.Provider) *types.MetaStrategy {
 	// Create a new strategy with learned optimizations
 	adaptedStrategy := *strategy // Create a copy
 
@@ -53,7 +61,7 @@ func (la *LearningAdapter) applyPattern(strategy *types.MetaStrategy, pattern *P
 	adaptedStrategy.Priority = int(float64(strategy.Priority) * pattern.Reliability)
 
 	// Add learned keywords
-	adaptedStrategy.Keywords = append(adaptedStrategy.Keywords, extractKeywords(pattern)...)
+	adaptedStrategy.Keywords = append(adaptedStrategy.Keywords, extractKeywords(pattern, provider)...)
 
 	return &adaptedStrategy
 }
@@ -90,11 +98,33 @@ func calculateConfidenceGain(chain *types.ReasoningChain) float64 {
 	return finalConfidence - initialConfidence
 }
 
-func extractKeywords(pattern *Pattern) []string {
+func extractKeywords(pattern *Pattern, prvdr provider.Provider) []string {
+	// Create a context for the operation
+	ctx := context.Background()
 
-	cleanedKeywords := make([]string, 0)
+	// Prepare the message to send to the LLM
+	message := provider.Message{
+		Role:    "system",
+		Content: fmt.Sprintf("Extract keywords from the following pattern: %v", pattern),
+	}
 
-	return cleanedKeywords
+	// Call the LLM to generate a response
+	response, err := prvdr.GenerateSync(ctx, []provider.Message{message})
+	if err != nil {
+		// Handle error appropriately
+		fmt.Println("Error generating keywords:", err)
+		return nil
+	}
+
+	// Assume the response is a comma-separated list of keywords
+	keywords := strings.Split(response, ",")
+
+	// Clean up whitespace around keywords
+	for i, keyword := range keywords {
+		keywords[i] = strings.TrimSpace(keyword)
+	}
+
+	return keywords
 }
 
 func buildPatternPrompt(pattern *Pattern) string {

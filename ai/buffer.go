@@ -3,7 +3,6 @@ package ai
 import (
 	"fmt"
 
-	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/provider"
 )
 
@@ -66,8 +65,6 @@ func (b *Buffer) GetMessages() []provider.Message {
 
 	// Add conversation history
 	messages = append(messages, b.messages...)
-
-	log.Info("Messages", "messages", messages)
 
 	return messages
 }

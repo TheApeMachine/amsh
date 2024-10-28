@@ -37,9 +37,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 	go func() {
 		defer close(events)
 
-		// Initial debug logging
-		log.Info("Starting Anthropic generation", "messages", messages)
-
 		// Parse the user's message from JSON
 		var userMsg struct {
 			Text string `json:"text"`
@@ -50,8 +47,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 			return
 		}
 
-		log.Info("Extracted user message", "text", userMsg.Text)
-
 		// Create the messages array with the user's message
 		processedMessages := []Message{
 			{
@@ -59,8 +54,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 				Content: userMsg.Text,
 			},
 		}
-
-		log.Info("Processed messages", "messages", processedMessages)
 
 		// Prepare the request parameters
 		params := anthropic.MessageNewParams{
@@ -77,8 +70,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 			}})
 		}
 
-		log.Info("Sending request to Anthropic", "params", params)
-
 		stream := a.client.Messages.NewStreaming(ctx, params)
 		message := anthropic.Message{}
 
@@ -86,7 +77,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 
 		for stream.Next() {
 			event := stream.Current()
-			log.Debug("Received event from Anthropic", "event", event)
 
 			err := message.Accumulate(event)
 			if err != nil {
@@ -98,7 +88,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 			switch event := event.AsUnion().(type) {
 			case anthropic.ContentBlockDeltaEvent:
 				if event.Delta.Text != "" {
-					log.Debug("Sending token", "content", event.Delta.Text)
 					events <- Event{Type: EventToken, Content: event.Delta.Text}
 				}
 			case anthropic.MessageStopEvent:

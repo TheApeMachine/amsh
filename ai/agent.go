@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/charmbracelet/log"
+	"github.com/theapemachine/amsh/ai/learning"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/ai/reasoning"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -33,15 +36,24 @@ type Agent struct {
 	Messages     chan string                                                              `json:"-"`
 	Capabilities map[string]func(context.Context, map[string]interface{}) (string, error) `json:"-"`
 
-	ctx      context.Context    `json:"-"`
-	cancel   context.CancelFunc `json:"-"`
-	provider provider.Provider  `json:"-"`
-	mu       sync.RWMutex       `json:"-"`
+	ctx        context.Context           `json:"-"`
+	cancel     context.CancelFunc        `json:"-"`
+	provider   provider.Provider         `json:"-"`
+	mu         sync.RWMutex              `json:"-"`
+	outputChan chan provider.Event       `json:"-"`
+	reasoner   *reasoning.Engine         `json:"-"`
+	learner    *learning.LearningAdapter `json:"-"`
 }
 
-// NewAgent creates a new agent with the given parameters
-func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools map[string]types.Tool, provider provider.Provider) *Agent {
+// NewAgent creates a new agent with integrated reasoning and learning
+func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools map[string]types.Tool, prvdr provider.Provider) *Agent {
+	log.Info("Creating new agent", "id", id, "role", role)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Create reasoning engine for this agent
+	validator := reasoning.NewValidator(reasoning.NewKnowledgeBase())
+	metaReasoner := reasoning.NewMetaReasoner()
+	reasoner := reasoning.NewEngine(validator, metaReasoner)
 
 	return &Agent{
 		ID:           id,
@@ -52,10 +64,13 @@ func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools
 		Buffer:       NewBuffer(systemPrompt, userPrompt),
 		Tools:        tools,
 		Messages:     make(chan string, 100),
+		outputChan:   make(chan provider.Event, 100),
 		Capabilities: make(map[string]func(context.Context, map[string]interface{}) (string, error)),
 		ctx:          ctx,
 		cancel:       cancel,
-		provider:     provider,
+		provider:     prvdr,
+		reasoner:     reasoner,
+		learner:      learning.NewLearningAdapter(),
 	}
 }
 
@@ -95,6 +110,7 @@ func (a *Agent) GetBuffer() *Buffer {
 
 // ReceiveMessage adds a message to the agent's message queue and buffer
 func (a *Agent) ReceiveMessage(message string) error {
+	log.Info("Receiving message", "agent", a.ID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -125,6 +141,7 @@ func (a *Agent) Shutdown() {
 }
 
 func (a *Agent) Update(userMessages string) {
+	log.Info("Updating agent", "agent", a.ID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Buffer.AddMessage("user", userMessages)
@@ -139,66 +156,76 @@ func (a *Agent) GetContext() string {
 
 // GetTools returns the agent's available tools
 func (a *Agent) GetTools() map[string]types.Tool {
+	log.Info("Getting tools", "agent", a.ID)
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.Tools
 }
 
-func (a *Agent) ExecuteTaskStream() <-chan provider.Event {
-	responseChan := make(chan provider.Event)
+// ExecuteTaskStream now properly handles streaming responses
+func (agent *Agent) ExecuteTaskStream() <-chan provider.Event {
+	log.Info("Executing task stream", "agent", agent.ID)
+	agent.mu.Lock()
+	agent.State = types.StateWorking
+	agent.mu.Unlock()
 
 	go func() {
-		defer close(responseChan)
+		defer close(agent.outputChan)
+		defer func() {
+			agent.mu.Lock()
+			agent.State = types.StateDone
+			agent.mu.Unlock()
+		}()
 
-		for event := range a.provider.Generate(a.ctx, a.Buffer.GetMessages()) {
-			fmt.Print(event)
-			responseChan <- event
+		messages := agent.Buffer.GetMessages()
+		for event := range agent.provider.Generate(agent.ctx, messages) {
+			select {
+			case <-agent.ctx.Done():
+				return
+			case agent.outputChan <- event:
+				// Successfully sent event
+			}
 		}
 	}()
 
-	return responseChan
+	return agent.outputChan
 }
 
-// ExecuteTask performs the agent's assigned task and returns the result
-func (a *Agent) ExecuteTask() (string, error) {
-	if a.provider == nil {
-		return "", fmt.Errorf("provider not set for agent %s", a.ID)
+// ExecuteTask now uses reasoning and learning
+func (agent *Agent) ExecuteTask() (string, error) {
+	log.Info("Executing task", "agent", agent.ID)
+	if agent.provider == nil {
+		return "", fmt.Errorf("provider not set for agent %s", agent.ID)
 	}
 
-	a.SetState(types.StateWorking)
+	agent.SetState(types.StateWorking)
 
 	// Get messages from buffer
-	bufferMsgs := a.Buffer.GetMessages()
-	messages := make([]provider.Message, 0, len(bufferMsgs))
+	messages := agent.Buffer.GetMessages()
 
-	// Convert Buffer messages to Provider messages
-	for _, msg := range bufferMsgs {
-		messages = append(messages, provider.Message{
-			Role:    msg.Role,
-			Content: msg.Content,
-		})
-	}
-
-	// Ensure we have messages to process
-	if len(messages) == 0 {
-		a.SetState(types.StateIdle)
-		return "", fmt.Errorf("no messages to process for agent %s", a.ID)
-	}
-
-	// Use the streaming interface and collect the results
+	// First, get the LLM's response
 	var result string
-	for event := range a.provider.Generate(a.ctx, messages) {
+	for event := range agent.provider.Generate(agent.ctx, messages) {
 		if event.Error != nil {
-			a.SetState(types.StateIdle)
-			return "", fmt.Errorf("task execution failed: %w", event.Error)
+			return "", event.Error
 		}
 		result += event.Content
 	}
 
-	// Add the response to the buffer
-	a.Buffer.AddMessage("assistant", result)
+	// Optionally use reasoning to validate/enhance the response
+	if agent.reasoner != nil {
+		chain, err := agent.reasoner.ProcessReasoning(agent.ctx, result)
+		if err == nil { // Only use reasoning result if successful
+			result = agent.reasoner.FormatOutput(chain.Steps)
+			// Record the outcome for learning
+			agent.learner.RecordStrategyExecution(chain.Steps[len(chain.Steps)-1].Strategy, chain)
+		}
+	}
 
-	a.SetState(types.StateDone)
+	// Add the response to the buffer
+	agent.Buffer.AddMessage("assistant", result)
+
+	agent.SetState(types.StateDone)
 	return result, nil
 }
 
@@ -207,4 +234,15 @@ func (a *Agent) GetMessageCount() int {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return len(a.Messages)
+}
+
+// HasCapability checks if the agent has a specific capability
+func (agent *Agent) HasCapability(capability string) bool {
+	log.Info("Checking agent capability", "agent", agent.ID, "capability", capability)
+	agent.mu.RLock()
+	defer agent.mu.RUnlock()
+
+	// Check if the agent has this capability in its tools
+	_, hasCapability := agent.Tools[capability]
+	return hasCapability
 }

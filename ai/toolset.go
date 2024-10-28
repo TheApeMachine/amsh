@@ -224,3 +224,18 @@ func (ts *Toolset) AddTool(name string, tool types.Tool) error {
 	ts.tools[name] = tool
 	return nil
 }
+
+// GetToolsForCapability returns tools that match a specific capability
+func (ts *Toolset) GetToolsForCapability(capability string) map[string]types.Tool {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
+
+	// For now, treat capability same as role
+	tools := make(map[string]types.Tool)
+	for _, toolName := range ts.GetRoleTools(capability) {
+		if tool, err := ts.GetTool(toolName); err == nil {
+			tools[toolName] = tool
+		}
+	}
+	return tools
+}

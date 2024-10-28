@@ -66,6 +66,7 @@ type LogicalExpression struct {
 	Operands      []interface{}
 	Confidence    float64
 	Verifications []VerificationStep
+	Content       string // Add this field to store the textual content
 }
 
 // Team represents a group of agents working together

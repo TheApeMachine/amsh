@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sort"
 	"strings"
+
+	"github.com/theapemachine/amsh/ai/types"
 )
 
 var (
@@ -18,9 +20,37 @@ type MetaReasoner struct {
 }
 
 func NewMetaReasoner() *MetaReasoner {
-	return &MetaReasoner{
+	mr := &MetaReasoner{
 		resources: make(map[string]float64),
+		strategies: []MetaStrategy{
+			{
+				Name:     "task_analysis",
+				Priority: 1,
+				Resources: map[string]float64{
+					"compute": 1.0,
+				},
+			},
+			{
+				Name:     "team_formation",
+				Priority: 2,
+				Resources: map[string]float64{
+					"compute": 1.0,
+				},
+			},
+			{
+				Name:     "basic_analysis",
+				Priority: 0,
+				Resources: map[string]float64{
+					"compute": 0.5,
+				},
+			},
+		},
 	}
+
+	// Initialize default resources
+	mr.resources["compute"] = 10.0
+
+	return mr
 }
 
 func (m *MetaReasoner) SelectStrategy(ctx context.Context, problem string, constraints []string) (*MetaStrategy, error) {
@@ -151,4 +181,11 @@ func (m *MetaReasoner) InitializeResources(resources map[string]float64) {
 // AddStrategy is an alias for RegisterStrategy
 func (m *MetaReasoner) AddStrategy(strategy MetaStrategy) {
 	m.RegisterStrategy(strategy)
+}
+
+// AddDefaultStrategies adds a set of default strategies to the meta reasoner
+func (mr *MetaReasoner) AddDefaultStrategies(strategies []types.MetaStrategy) {
+	for _, strategy := range strategies {
+		mr.strategies = append(mr.strategies, MetaStrategy(strategy))
+	}
 }
