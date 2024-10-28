@@ -25,7 +25,7 @@ const (
 // Tool represents a function that can be called by an AI agent
 type Tool interface {
 	Execute(ctx context.Context, args map[string]interface{}) (string, error)
-	GetSchema() ToolSchema
+	Description() string
 }
 
 // ToolSchema defines the structure and requirements of a tool

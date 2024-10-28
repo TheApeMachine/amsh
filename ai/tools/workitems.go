@@ -11,6 +11,7 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
 	wi "github.com/microsoft/azure-devops-go-api/azuredevops/v7/workitemtracking"
 	"github.com/spf13/cast"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/types"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -18,6 +19,10 @@ import (
 type WorkItemsTool struct {
 	client      wi.Client
 	projectName string
+}
+
+func (w *WorkItemsTool) Description() string {
+	return viper.GetViper().GetString("tools.workitems")
 }
 
 func NewWorkItemsTool(ctx context.Context) (*WorkItemsTool, error) {

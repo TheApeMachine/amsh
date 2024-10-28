@@ -73,8 +73,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 		stream := a.client.Messages.NewStreaming(ctx, params)
 		message := anthropic.Message{}
 
-		log.Info("Starting stream processing")
-
 		for stream.Next() {
 			event := stream.Current()
 
@@ -91,7 +89,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 					events <- Event{Type: EventToken, Content: event.Delta.Text}
 				}
 			case anthropic.MessageStopEvent:
-				log.Info("Stream completed")
 				events <- Event{Type: EventDone}
 				return
 			}
@@ -102,8 +99,6 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 			events <- Event{Type: EventError, Error: err}
 			return
 		}
-
-		log.Info("Generation completed")
 	}()
 
 	return events

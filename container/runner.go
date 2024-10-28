@@ -52,7 +52,7 @@ Returns:
   - out: A channel for receiving output from the container
   - err: Any error encountered during the process
 */
-func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []string, username, customMessage string) (io.WriteCloser, io.ReadCloser, error) {
+func (r *Runner) RunContainer(ctx context.Context, imageName string) (io.WriteCloser, io.ReadCloser, error) {
 	// Create host config with volume mount
 	hostConfig := &container.HostConfig{
 		Mounts: []mount.Mount{
@@ -72,13 +72,12 @@ func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []strin
 	// Create the container with specific configuration
 	resp, err := r.client.ContainerCreate(ctx, &container.Config{
 		Image:     imageName,
-		Cmd:       cmd,
+		Cmd:       []string{"/bin/sh"},
 		Tty:       true,
 		OpenStdin: true,
 		StdinOnce: false,
 		Env: []string{
-			fmt.Sprintf("USERNAME=%s", username),
-			fmt.Sprintf("CUSTOM_MESSAGE=%s", customMessage),
+			fmt.Sprintf("USERNAME=%s", "user"),
 		},
 		WorkingDir: "/tmp/workspace", // Set the working directory to the mounted volume
 	}, hostConfig, nil, nil, "")
@@ -103,7 +102,7 @@ func (r *Runner) RunContainer(ctx context.Context, imageName string, cmd []strin
 		return nil, nil, err
 	}
 
-	fmt.Printf("Container %s is running with user %s\n", resp.ID, username)
+	fmt.Printf("Container %s is running\n", resp.ID)
 
 	r.containerID = resp.ID
 

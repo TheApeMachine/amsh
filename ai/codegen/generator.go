@@ -121,11 +121,8 @@ func (g *Generator) Generate(ctx context.Context, req CodeRequest) (*GenerationR
 	}
 
 	// Start the container
-	cmd := []string{"/bin/bash"}
-	username := "codegen"
-	customMsg := "Code generation environment ready"
 
-	in, out, err := g.runner.RunContainer(ctx, imageName, cmd, username, customMsg)
+	in, out, err := g.runner.RunContainer(ctx, imageName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}

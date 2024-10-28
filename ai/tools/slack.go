@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/slack-go/slack"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -14,11 +15,18 @@ type SlackTool struct {
 	api *slack.Client
 }
 
-func NewSlackTool() *SlackTool {
+func NewSlackTool() (*SlackTool, error) {
 	botToken := os.Getenv("BOT_TOKEN")
+	if botToken == "" {
+		return nil, errors.New("BOT_TOKEN is not set")
+	}
 	return &SlackTool{
 		api: slack.New(botToken),
-	}
+	}, nil
+}
+
+func (s *SlackTool) Description() string {
+	return viper.GetViper().GetString("tools.slack")
 }
 
 func (s *SlackTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {

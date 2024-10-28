@@ -2,7 +2,6 @@ package comms
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -114,7 +113,7 @@ func (srv *Events) handleMessage(ev *slackevents.MessageEvent) {
 				return
 			}
 
-			srv.arch.ProcessManager.HandleProcess(context.Background(), string(buf))
+			srv.arch.ProcessManager.Execute(string(buf))
 		}
 	}
 }

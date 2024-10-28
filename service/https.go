@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -40,9 +39,9 @@ from the config file, and sets up fiber (v3) to serve TLS requests.
 */
 func NewHTTPS() *HTTPS {
 	// Initialize the architecture
-	arch, err := system.NewArchitecture(context.Background(), "amsh")
-	if err != nil {
-		errnie.Error(err)
+	arch := system.NewArchitecture("amsh")
+	if arch == nil {
+		errnie.Error(fmt.Errorf("architecture not initialized"))
 		return nil
 	}
 
@@ -138,10 +137,7 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 			message.Poke("chain", "websocket")
 
 			// Start discussion process
-			resultChan := https.arch.ProcessManager.HandleProcess(
-				r.Context(),
-				string(msg),
-			)
+			resultChan := https.arch.ProcessManager.Execute(string(msg))
 			if resultChan == nil {
 				errnie.Error(fmt.Errorf("process result channel not found"))
 				continue
@@ -149,7 +145,7 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 
 			// Send response back through websocket
 			for result := range resultChan {
-				berrt.Error("Stream", wsutil.WriteServerMessage(conn, op, result))
+				berrt.Error("Stream", wsutil.WriteServerMessage(conn, op, []byte(result.Content)))
 				break
 			}
 

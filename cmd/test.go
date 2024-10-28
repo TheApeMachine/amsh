@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/spf13/cobra"
+	"github.com/theapemachine/amsh/ai/system"
 	// Add this import
 )
 
@@ -21,6 +22,11 @@ var testCmd = &cobra.Command{
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
+	pm := system.NewProcessManager("marvin")
+	for event := range pm.Execute("How much money did Elvis pay to become owner of the moon?") {
+		fmt.Print(event.Content)
+	}
+
 	if err := deleteQdrantCollections(); err != nil {
 		log.Printf("Error deleting Qdrant collections: %v", err)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/go-rod/stealth"
 	"github.com/spf13/cast"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -52,6 +53,10 @@ func NewBrowser() *Browser {
 	return &Browser{
 		history: make([]BrowseAction, 0),
 	}
+}
+
+func (b *Browser) Description() string {
+	return viper.GetViper().GetString("tools.browser")
 }
 
 // SetProxy configures a proxy for the browser

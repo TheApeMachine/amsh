@@ -2,13 +2,15 @@ package ai
 
 import (
 	"context"
-	"fmt"
-	"sync"
+	"encoding/json"
+	"errors"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/log"
-	"github.com/theapemachine/amsh/ai/learning"
 	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/ai/reasoning"
 	"github.com/theapemachine/amsh/ai/types"
 )
 
@@ -26,223 +28,185 @@ const (
 
 // Agent represents an AI agent that can perform tasks and communicate with other agents
 type Agent struct {
-	ID           string                                                                   `json:"id"`
-	Role         types.Role                                                               `json:"role"`
-	State        types.AgentState                                                         `json:"state"`
-	Context      string                                                                   `json:"context"`
-	Task         string                                                                   `json:"task"`
-	Buffer       *Buffer                                                                  `json:"buffer"`
-	Tools        map[string]types.Tool                                                    `json:"tools"`
-	Messages     chan string                                                              `json:"-"`
-	Capabilities map[string]func(context.Context, map[string]interface{}) (string, error) `json:"-"`
-
-	ctx        context.Context           `json:"-"`
-	cancel     context.CancelFunc        `json:"-"`
-	provider   provider.Provider         `json:"-"`
-	mu         sync.RWMutex              `json:"-"`
-	outputChan chan provider.Event       `json:"-"`
-	reasoner   *reasoning.Engine         `json:"-"`
-	learner    *learning.LearningAdapter `json:"-"`
+	role         string
+	systemPrompt string
+	tools        map[string]types.Tool
+	provider     provider.Provider
+	buffer       *Buffer
+	state        AgentState
 }
 
 // NewAgent creates a new agent with integrated reasoning and learning
-func NewAgent(id string, role types.Role, systemPrompt, userPrompt string, tools map[string]types.Tool, prvdr provider.Provider) *Agent {
-	log.Info("Creating new agent", "id", id, "role", role)
-	ctx, cancel := context.WithCancel(context.Background())
+func NewAgent(role, systemPrompt string, tools map[string]types.Tool) *Agent {
+	var toolNames []string
 
-	// Create reasoning engine for this agent
-	validator := reasoning.NewValidator(reasoning.NewKnowledgeBase())
-	metaReasoner := reasoning.NewMetaReasoner()
-	reasoner := reasoning.NewEngine(validator, metaReasoner)
+	for key := range tools {
+		toolNames = append(toolNames, key)
+	}
+
+	if role != "orchestrator" {
+		log.Info("Creating new agent", "role", role, "systemPrompt", systemPrompt, "tools", strings.Join(toolNames, ", "))
+	}
 
 	return &Agent{
-		ID:           id,
-		Role:         role,
-		State:        types.StateIdle,
-		Context:      systemPrompt,
-		Task:         userPrompt,
-		Buffer:       NewBuffer(systemPrompt, userPrompt),
-		Tools:        tools,
-		Messages:     make(chan string, 100),
-		outputChan:   make(chan provider.Event, 100),
-		Capabilities: make(map[string]func(context.Context, map[string]interface{}) (string, error)),
-		ctx:          ctx,
-		cancel:       cancel,
-		provider:     prvdr,
-		reasoner:     reasoner,
-		learner:      learning.NewLearningAdapter(),
+		role:         role,
+		systemPrompt: systemPrompt,
+		tools:        tools,
+		buffer:       NewBuffer().AddMessage("system", systemPrompt),
+		provider: provider.NewRandomProvider(map[string]string{
+			"openai":    os.Getenv("OPENAI_API_KEY"),
+			"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
+			"google":    os.Getenv("GEMINI_API_KEY"),
+			"cohere":    os.Getenv("COHERE_API_KEY"),
+		}),
+		state: StateIdle,
 	}
 }
 
-// GetID returns the agent's unique identifier
-func (a *Agent) GetID() string {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.ID
-}
-
-// GetRole returns the agent's role
-func (a *Agent) GetRole() types.Role {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.Role
-}
-
-// GetState returns the agent's current state
-func (a *Agent) GetState() types.AgentState {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.State
-}
-
-// SetState updates the agent's state
-func (a *Agent) SetState(state types.AgentState) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.State = state
-}
-
-func (a *Agent) GetBuffer() *Buffer {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.Buffer
-}
-
-// ReceiveMessage adds a message to the agent's message queue and buffer
-func (a *Agent) ReceiveMessage(message string) error {
-	log.Info("Receiving message", "agent", a.ID)
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	// Add to buffer first
-	a.Buffer.AddMessage("user", message)
-
-	// Then try to add to channel
-	select {
-	case a.Messages <- message:
+func (agent *Agent) Execute(prompt string) <-chan provider.Event {
+	if agent.state != StateIdle {
+		log.Error("Agent is not idle", "role", agent.role)
 		return nil
-	default:
-		return fmt.Errorf("message queue full for agent %s", a.ID)
-	}
-}
-
-// Shutdown gracefully shuts down the agent
-func (a *Agent) Shutdown() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.cancel != nil {
-		a.cancel()
 	}
 
-	close(a.Messages)
-	a.Tools = nil
-	a.State = types.StateDone
-}
+	out := make(chan provider.Event)
+	ctx := context.Background()
 
-func (a *Agent) Update(userMessages string) {
-	log.Info("Updating agent", "agent", a.ID)
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.Buffer.AddMessage("user", userMessages)
-}
+	composedPrompt := []string{}
 
-// GetContext returns the agent's context
-func (a *Agent) GetContext() string {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.Context
-}
+	if agent.role != "orchestrator" {
+		composedPrompt = append(composedPrompt, "You have the following tools available to you:")
 
-// GetTools returns the agent's available tools
-func (a *Agent) GetTools() map[string]types.Tool {
-	log.Info("Getting tools", "agent", a.ID)
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.Tools
-}
+		for key, value := range agent.tools {
+			_ = key
+			composedPrompt = append(composedPrompt, value.Description())
+		}
 
-// ExecuteTaskStream now properly handles streaming responses
-func (agent *Agent) ExecuteTaskStream() <-chan provider.Event {
-	log.Info("Executing task stream", "agent", agent.ID)
-	agent.mu.Lock()
-	agent.State = types.StateWorking
-	agent.mu.Unlock()
+		composedPrompt = append(composedPrompt, "You will be able to iterate on your response until you are finished. When you are finished, just say 'task complete'.")
+	}
+
+	composedPrompt = append(composedPrompt, prompt)
+	agent.buffer.AddMessage("user", strings.Join(composedPrompt, "\n\n"))
+	log.Info("Executing agent", "role", agent.role, "prompt", strings.Join(composedPrompt, "\n\n"))
 
 	go func() {
-		defer close(agent.outputChan)
-		defer func() {
-			agent.mu.Lock()
-			agent.State = types.StateDone
-			agent.mu.Unlock()
-		}()
+		defer close(out)
+		agent.state = StateWorking
+		agent.buffer.AddMessage("user", prompt)
+		iteration := 0
 
-		messages := agent.Buffer.GetMessages()
-		for event := range agent.provider.Generate(agent.ctx, messages) {
-			select {
-			case <-agent.ctx.Done():
-				return
-			case agent.outputChan <- event:
-				// Successfully sent event
+		for agent.state == StateWorking {
+			iteration++
+			agent.buffer.AddMessage("assistant", "[CURRENT ITERATION: "+strconv.Itoa(iteration)+"]\n\nYour previous work is shown above.\n\n")
+			// Send the agent's messages to the provider to generate new output
+			var accumulator string
+			for event := range agent.provider.Generate(ctx, agent.buffer.GetMessages()) {
+				accumulator += event.Content
+				out <- event
+			}
+
+			if agent.role == "orchestrator" {
+				agent.state = StateDone
+				break
+			}
+
+			if isTaskComplete(accumulator) {
+				log.Info("Task complete", "role", agent.role)
+				agent.state = StateDone
+			}
+
+			agent.buffer.AddMessage("assistant", accumulator)
+			// Parse and check for tool call instructions
+			if shouldCallTool(accumulator) {
+				toolResult, err := agent.callTool(ctx, accumulator)
+				if err != nil {
+					log.Error("Tool call failed", "error", err)
+					out <- provider.Event{
+						Type:    provider.EventError,
+						Content: err.Error(),
+					}
+				} else {
+					// Log and buffer the tool's output as part of the agent's reasoning
+					agent.buffer.AddMessage("tool_output", toolResult)
+					out <- provider.Event{Content: toolResult}
+				}
 			}
 		}
 	}()
 
-	return agent.outputChan
+	return out
 }
 
-// ExecuteTask now uses reasoning and learning
-func (agent *Agent) ExecuteTask() (string, error) {
-	log.Info("Executing task", "agent", agent.ID)
-	if agent.provider == nil {
-		return "", fmt.Errorf("provider not set for agent %s", agent.ID)
-	}
+// shouldCallTool checks if a specific tool call is indicated in the agent's output
+func shouldCallTool(content string) bool {
+	// Example logic to detect tool call instruction in output
+	return strings.Contains(content, `"tool_call"`)
+}
 
-	agent.SetState(types.StateWorking)
+// isTaskComplete checks if the agent believes the task is complete
+func isTaskComplete(content string) bool {
+	// Example logic to determine if the task is complete
+	return strings.Contains(strings.ToLower(content), `"task complete"`)
+}
 
-	// Get messages from buffer
-	messages := agent.Buffer.GetMessages()
+// callTool executes the tool based on the agent's parsed instruction from its output
+func (agent *Agent) callTool(ctx context.Context, content string) (string, error) {
+	// Extract any items between Markdown json blocks
+	toolCalls := extractToolCalls(content)
 
-	// First, get the LLM's response
-	var result string
-	for event := range agent.provider.Generate(agent.ctx, messages) {
-		if event.Error != nil {
-			return "", event.Error
+	var results []string
+
+	for _, toolCall := range toolCalls {
+		// Parse tool name and arguments from content
+		toolName, args, err := parseToolCall(toolCall)
+		if err != nil {
+			log.Error("Failed to parse tool call", "error", err)
+			continue
 		}
-		result += event.Content
-	}
 
-	// Optionally use reasoning to validate/enhance the response
-	if agent.reasoner != nil {
-		chain, err := agent.reasoner.ProcessReasoning(agent.ctx, result)
-		if err == nil { // Only use reasoning result if successful
-			result = agent.reasoner.FormatOutput(chain.Steps)
-			// Record the outcome for learning
-			agent.learner.RecordStrategyExecution(chain.Steps[len(chain.Steps)-1].Strategy, chain)
+		// Fetch the tool from the agent's available tools
+		tool, ok := agent.tools[toolName]
+		if !ok {
+			log.Error("Tool not found", "tool", toolName)
+			continue
 		}
+
+		// Execute the tool and return the result
+		toolResult, err := tool.Execute(ctx, args)
+		if err != nil {
+			log.Error("Failed to execute tool", "tool", toolName, "error", err)
+			continue
+		}
+
+		results = append(results, toolName+" results:\n\n"+toolResult)
 	}
 
-	// Add the response to the buffer
-	agent.Buffer.AddMessage("assistant", result)
-
-	agent.SetState(types.StateDone)
-	return result, nil
+	return strings.Join(results, "\n\n"), nil
 }
 
-// GetMessageCount returns the number of messages processed by this agent
-func (a *Agent) GetMessageCount() int {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return len(a.Messages)
+// extractToolCalls extracts any items between Markdown json blocks
+func extractToolCalls(content string) []string {
+	// Use regex to find all json blocks in the content
+	re := regexp.MustCompile("```json(.*?)```")
+	return re.FindAllString(content, -1)
 }
 
-// HasCapability checks if the agent has a specific capability
-func (agent *Agent) HasCapability(capability string) bool {
-	log.Info("Checking agent capability", "agent", agent.ID, "capability", capability)
-	agent.mu.RLock()
-	defer agent.mu.RUnlock()
+// parseToolCall parses the tool call details from the agent's output content
+func parseToolCall(content string) (toolName string, args map[string]interface{}, err error) {
+	// Standardized structure for tool calls
+	var toolCall struct {
+		Tool      string                 `json:"tool"`
+		Arguments map[string]interface{} `json:"arguments"`
+	}
 
-	// Check if the agent has this capability in its tools
-	_, hasCapability := agent.Tools[capability]
-	return hasCapability
+	// Attempt to unmarshal the content directly into the standard structure
+	if err := json.Unmarshal([]byte(content), &toolCall); err != nil {
+		return "", nil, errors.New("failed to parse tool call: invalid JSON structure")
+	}
+
+	return toolCall.Tool, toolCall.Arguments, nil
+}
+
+func (agent *Agent) GetState() AgentState {
+	return agent.state
 }

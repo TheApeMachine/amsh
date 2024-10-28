@@ -144,6 +144,7 @@ require (
 	github.com/charmbracelet/log v0.4.0
 	github.com/cohere-ai/cohere-go/v2 v2.12.0
 	github.com/docker/docker v27.2.0+incompatible
+	github.com/docker/engine-api v0.4.0
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/go-rod/rod v0.116.2
