@@ -42,10 +42,7 @@ type ProcessManager struct {
 NewProcessManager sets up the process manager, and the Agent that will act as the sequencer.
 */
 func NewProcessManager(arch *Architecture) *ProcessManager {
-	v := viper.GetViper()
 	toolset := ai.NewToolset()
-
-	// Initialize the team and core components
 	team := ai.NewTeam(toolset)
 	kb := reasoning.NewKnowledgeBase()
 	validator := reasoning.NewValidator(kb)
@@ -94,25 +91,29 @@ func NewProcessManager(arch *Architecture) *ProcessManager {
 	learner := learning.NewLearningAdapter()
 	planner := planning.NewPlanner()
 
-	// Initialize the recruiter agent
-	recruiter := ai.NewAgent(
-		utils.NewName(),
-		"recruiter",
-		v.GetString("ai.setups.marvin.system"),
-		v.GetString("ai.setups.marvin.agents.recruiter.role"),
-		toolset.GetToolsForRole("recruiter"),
-		provider.NewRandomProvider(map[string]string{
-			"openai":    os.Getenv("OPENAI_API_KEY"),
-			"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
-			"google":    os.Getenv("GOOGLE_API_KEY"),
-			"cohere":    os.Getenv("COHERE_API_KEY"),
-		}),
-	)
-
+	agents := makeAgents("recruiter", "analyst", "reasoner", "sequencer")
 	return &ProcessManager{
 		arch:      arch,
 		processes: make(map[string]string),
-		sequencer: ai.NewAgent(
+		sequencer: agents["sequencer"],
+		recruiter: agents["recruiter"],
+		analyst:   agents["analyst"],
+		reasoner:  agents["reasoner"],
+		team:      team,
+		engine:    engine,
+		learner:   learner,
+		planner:   planner,
+		toolset:   toolset,
+	}
+}
+
+func makeAgents(roles ...string) map[string]*ai.Agent {
+	v := viper.GetViper()
+	toolset := ai.NewToolset()
+	agents := make(map[string]*ai.Agent)
+
+	for _, role := range roles {
+		agents[role] = ai.NewAgent(
 			utils.NewName(),
 			"sequencer",
 			v.GetString("ai.setups.marvin.system"),
@@ -124,40 +125,10 @@ func NewProcessManager(arch *Architecture) *ProcessManager {
 				"google":    os.Getenv("GOOGLE_API_KEY"),
 				"cohere":    os.Getenv("COHERE_API_KEY"),
 			}),
-		),
-		reasoner: ai.NewAgent(
-			utils.NewName(),
-			"reasoner",
-			v.GetString("ai.setups.marvin.system"),
-			v.GetString("ai.setups.marvin.agents.reasoner.role"),
-			toolset.GetToolsForRole("reasoner"),
-			provider.NewRandomProvider(map[string]string{
-				"openai":    os.Getenv("OPENAI_API_KEY"),
-				"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
-				"google":    os.Getenv("GOOGLE_API_KEY"),
-				"cohere":    os.Getenv("COHERE_API_KEY"),
-			}),
-		),
-		analyst: ai.NewAgent(
-			utils.NewName(),
-			"analyst",
-			v.GetString("ai.setups.marvin.system"),
-			v.GetString("ai.setups.marvin.agents.analyst.role"),
-			toolset.GetToolsForRole("analyst"),
-			provider.NewRandomProvider(map[string]string{
-				"openai":    os.Getenv("OPENAI_API_KEY"),
-				"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
-				"google":    os.Getenv("GOOGLE_API_KEY"),
-				"cohere":    os.Getenv("COHERE_API_KEY"),
-			}),
-		),
-		team:      team,
-		engine:    engine,
-		learner:   learner,
-		planner:   planner,
-		toolset:   toolset,
-		recruiter: recruiter,
+		)
 	}
+
+	return agents
 }
 
 func (pm *ProcessManager) createTeamForProcess(process *ai.Process) *ai.Team {
