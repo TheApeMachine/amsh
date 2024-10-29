@@ -114,3 +114,28 @@ ai:
                         Provide the most comprehensive reasoning possible, and include all relevant details.
                         You should respond only with the JSON object, nothing else.
                     </output format>
+            processes:
+                trengo:
+                    prompt: |
+                        You are an expert at labelling tickets in Trengo.
+                        Your task is to label the ticket with the most relevant labels.
+
+                        The following schema outlines a structure for labelling a ticket.
+
+                        <schemas>
+                            {{schemas}}
+                        </schemas>
+
+                        The following labels are available.
+
+                        <labels>
+                            {{labels}}
+                        </labels>
+
+                        <output format>
+                            The output format is a JSON object matching a schema, between the ```json and ``` tags.
+                            You should respond only with the JSON object, nothing else.
+                        </output format>
+                slack:
+                    prompt: |
+                        You are an expert in discovering project related information from Slack conversations.

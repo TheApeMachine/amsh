@@ -84,7 +84,7 @@ func (l *ListLabels) List(ctx context.Context) ([]Presenter, error) {
 		// First collect all the labels, making sure to take care of pagination.
 		if response, err = l.conn.Get(nextPageURL, client.Config{
 			Header: map[string]string{
-				"Authorization": "Bearer " + l.token,
+				"Authorization": "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiMWM0YjI1YTdhODA2MmQ3YWY5ZGZmYjkzZWMzODY5YzMyZTFkN2EzM2VmZDNkODQ5NjAyMWYxZGIzYmE3YWNkZWNlNmQ3YzYzZDg3ZGQ2ZTUiLCJpYXQiOjE3MzAxODc0OTEsIm5iZiI6MTczMDE4NzQ5MSwiZXhwIjo0ODU0MjM4NjkxLCJzdWIiOiI3MjI1OTYiLCJzY29wZXMiOltdLCJhZ2VuY3lfaWQiOjI3MzQ2OX0.iaDKmvL5IeDjFeIsSTwx2wFNAXv2-oo68XZXSTuwO52i-5aG0wrUuJuyLm2KNBSPeuwPEB44CrJrtBWgPsFuzw",
 				"Accept":        "application/json",
 			},
 		}); err != nil {

@@ -15,6 +15,6 @@ NewArchitecture creates a new instance of the specified architecture.
 func NewArchitecture(key string) *Architecture {
 	return &Architecture{
 		Name:           key,
-		ProcessManager: NewProcessManager(key),
+		ProcessManager: NewProcessManager(key, key),
 	}
 }

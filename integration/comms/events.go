@@ -19,16 +19,14 @@ type Events struct {
 	appToken string
 	botToken string
 	api      *slack.Client
-	arch     *system.Architecture
 }
 
-func NewEvents(arch *system.Architecture) *Events {
+func NewEvents() *Events {
 	botToken := os.Getenv("MARVIN_BOT_TOKEN")
 	return &Events{
 		appToken: os.Getenv("MARVIN_APP_TOKEN"),
 		botToken: botToken,
 		api:      slack.New(botToken),
-		arch:     arch,
 	}
 }
 
@@ -113,7 +111,13 @@ func (srv *Events) handleMessage(ev *slackevents.MessageEvent) {
 				return
 			}
 
-			srv.arch.ProcessManager.Execute(string(buf))
+			var accumulator string
+			pm := system.NewProcessManager("marvin", "slack")
+
+			for event := range pm.Execute(string(buf)) {
+				accumulator += event.Content
+				fmt.Print(event.Content)
+			}
 		}
 	}
 }

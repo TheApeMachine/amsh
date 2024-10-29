@@ -21,7 +21,7 @@ var testCmd = &cobra.Command{
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
-	pm := system.NewProcessManager("marvin")
+	pm := system.NewProcessManager("marvin", "test")
 	// tests := viper.GetViper().GetStringSlice("ai.tests")
 
 	for event := range pm.Execute("Think of the next big innovation in AI that nobody has thought of yet.") {

@@ -10,50 +10,45 @@ import (
 )
 
 type Planning struct {
-	Goals          []Goal           `json:"goals" jsonschema:"required; description:The goals to achieve"`
-	Teams          []Team           `json:"teams" jsonschema:"required; description:The teams to use to achieve the goals"`
-	Dependencies   []Dependency     `json:"dependencies" jsonschema:"description:The dependencies between steps"`
-	FinalSynthesis []FinalSynthesis `json:"final_synthesis" jsonschema:"required; description:The final synthesis of the goals, once all goals have been achieved"`
-	FinalResponse  string           `json:"final_response" jsonschema:"description:The final response to the user, once all goals have been achieved"`
+	Epics []Epic `json:"epics" jsonschema:"description:The epics detected in the user's message"`
 }
 
-type Goal struct {
-	Goal  string `json:"goal" jsonschema:"required; description:The goal to achieve"`
-	Steps []Step `json:"steps" jsonschema:"required; description:The steps to achieve the goal"`
+type Epic struct {
+	Title       string   `json:"title" jsonschema:"required; description:The title of the epic"`
+	Description string   `json:"description" jsonschema:"required; description:The Gherkin description of the epic"`
+	Tags        []Tag    `json:"tags" jsonschema:"required; description:The tags to use for the epic"`
+	Stories     []Story  `json:"stories" jsonschema:"required; description:The stories that are part of the epic"`
+	Assignee    Assignee `json:"assignee" jsonschema:"required; description:The assignee of the epic"`
+	Links       []Link   `json:"links" jsonschema:"required; description:The links to use for the epic"`
 }
 
-type Team struct {
-	TeamKey string  `json:"team_key" jsonschema:"required; description:The key of the team"`
-	Agents  []Agent `json:"agents" jsonschema:"required; description:The agents in the team"`
+type Story struct {
+	Title       string   `json:"title" jsonschema:"required; description:The title of the story"`
+	Description string   `json:"description" jsonschema:"required; description:The Ghekrin description of the story"`
+	Tags        []Tag    `json:"tags" jsonschema:"required; description:The tags to use for the story"`
+	Tasks       []Task   `json:"tasks" jsonschema:"required; description:The tasks that are part of the story"`
+	Assignee    Assignee `json:"assignee" jsonschema:"required; description:The assignee of the story"`
 }
 
-type Agent struct {
-	RoleKey      string `json:"role_key" jsonschema:"required; description:The key of the role"`
-	SystemPrompt string `json:"system_prompt" jsonschema:"required; description:A comprehensive system prompt for the agent"`
+type Task struct {
+	Title       string   `json:"title" jsonschema:"required; description:The title of the task"`
+	Description string   `json:"description" jsonschema:"required; description:The Gherkin description of the task"`
+	Tags        []Tag    `json:"tags" jsonschema:"required; description:The tags to use for the task"`
+	Assignee    Assignee `json:"assignee" jsonschema:"required; description:The assignee of the task"`
 }
 
-type Dependency struct {
-	FromStep string `json:"from_step" jsonschema:"required; description:The key of the step that must be completed before the to step"`
-	ToStep   string `json:"to_step" jsonschema:"required; description:The key of the step that must be completed after the from step"`
+type Tag struct {
+	Tag string `json:"tag" jsonschema:"required; description:The tag to use for the epic or story"`
 }
 
-type Step struct {
-	StepKey  string     `json:"step_key" jsonschema:"required; description:The key of the step"`
-	TeamKey  string     `json:"team_key" jsonschema:"required; description:The key of the team"`
-	Prompt   string     `json:"prompt" jsonschema:"required; description:The prompt for the step"`
-	Inputs   []Artifact `json:"inputs" jsonschema:"description:The inputs for the step"`
-	Outputs  []Artifact `json:"outputs" jsonschema:"description:The outputs for the step"`
-	SubSteps []Step     `json:"sub_steps" jsonschema:"description:The sub-steps for the step"`
+type Assignee struct {
+	Username string `json:"username" jsonschema:"required; description:The username of the assignee of the task"`
 }
 
-type Artifact struct {
-	Key   string `json:"key" jsonschema:"description:The key of the artifact"`
-	Value string `json:"value" jsonschema:"description:The value of the artifact"`
-}
-
-type FinalSynthesis struct {
-	StepKeys           []string `json:"step_keys" jsonschema:"description:The keys of the steps that must be completed before the final synthesis"`
-	ConstructionMethod string   `json:"construction_method" jsonschema:"description:The method used to construct the final synthesis"`
+type Link struct {
+	FromID string `json:"from_id" jsonschema:"required; description:The ID of the link to use for the epic, story or task"`
+	ToID   string `json:"to_id" jsonschema:"required; description:The ID of the link to use for the epic, story or task"`
+	Type   string `json:"type" jsonschema:"required; description:The type of the link to use for the epic, story or task"`
 }
 
 func NewPlanning() *Planning {

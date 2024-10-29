@@ -30,7 +30,7 @@ services:
       - AZDO_PAT=${AZDO_PAT}
       - GITHUB_PAT=${GITHUB_PAT}
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
-      - TRENGO_API_KEY=${TRENGO_API_KEY}
+      - TRENGO_API_TOKEN=${TRENGO_API_TOKEN}
     build:
       context: ./
       dockerfile: Dockerfile

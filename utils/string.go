@@ -38,3 +38,7 @@ func NewName() string {
 	existingNames = append(existingNames, newName)
 	return newName
 }
+
+func StringPtr(s string) *string {
+	return &s
+}

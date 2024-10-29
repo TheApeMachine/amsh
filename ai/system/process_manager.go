@@ -2,7 +2,6 @@ package system
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -26,27 +25,22 @@ type ProcessManager struct {
 	toolset      *ai.Toolset
 	orchestrator *ai.Agent
 	extractor    *ai.Agent
+	process      process.Process
 }
 
 /*
 NewProcessManager sets up the process manager, and the Agent that will act as the sequencer.
 */
-func NewProcessManager(key string) *ProcessManager {
+func NewProcessManager(key, origin string) *ProcessManager {
 	log.Info("NewProcessManager", "key", key)
-	planning := process.NewPlanning()
 	toolset := ai.NewToolset()
 
 	return &ProcessManager{
 		key:     key,
 		toolset: toolset,
 		orchestrator: ai.NewAgent(
-			fmt.Sprintf("%s-orchestrator", key),
-			"orchestrator",
-			strings.ReplaceAll(
-				viper.GetString(fmt.Sprintf("ai.setups.%s.orchestration.prompt", key)),
-				"{{schemas}}",
-				planning.GenerateSchema(),
-			),
+			key, "orchestrator",
+			process.ProcessMap[origin].SystemPrompt(key),
 		),
 		extractor: ai.NewAgent(
 			fmt.Sprintf("%s-extractor", key),
@@ -57,6 +51,7 @@ func NewProcessManager(key string) *ProcessManager {
 				toolset.Schemas(),
 			),
 		),
+		process: process.ProcessMap[origin],
 	}
 }
 
@@ -76,55 +71,6 @@ func (pm *ProcessManager) Execute(incoming string) <-chan provider.Event {
 			accumulator += event.Content
 			out <- event
 		}
-
-		planning := process.NewPlanning().Extract(accumulator)
-
-		if planning == nil {
-			errnie.Error(errors.New("failed to extract planning"))
-			return
-		}
-
-		teams := map[string]*ai.Team{}
-
-		for _, teamConfig := range planning.Teams {
-			agents := map[string]*ai.Agent{}
-
-			for _, agentConfig := range teamConfig.Agents {
-				agents[agentConfig.RoleKey] = ai.NewAgent(
-					fmt.Sprintf("%s-%s", teamConfig.TeamKey, agentConfig.RoleKey),
-					agentConfig.RoleKey,
-					agentConfig.SystemPrompt,
-				)
-			}
-
-			teams[teamConfig.TeamKey] = ai.NewTeam(pm.key, teamConfig.TeamKey, agents)
-		}
-
-		for _, goal := range planning.Goals {
-			for _, step := range goal.Steps {
-				var teamAccumulator string
-
-				for event := range teams[step.TeamKey].Execute(step) {
-					teamAccumulator += event.Content
-					out <- event
-				}
-
-				var extractionAccumulator string
-
-				for event := range pm.extractor.Execute(teamAccumulator) {
-					extractionAccumulator += event.Content
-					out <- event
-				}
-
-				toolResult := pm.detectToolCalls(extractionAccumulator)
-
-				out <- provider.Event{
-					Type:    provider.EventToolCall,
-					Content: toolResult,
-				}
-			}
-		}
-
 	}()
 
 	return out

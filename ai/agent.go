@@ -32,7 +32,7 @@ type Agent struct {
 
 // NewAgent creates a new agent with integrated reasoning and learning
 func NewAgent(key, role, systemPrompt string) *Agent {
-	log.Info("NewAgent", "key", key, "role", role)
+	log.Info("NewAgent", "key", key, "role", role, "systemPrompt", systemPrompt)
 	return &Agent{
 		Name: fmt.Sprintf("%s-%s", key, role),
 		Role: role,
@@ -51,7 +51,7 @@ func NewAgent(key, role, systemPrompt string) *Agent {
 }
 
 func (agent *Agent) Execute(prompt string) <-chan provider.Event {
-	log.Info("executing agent", "agent", agent.Name)
+	log.Info("executing agent", "agent", agent.Name, "messages", agent.Buffer.GetMessages())
 	out := make(chan provider.Event)
 
 	agent.Buffer.AddMessage("user", strings.Join([]string{

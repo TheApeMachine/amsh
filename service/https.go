@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -13,8 +12,6 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/favicon"
 	"github.com/gofiber/fiber/v3/middleware/static"
-	"github.com/theapemachine/amsh/ai/system"
-	"github.com/theapemachine/amsh/berrt"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/comms"
@@ -28,7 +25,6 @@ to internal service endpoints.
 type HTTPS struct {
 	app         *fiber.App
 	slackEvents *comms.Events
-	arch        *system.Architecture
 }
 
 /*
@@ -37,12 +33,6 @@ from the config file, and sets up fiber (v3) to serve TLS requests.
 */
 func NewHTTPS() *HTTPS {
 	// Initialize the architecture
-	arch := system.NewArchitecture("amsh")
-	if arch == nil {
-		errnie.Error(fmt.Errorf("architecture not initialized"))
-		return nil
-	}
-
 	return &HTTPS{
 		app: fiber.New(fiber.Config{
 			CaseSensitive: true,
@@ -52,8 +42,7 @@ func NewHTTPS() *HTTPS {
 			JSONEncoder:   json.Marshal,
 			JSONDecoder:   json.Unmarshal,
 		}),
-		slackEvents: comms.NewEvents(arch),
-		arch:        arch, // Add the architecture
+		slackEvents: comms.NewEvents(),
 	}
 }
 
@@ -102,12 +91,6 @@ func handler(f http.HandlerFunc) http.Handler {
 }
 
 func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
-	// Add architecture check
-	if https.arch == nil {
-		errnie.Error(fmt.Errorf("architecture not initialized"))
-		return
-	}
-
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		errnie.Error(err)
@@ -120,7 +103,7 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 		defer conn.Close()
 
 		for {
-			msg, op, err := wsutil.ReadClientData(conn)
+			msg, _, err := wsutil.ReadClientData(conn)
 			if err != nil {
 				errnie.Error(err)
 				break
@@ -133,19 +116,6 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 			// Create a new message
 			message := data.New(utils.NewName(), "task", "managing", msg)
 			message.Poke("chain", "websocket")
-
-			// Start discussion process
-			resultChan := https.arch.ProcessManager.Execute(string(msg))
-			if resultChan == nil {
-				errnie.Error(fmt.Errorf("process result channel not found"))
-				continue
-			}
-
-			// Send response back through websocket
-			for result := range resultChan {
-				berrt.Error("Stream", wsutil.WriteServerMessage(conn, op, []byte(result.Content)))
-				break
-			}
 		}
 	}()
 }
