@@ -11,5 +11,11 @@ type Process interface {
 }
 
 var ProcessMap = map[string]Process{
-	"trengo": NewLabelling(),
+	"default": NewThinking(),
+	"surface": NewSurfaceAnalysis(),
+	"pattern": NewPatternAnalysis(),
+	"quantum": NewQuantumAnalysis(),
+	"time":    NewTimeAnalysis(),
+	"trengo":  NewLabelling(),
+	"slack":   NewPlanning(),
 }

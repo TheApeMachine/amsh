@@ -14,18 +14,18 @@ type Google struct {
 	maxTokens int
 }
 
-func NewGoogle(apiKey string, model string) (*Google, error) {
+func NewGoogle(apiKey string, model string) *Google {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
-		return nil, err
+		return nil
 	}
 
 	return &Google{
 		client:    client,
 		model:     model,
 		maxTokens: 2000,
-	}, nil
+	}
 }
 
 func (g *Google) Generate(ctx context.Context, messages []Message) <-chan Event {

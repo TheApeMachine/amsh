@@ -24,7 +24,7 @@ func runTest(cmd *cobra.Command, args []string) error {
 	pm := system.NewProcessManager("marvin", "test")
 	// tests := viper.GetViper().GetStringSlice("ai.tests")
 
-	for event := range pm.Execute("Think of the next big innovation in AI that nobody has thought of yet.") {
+	for event := range pm.Execute("How many times do we find the letter r in the word strawberry?") {
 		fmt.Print(event.Content)
 	}
 

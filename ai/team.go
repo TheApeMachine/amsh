@@ -56,8 +56,8 @@ func NewTeam(key, name string, agents map[string]*Agent) *Team {
 	}
 }
 
-func (team *Team) Execute(step process.Step) <-chan provider.Event {
-	log.Info("executing team", "team", team.Name, "step_key", step.StepKey)
+func (team *Team) Execute() <-chan provider.Event {
+	log.Info("executing team", "team", team.Name)
 	out := make(chan provider.Event)
 
 	go func() {
@@ -67,9 +67,6 @@ func (team *Team) Execute(step process.Step) <-chan provider.Event {
 
 		for event := range team.Reasoner.Execute(strings.Join([]string{
 			"<context>",
-			fmt.Sprintf("\tstep_key: %s", step.StepKey),
-			fmt.Sprintf("\tinputs: %v", step.Inputs),
-			fmt.Sprintf("\toutputs: %v", step.Outputs),
 			"</context>",
 			"",
 		}, "\n")) {
@@ -83,7 +80,6 @@ func (team *Team) Execute(step process.Step) <-chan provider.Event {
 			"</context>",
 			"",
 			"<task>",
-			fmt.Sprintf("\t%s", step.Prompt),
 			"</task>",
 		}, "\n")) {
 			accumulator += event.Content

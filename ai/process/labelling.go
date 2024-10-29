@@ -63,8 +63,11 @@ func (labelling *Labelling) ListLabels() Labels {
 		errnie.Error(err)
 	}
 
+	req.Header.Add("Authorization", fmt.Sprintf(
+		"Bearer %s", os.Getenv("TRENGO_API_TOKEN"),
+	))
 	req.Header.Add("accept", "application/json")
-	req.Header.Add("Authorization", "Bearer "+os.Getenv("TRENGO_API_TOKEN"))
+	req.Header.Add("content-type", "application/json")
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

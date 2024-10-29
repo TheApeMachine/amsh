@@ -3,7 +3,6 @@ package ai
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/log"
@@ -32,7 +31,7 @@ type Agent struct {
 
 // NewAgent creates a new agent with integrated reasoning and learning
 func NewAgent(key, role, systemPrompt string) *Agent {
-	log.Info("NewAgent", "key", key, "role", role, "systemPrompt", systemPrompt)
+	log.Info("NewAgent", "key", key, "role", role)
 	return &Agent{
 		Name: fmt.Sprintf("%s-%s", key, role),
 		Role: role,
@@ -40,18 +39,13 @@ func NewAgent(key, role, systemPrompt string) *Agent {
 			systemPrompt,
 			viper.GetString(fmt.Sprintf("ai.setups.%s.agent.prompt", key)),
 		}, "\n")),
-		provider: provider.NewRandomProvider(map[string]string{
-			"openai":    os.Getenv("OPENAI_API_KEY"),
-			"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
-			"google":    os.Getenv("GEMINI_API_KEY"),
-			"cohere":    os.Getenv("COHERE_API_KEY"),
-		}),
-		state: StateIdle,
+		provider: provider.NewBalancedProvider(),
+		state:    StateIdle,
 	}
 }
 
 func (agent *Agent) Execute(prompt string) <-chan provider.Event {
-	log.Info("executing agent", "agent", agent.Name, "messages", agent.Buffer.GetMessages())
+	log.Info("executing agent", "agent", agent.Name, "prompt", prompt)
 	out := make(chan provider.Event)
 
 	agent.Buffer.AddMessage("user", strings.Join([]string{

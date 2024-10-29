@@ -45,9 +45,13 @@ func (helpdesk *Helpdesk) LabelTicket(args string) {
 			"https://app.trengo.com/api/v2/tickets/%d/labels", out.TicketID,
 		)
 
-		req, _ := http.NewRequest("POST", url, bytes.NewBuffer(
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(
 			[]byte(fmt.Sprintf(`{"label_id": %d}`, labelID)),
 		))
+		if err != nil {
+			errnie.Error(err)
+			return
+		}
 
 		req.Header.Add("Authorization", fmt.Sprintf(
 			"Bearer %s", os.Getenv("TRENGO_API_TOKEN"),
@@ -55,10 +59,18 @@ func (helpdesk *Helpdesk) LabelTicket(args string) {
 		req.Header.Add("accept", "application/json")
 		req.Header.Add("content-type", "application/json")
 
-		res, _ := http.DefaultClient.Do(req)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			errnie.Error(err)
+			return
+		}
 
 		defer res.Body.Close()
-		body, _ := io.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			errnie.Error(err)
+			return
+		}
 
 		fmt.Println(string(body))
 	}

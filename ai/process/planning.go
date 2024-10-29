@@ -2,9 +2,12 @@ package process
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/invopop/jsonschema"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/berrt"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -89,6 +92,18 @@ func (planning *Planning) Unmarshal(buf []byte) *Planning {
 	}
 
 	return planning
+}
+
+func (planning *Planning) SystemPrompt(key string) string {
+	log.Info("SystemPrompt", "key", key)
+
+	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.slack.prompt", key))
+	prompt = strings.ReplaceAll(prompt, "{{schemas}}", planning.GenerateSchema())
+
+	request := NewRequest()
+	prompt = strings.ReplaceAll(prompt, "{{requests}}", request.GenerateSchema())
+
+	return prompt
 }
 
 func (planning *Planning) GenerateSchema() string {

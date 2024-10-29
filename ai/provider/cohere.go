@@ -16,7 +16,7 @@ type Cohere struct {
 	maxTokens int
 }
 
-func NewCohere(apiKey string, model string) (*Cohere, error) {
+func NewCohere(apiKey string, model string) *Cohere {
 	// Create client with proper API key configuration
 	client := cohereclient.NewClient(
 		cohereclient.WithToken(apiKey),
@@ -24,7 +24,7 @@ func NewCohere(apiKey string, model string) (*Cohere, error) {
 
 	// Validate that we have required parameters
 	if apiKey == "" {
-		return nil, fmt.Errorf("cohere: API key is required")
+		return nil
 	}
 	if model == "" {
 		model = "command" // Set default model if none specified
@@ -34,7 +34,7 @@ func NewCohere(apiKey string, model string) (*Cohere, error) {
 		client:    client,
 		model:     model,
 		maxTokens: 2000,
-	}, nil
+	}
 }
 
 func (c *Cohere) Generate(ctx context.Context, messages []Message) <-chan Event {
