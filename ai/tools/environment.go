@@ -9,29 +9,36 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/container"
+	"github.com/theapemachine/amsh/errnie"
 )
 
-type EnvironmentTool struct {
-	runner *container.Runner
+type Environment struct {
+	Command string `json:"command"`
+	runner  *container.Runner
 }
 
-func NewEnvironmentTool() (*EnvironmentTool, error) {
+func NewEnvironment() *Environment {
 	runner, err := container.NewRunner()
+
 	if err != nil {
-		return nil, err
+		errnie.Error(err)
+		return nil
 	}
-	return &EnvironmentTool{runner: runner}, nil
+
+	return &Environment{runner: runner}
 }
 
-// Description retrieves the description from the Viper configuration
-func (e *EnvironmentTool) Description() string {
-	return viper.GetViper().GetString("tools.environment")
+func (environment *Environment) Use(args map[string]any) string {
+	result, err := environment.Execute(context.Background(), args)
+	if err != nil {
+		errnie.Error(err)
+	}
+	return result
 }
 
 // Execute initializes a container environment and runs commands inside it
-func (e *EnvironmentTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+func (environment *Environment) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
 	// Retrieve container name from arguments
 	name, err := getStringArg(args, "name", "")
 	if err != nil || name == "" {
@@ -61,14 +68,14 @@ func (e *EnvironmentTool) Execute(ctx context.Context, args map[string]interface
 	}
 
 	// Run container and attach to it
-	stdin, stdout, err := e.runner.RunContainer(ctx, name)
+	stdin, stdout, err := environment.runner.RunContainer(ctx, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to start container: %w", err)
 	}
 	defer stdin.Close()
 
 	// Execute the command in the container
-	output, err := e.runCommandInContainer(ctx, stdin, stdout, cmd)
+	output, err := environment.runCommandInContainer(stdin, stdout, cmd)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute command in container: %w", err)
 	}
@@ -77,7 +84,7 @@ func (e *EnvironmentTool) Execute(ctx context.Context, args map[string]interface
 }
 
 // runCommandInContainer runs a command in the container and reads the output
-func (e *EnvironmentTool) runCommandInContainer(ctx context.Context, stdin io.WriteCloser, stdout io.ReadCloser, cmd []string) (string, error) {
+func (environment *Environment) runCommandInContainer(stdin io.WriteCloser, stdout io.ReadCloser, cmd []string) (string, error) {
 	command := []byte(fmt.Sprintf("%s\n", cmd))
 	if _, err := stdin.Write(command); err != nil {
 		return "", fmt.Errorf("failed to send command to container: %w", err)

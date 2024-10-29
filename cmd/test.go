@@ -11,7 +11,6 @@ import (
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/ai/system"
-	// Add this import
 )
 
 var testCmd = &cobra.Command{
@@ -23,7 +22,9 @@ var testCmd = &cobra.Command{
 
 func runTest(cmd *cobra.Command, args []string) error {
 	pm := system.NewProcessManager("marvin")
-	for event := range pm.Execute("How much money did Elvis pay to become owner of the moon?") {
+	// tests := viper.GetViper().GetStringSlice("ai.tests")
+
+	for event := range pm.Execute("Think of the next big innovation in AI that nobody has thought of yet.") {
 		fmt.Print(event.Content)
 	}
 

@@ -44,7 +44,10 @@ func (g *Google) Generate(ctx context.Context, messages []Message) <-chan Event 
 			parts = append(parts, content.Parts...) // Append the Parts from the Content
 		}
 
+		temp := float32(1.0)
+
 		model := g.client.GenerativeModel(g.model)
+		model.Temperature = &temp
 		iter := model.GenerateContentStream(ctx, parts...)
 
 		for {

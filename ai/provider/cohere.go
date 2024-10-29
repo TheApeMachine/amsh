@@ -51,10 +51,12 @@ func (c *Cohere) Generate(ctx context.Context, messages []Message) <-chan Event 
 		}
 
 		prompt := convertMessagesToCoherePrompt(messages)
+		temp := 1.0
 
 		stream, err := c.client.ChatStream(ctx, &cohere.ChatStreamRequest{
-			Message: prompt,
-			Model:   &c.model,
+			Message:     prompt,
+			Model:       &c.model,
+			Temperature: &temp,
 		})
 		if err != nil {
 			events <- Event{Type: EventError, Error: err}

@@ -46,3 +46,27 @@ export const sanitizeHTML = (str: string): string => {
     temp.textContent = str;
     return temp.innerHTML;
 }
+
+export function jsx(tag: string | Function, props: any, ...children: any[]) {
+    if (typeof tag === 'function') {
+        return tag({ ...props, children });
+    }
+
+    const element = document.createElement(tag);
+
+    for (const [name, value] of Object.entries(props || {})) {
+        if (name.startsWith('on') && typeof value === 'function') {
+            element.addEventListener(name.slice(2).toLowerCase(), value);
+        } else {
+            element.setAttribute(name, value);
+        }
+    }
+
+    for (const child of children) {
+        element.appendChild(
+            child instanceof Node ? child : document.createTextNode(child)
+        );
+    }
+
+    return element;
+}

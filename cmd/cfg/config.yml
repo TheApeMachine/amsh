@@ -12,507 +12,105 @@ neo4j:
     password: "securepassword"
 
 ai:
+    tests:
+        - How many times do we find the letter r in the word strawberry?
+        - Solve the riddle: In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight.
+        - |
+            Peter has 5 candles that are all the same length. He lights them all at the same time. After a while, he blows out the candles one after the other. Which of the five candles was the first one he has blown out?
+            Here is a figure of the five candles after they have been blown out. The number of = represents the length of the candle. Respond with the label of the candle that has been blown out first by Peter.
+            1) ====
+            2) =======
+            3) ========
+            4) =
+            5) ==
     max_context_tokens: 128000
     setups:
         marvin:
-            orchestration: |
-                You will receive an input that could be a user request, webhook event, or other form of instruction. Your goal is to analyze the input, organize the tasks, and create a structured execution plan that can be carried out by multiple teams.
+            orchestration:
+                prompt: |
+                    You are an expert at orchestrating complex tasks.
+                    Your task is to evaluate the current context and determine the best way to proceed.
 
-                1. **Analyze the input and categorize it**:
-                - Identify the type of input (e.g., 'user_prompt', 'webhook_event').
-                - Identify the origin of the input (e.g., 'user', 'slack', 'github', 'trengo', 'other').
-                - Determine the main task or goal implied by the input.
+                    The following schema outlines a structure for planning a process to achieve a goal.
 
-                2. **Divide the task into teams and plans**:
-                - Identify different aspects of the task that need to be handled separately, and assign each aspect to a team, which consists of one or more specialized agents.
-                - For each agent, construct a prompt to specialize its behavior, and assign any tools that the agent needs to accomplish its tasks.
-                - For each team, generate a high-level plan that includes the steps needed to accomplish the task.
-                - Each team must have a team lead, which will be responsible for coordinating the team's activities.
-                - Each step can have multiple substeps, which may further break down into additional substeps.
-                - Each step must have an agent assigned to it, which will be responsible for its execution.
+                    <schemas>
+                        {{schemas}}
+                    </schemas>
 
-                3. **Define step dependencies**:
-                - Specify dependencies both within the same team and across different teams.
-                - Dependencies should be specified using the IDs of the steps or substeps that need to be completed before others can begin.
+                    <output format>
+                        The output format is a JSON object matching a schema, between the ```json and ``` tags.
+                        Provide the most comprehensive plan possible, and include all relevant details, sub-steps, and inputs.
+                        You should respond only with the JSON object, nothing else.
+                    </output format>
+            extraction:
+                prompt: |
+                    You are an expert at detecting and extracting information from unstructured text.
+                    Your task is to evaluate the current context and extract any relevant information.
 
-                4. **Output the information in the following structured format**:
+                    The following schemas are eligible for extraction:
 
-                ```json
-                {
-                    "category": "<Category of the input, e.g., 'user_prompt', 'webhook_event'>",
-                    "origin": "<Origin of the input, e.g., 'user', 'slack', 'github', 'trengo', 'other'>",
-                    "main_goal": "<The high-level goal of the entire task>",
-                    "teams": [
-                        {
-                            "name": "<Team name>",
-                            "teamlead": "<Agent name of the team lead>",
-                            "agents": [
-                                {
-                                    "name": "<Agent name>",
-                                    "system_prompt": "<System prompt for the agent>",
-                                    "tools": [
-                                        "<Tool name>",
-                                        "<Tool name>"
-                                    ]
-                                }
-                            ],
-                            "plan": {
-                                "goal": "<The team's high-level goal>",
-                                "steps": [
-                                    {
-                                        "id": "<Unique step ID>",
-                                        "name": "<Name of the step>",
-                                        "prompt": "<User prompt for the agent to be assigned to this step>",
-                                        "inputs": "<Inputs required for this step>",
-                                        "agent": "<Agent to be assigned to this step>",
-                                        "substeps": [
-                                            {
-                                                "id": "<Unique substep ID>",
-                                                "name": "<Name of the substep>",
-                                                "prompt": "<User prompt for the agent to be assigned to this substep>",
-                                                "inputs": "<Inputs required for this substep>",
-                                                "agent": "<Agent to be assigned to this substep>",
-                                                "substeps": [ ... ] // Recursive structure for deeper levels of substeps
-                                            }
-                                        ],
-                                    }
-                                ]
-                            }
-                        }
-                    ],
-                    "cross_team_dependencies": [
-                        {
-                            "from": "<Step or substep ID in one team>",
-                            "to": "<Step or substep ID in another team>",
-                            "reason": "<Why this dependency exists>"
-                        }
-                    ],
-                    "final_synthesis": {
-                        "goal": "<High-level goal for the final synthesis>",
-                        "steps_to_combine_results": [
-                        {
-                            "id": "<ID of the synthesis step>",
-                            "prompt": "<User prompt for the agent to be assigned to this step>",
-                            "dependencies": [
-                                {
-                                    "from": "<ID of steps from different teams>",
-                                    "to": "<ID of the synthesis step>",
-                                    "reason": "<Why this dependency exists>"
-                                }
-                            ]
-                        }
-                        ]
-                    }
-                }
+                    <schemas>
+                        {{schemas}}
+                    </schemas>
 
-                5. **Handle missing or incomplete information**:
-                - If the input does not provide enough detail for some steps, use "undetermined" for the missing information.
-                - If substeps cannot be defined at a given level, provide a placeholder with a note that details will be filled in later.
+                    It is possible that multiple schemas have matching information in the context, in which case you should repeat the output format for each matching schema.
 
-                ### Explanation:
+                    <output format>
+                        The output format is a JSON object matching a schema, between the ```json and ``` tags.
+                        In the case of multiple schemas, repeat the output format for each matching schema, each with its own ```json and ``` tags.
+                        You should respond only with the JSON objects, nothing else.
+                    </output format>
+            teamlead:
+                prompt: |
+                    You are an expert at coordinating teams to achieve a goal.
+                    Your task is to coordinate the team to achieve the goal.
 
-                - **Teams and Plans**: This structure allows for breaking down the overall task into multiple teams, with each team having a detailed plan that includes steps and substeps.
-                - **Nested Steps (Substeps)**: The steps can recursively contain substeps, allowing for a flexible hierarchy to represent even the most complex workflows.
-                - **Cross-Team Dependencies**: A separate section captures dependencies that span across different teams, ensuring proper synchronization and execution order.
-                - **Final Synthesis**: There’s a separate area for steps that combine the outcomes from different teams, making sure that all outputs are synthesized into a coherent final response.
-                - **Robust Handling of Edge Cases**: By instructing the LLM to provide placeholders or indicate when information is missing, the output remains structured and usable, even if some details are not fully known.
+                    The following schema outlines a structure for planning a process to achieve a goal.
 
-                ### Available Tools:
+                    <schemas>
+                        {{schemas}}
+                    </schemas>
 
-                - browser: a fully functional browser, with the ability to navigate the web, search the web, and execute javascript.
-                - environment: a fully functional Debian Linux environment, with the ability to install software, manage files, and execute commands.
-                - project_board: a fully functional project board, with the ability to create, update, and manage issues and tasks.
-                - slack: a slack client with the ability to search message history, and send messages to channels or users, used to communicate with the external world.
-                - github: a github client with the ability to search code, or take part in code reviews.
+                    <team members>
+                        {{team_members}}
+                    </team members>
 
-                ### Example Output:
+                    <output format>
+                        The output format is a JSON object matching a schema, between the ```json and ``` tags.
+                        Provide the most comprehensive execution plan possible, and include all relevant details, sub-actions, and inputs.
+                        You should respond only with the JSON object, nothing else.
+                    </output format>
+            agent:
+                prompt: |
+                    {{system_prompt}}
 
-                ```json
-                {
-                    "category": "user_prompt",
-                    "main_goal": "Develop a comprehensive analysis and solution for system optimization.",
-                    "teams": [
-                        {
-                            "name": "Performance Analysis Team",
-                            "teamlead": "analyst",
-                            "agents": [
-                                {
-                                    "name": "analyst",
-                                    "system_prompt": "You are an analyst, tasked with analyzing system performance metrics.",
-                                    "tools": []
-                                },
-                                {
-                                    "name": "researcher",
-                                    "system_prompt": "You are a researcher, tasked with gathering information from various sources.",
-                                    "tools": ["browser"]
-                                },
-                                {
-                                    "name": "data_scientist",
-                                    "system_prompt": "You are a data scientist, tasked with analyzing data and generating insights.",
-                                    "tools": ["environment"]
-                                }
-                            ],
-                            "plan": {
-                                "goal": "Analyze system performance metrics.",
-                                "steps": [
-                                    {
-                                        "id": "step1",
-                                        "name": "Collect Performance Data",
-                                        "prompt": "Retrieve data from the system logs and metrics.",
-                                        "inputs": ["system logs", "metrics"],
-                                        "substeps": [
-                                            {
-                                                "id": "step1.1",
-                                                "name": "Fetch System Logs",
-                                                "prompt": "Fetch the system logs from the log service.",
-                                                "inputs": ["log service"],
-                                                "substeps": []
-                                            },
-                                            {
-                                                "id": "step1.2",
-                                                "name": "Retrieve Performance Metrics",
-                                                "prompt": "Retrieve performance metrics from the metrics service.",
-                                                "inputs": ["metrics service"],
-                                                "substeps": [
-                                                    {
-                                                        "id": "step1.2.1",
-                                                        "name": "Fetch Metrics",
-                                                        "prompt": "Fetch performance metrics from the metrics service.",
-                                                        "inputs": ["metrics service"],
-                                                        "substeps": []
-                                                    }
-                                                ]
-                                            }
-                                        ]
-                                    },
-                                    {
-                                        "id": "step2",
-                                        "name": "Analyze Data",
-                                        "prompt": "Analyze the collected data to identify performance bottlenecks.",
-                                        "inputs": ["collected data"],
-                                        "substeps": [
-                                            {
-                                                "id": "step2.1",
-                                                "name": "Data Cleaning",
-                                                "prompt": "Clean the collected data to identify performance bottlenecks.",
-                                                "inputs": ["raw data"],
-                                                "substeps": []
-                                            }
-                                        ]
-                                    }
-                                ]
-                            }
-                        },
-                        {
-                            "name": "Optimization Team",
-                            "teamlead": "optimizer",
-                            "agents": [
-                                {
-                                    "name": "optimizer",
-                                    "system_prompt": "You are an optimizer, tasked with proposing system optimizations.",
-                                    "tools": []
-                                },
-                                {
-                                    "name": "developer",
-                                    "system_prompt": "You are a developer, tasked with implementing system optimizations.",
-                                    "tools": ["environment"]
-                                }
-                            ],
-                            "plan": {
-                                "goal": "Propose system optimizations.",
-                                "steps": [
-                                    {
-                                        "id": "step3",
-                                        "name": "Identify Bottlenecks",
-                                        "prompt": "Diagnose issues in the performance report.",
-                                        "inputs": ["performance report"],
-                                        "substeps": [],
-                                    },
-                                    {
-                                        "id": "step4",
-                                        "name": "Design Solutions",
-                                        "prompt": "Design solutions to the identified bottlenecks.",
-                                        "inputs": ["bottleneck analysis"],
-                                        "substeps": [
-                                            {
-                                                "id": "step4.1",
-                                                "name": "Design Solution",
-                                                "prompt": "Design solutions to the identified bottlenecks.",
-                                                "inputs": ["bottleneck analysis"],
-                                                "substeps": [
-                                                    {
-                                                        "id": "step4.1.1",
-                                                        "name": "Develop Solution",
-                                                        "prompt": "Develop solutions to the identified bottlenecks.",
-                                                        "inputs": [],
-                                                        "substeps": []
-                                                    }
-                                                ]
-                                            }
-                                        ]
-                                    }
-                                ]
-                            }
-                        }
-                    ],
-                    "cross_team_dependencies": [
-                        {
-                            "from": "step2",
-                            "to": "step3",
-                            "reason": "Performance data must be analyzed before optimization can begin."
-                        }
-                    ],
-                    "final_synthesis": {
-                        "goal": "Consolidate findings and present a unified optimization proposal.",
-                        "steps_to_combine_results": [
-                            {
-                                "id": "final_step1",
-                                "prompt": "Merge the performance analysis report with the optimization proposal.",
-                                "dependencies": [
-                                    {
-                                        "from": "step2",
-                                        "to": "final_synthesis",
-                                        "reason": "The final synthesis needs the results from the performance analysis."
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                }
-                ```
+                    <guidelines>
+                        <resources>
+                            The following resources are available:
 
-                Output only the JSON, nothing else.
+                            - Memory
+                            - Project
+                            - Helpdesk
+                            - Slack
+                            - Browser
+                            - Environment
 
-                <incoming request>
-                    {{incoming_request}}
-                </incoming request>
+                            You can use these resources to achieve your goal, and to do so just describe what you want to do clearly and concisely.
+                        </resources>
+                    </guidelines>
+            reasoner:
+                prompt: |
+                    You are an expert at reasoning and learning.
+                    Your task is to reason about the current context and provide insights.
 
-tools:
-    browser: |
-        Browser Tool: A fully functional, automated web browser with extensive capabilities.
+                    The following schemas are eligible for reasoning:
 
-        Capabilities:
-        1. **Navigate to URL**: Open a specified URL and wait for the page to load.
-        2. **Extract Content**: Use CSS selectors to retrieve text content from the page.
-        3. **Execute JavaScript**: Run JavaScript code on the page and return results.
-        4. **Fill Form Fields**: Populate input fields with specified values.
-        5. **Click Elements**: Click elements identified by CSS selectors.
-        6. **Take Screenshots**: Capture full-page or specific element screenshots.
-        7. **Intercept Network Requests**: Monitor and log network requests matching specified patterns.
-        8. **Manage Cookies**: Get, set, or delete cookies based on provided details.
-        9. **Stealth Mode**: Uses stealth settings to avoid detection by anti-bot systems.
+                    <schemas>
+                        {{schemas}}
+                    </schemas>
 
-        Arguments:
-        - **url** (string, required): The URL to navigate to.
-        - **selector** (string, optional, default: "body"): CSS selector to target an element for content extraction.
-        - **form** (map[string]string, optional): Form fields to fill in, where keys are selectors and values are the input text.
-        - **screenshot** (map[string]string, optional): Screenshot parameters; `"selector"` (CSS selector for element) and `"filepath"` (path to save image).
-        - **intercept** ([]string, optional): List of URL patterns to intercept and log.
-        - **cookies** (string, optional): Action for cookies, one of `"get"`, `"set"`, or `"delete"`.
-        - **cookie** (Cookie, required for `"set"`): Details for setting a new cookie.
-        - **cookie_data** (map[string]string, required for `"delete"`): `"name"` and `"domain"` for targeting cookies to delete.
-        - **timeout** (number, optional, default: 5): Timeout in seconds to wait for elements to appear.
-        - **proxy** (string, optional): Proxy URL to route traffic through.
-
-        Examples:
-        To navigate to a URL and extract the main content:
-        ```json
-        {
-            "tool": "browser",
-            "arguments": {
-                "url": "https://example.com",
-                "selector": "main"
-            }
-        }
-
-        To fill a form, take a screenshot, and retrieve cookies:
-        ```json
-        {
-            "tool": "browser",
-            "arguments": {
-                "url": "https://example.com",
-                "form": {
-                    "#username": "user",
-                    "#password": "pass"
-                },
-                "screenshot": {
-                    "selector": "#content",
-                    "filepath": "/path/to/save/screenshot.png"
-                },
-                "cookies": "get"
-            }
-        }
-        ```
-    slack: |
-        Slack Tool: A tool for interacting with Slack, including sending messages and searching messages within Slack channels.
-
-        Capabilities:
-        1. **Send Message**: Post a message to a specified Slack channel.
-        2. **Search Messages**: Search Slack messages by keyword within all accessible channels.
-
-        Arguments:
-        - **operation** (string, required): Specifies the operation to perform, either "send" or "search".
-        - **id** (string, required for "send"): The Slack channel ID where the message will be sent.
-        - **message** (string, required for "send"): The message text to be sent to the specified Slack channel.
-        - **keywords** (string, required for "search"): Keywords or search terms to query Slack messages.
-
-        Examples:
-        To send a message to a Slack channel:
-        ```json
-        {
-            "tool": "slack",
-            "arguments": {
-                "operation": "send",
-                "id": "C1234567890",
-                "message": "Hello team, please review the latest updates."
-            }
-        }
-        ```
-
-        To search for messages containing specific keywords:
-        ```json
-        {
-            "tool": "slack",
-            "arguments": {
-                "operation": "search",
-                "keywords": "project update"
-            }
-        }
-        ```
-    work_items: |
-        Work Items Tool: A tool for interacting with Azure DevOps work items, allowing fetching, creating, and updating work items within a specified project.
-
-        Capabilities:
-        1. **Fetch Work Item**: Retrieve details of a specified work item by its ID.
-        2. **Create Work Item**: Create a new work item in the specified project with optional fields such as title, description, and parent ID for linking.
-        3. **Update Work Item**: Update an existing work item’s title or description.
-
-        Arguments:
-        - **operation** (string, required): Specifies the operation to perform, either "fetch", "create", or "update".
-        - **id** (string, required for "fetch" and "update"): The ID of the work item to retrieve or update.
-        - **title** (string, required for "create", optional for "update"): The title for the new or updated work item.
-        - **description** (string, optional): The description for the work item to create or update.
-        - **workitem_type** (string, optional, default "Task"): Specifies the type of work item to create, e.g., Task, Bug.
-        - **parent_id** (integer, optional for "create"): Specifies the parent work item ID for hierarchical linking.
-
-        Examples:
-        To fetch a work item by ID:
-        ```json
-        {
-            "tool": "work_items",
-            "arguments": {
-                "operation": "fetch",
-                "id": "12345"
-            }
-        }
-        ```
-
-        To create a new work item with a title and description:
-        ```json
-        {
-            "tool": "work_items",
-            "arguments": {
-                "operation": "create",
-                "title": "Investigate performance issue",
-                "description": "Analyze and optimize the response time for API endpoints."
-            }
-        }
-        ```
-
-        To update the title of an existing work item:
-        ```json
-        {
-            "tool": "work_items",
-            "arguments": {
-                "operation": "update",
-                "id": "12345",
-                "title": "Refine performance analysis"
-            }
-        }
-        ```
-
-        Notes:
-        - **Work Item ID**: Use the `id` field for fetching and updating work items.
-        - **Work Item Type**: The `workitem_type` is used only for creating work items and defaults to "Task".
-        - **Parent Link**: Use `parent_id` when creating work items to establish hierarchical links.
-
-        This tool enables seamless interaction with Azure DevOps work items, supporting standard operations for work item management.
-    memory_proxy: |
-        Memory Proxy Tool: A tool for interacting with vector and graph storage, enabling data addition, retrieval, and updates across different storage types.
-
-        Capabilities:
-        1. **Vector Store Operations**: Add, search, or update data within a vector-based storage (e.g., Qdrant) for similarity search and vector embeddings.
-        2. **Graph Store Operations**: Add, search, or update data within a graph-based storage (e.g., Neo4j), useful for relational data and graph queries.
-
-        Arguments:
-        - **store** (string, required): Specifies the storage type, either "vector" or "graph".
-        - **operation** (string, required): Specifies the operation to perform, either "add", "search", or "update".
-        - **data** (string, required): The data or query for the specified operation, formatted based on the store type requirements.
-
-        Examples:
-        To add data to the vector store:
-        ```json
-        {
-            "tool": "memory_proxy",
-            "arguments": {
-                "store": "vector",
-                "operation": "add",
-                "data": "This is a sample document to store as a vector."
-            }
-        }
-        ```
-
-        To search in the graph store with a query:
-        ```json
-        {
-            "tool": "memory_proxy",
-            "arguments": {
-                "store": "graph",
-                "operation": "search",
-                "data": "MATCH (n) RETURN n"
-            }
-        }
-        ```
-
-        Notes:
-        - **Vector Operations**: The "add" operation adds new data to the vector store, while "update" behaves similarly due to vector immutability. "Search" queries the vector store based on similarity.
-        - **Graph Operations**: The "add" and "update" operations execute write transactions, and "search" allows querying graph data.
-        - **Data Format**: Ensure the data string format matches the requirements of the target store (e.g., Cypher syntax for Neo4j queries).
-
-        This tool centralizes memory operations across vector and graph storage types, supporting various data handling needs for complex tasks.
-    environment: |
-        Environment Tool: A tool for setting up and interacting with Docker-based environments. It can build container images, run containers, and execute commands interactively.
-
-        Capabilities:
-        1. **Build and Run Container**: Builds a Docker container image from the specified path and runs it, attaching input and output channels for interaction.
-        2. **Execute Command**: Sends a command to execute within the container environment and retrieves the output.
-
-        Arguments:
-        - **name** (string, required): The name to assign to the container environment.
-        - **cmd** (array of strings, optional): The command to execute in the container. Defaults to an interactive shell if not provided.
-
-        Examples:
-        To build and start a container with an interactive shell:
-        ```json
-        {
-            "tool": "environment",
-            "arguments": {
-                "name": "my_container",
-                "cmd": ["/bin/sh"]
-            }
-        }
-
-        To build and start a container and run a specific command:
-        {
-            "tool": "environment",
-            "arguments": {
-                "name": "my_container",
-                "cmd": ["ls", "-al", "/tmp/workspace"]
-            }
-        }
-
-        ### Explanation of the Config
-
-        - **Capabilities**: Lists the main functions: container setup and command execution.
-        - **Arguments**: Details required (`name`) and optional (`cmd`) arguments, specifying types and defaults.
-        - **Examples**: Shows JSON-formatted examples for interactive and specific command executions.
+                    <output format>
+                        The output format is a JSON object matching a schema, between the ```json and ``` tags.
+                        Provide the most comprehensive reasoning possible, and include all relevant details.
+                        You should respond only with the JSON object, nothing else.
+                    </output format>

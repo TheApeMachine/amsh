@@ -12,7 +12,6 @@ import (
 	wi "github.com/microsoft/azure-devops-go-api/azuredevops/v7/workitemtracking"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/ai/types"
 	"github.com/theapemachine/amsh/errnie"
 )
 
@@ -204,36 +203,6 @@ func (w *WorkItemsTool) updateWorkItem(ctx context.Context, args map[string]inte
 
 	output := fmt.Sprintf("Updated Work Item ID: %d\n", *workItem.Id)
 	return output, nil
-}
-
-func (w *WorkItemsTool) GetSchema() types.ToolSchema {
-	return types.ToolSchema{
-		Name:        "work_items",
-		Description: "Interact with Azure DevOps work items.",
-		Parameters: map[string]interface{}{
-			"operation": map[string]interface{}{
-				"type":        "string",
-				"description": "The operation to perform on the work items.",
-				"enum":        []string{"fetch", "create", "update"},
-			},
-			"id": map[string]interface{}{
-				"type":        "string",
-				"description": "The ID of the work item to fetch or update.",
-			},
-			"title": map[string]interface{}{
-				"type":        "string",
-				"description": "The title of the work item to create or update.",
-			},
-			"description": map[string]interface{}{
-				"type":        "string",
-				"description": "The description of the work item.",
-			},
-			"workitem_type": map[string]interface{}{
-				"type":        "string",
-				"description": "The type of the work item to create (e.g., Task, Bug).",
-			},
-		},
-	}
 }
 
 func getFieldValue(fields map[string]interface{}, field string) string {

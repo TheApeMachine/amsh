@@ -112,7 +112,6 @@ func (https *HTTPS) handleGitHubWebhook(ctx fiber.Ctx) error {
 		ctx.Body(),
 	)
 	message.Poke("chain", "github")
-	https.queue.PubCh <- *message
 
 	return ctx.SendStatus(fiber.StatusOK)
 }

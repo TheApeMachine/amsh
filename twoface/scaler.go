@@ -85,14 +85,14 @@ func (scaler *Scaler) load() {
 	scaler.stats = 0
 
 	var count int
-	var worker *Worker
+	var worker PoolWorker
 
 	// Loop over all the current workers and sum their last runtime
 	// durations. We can devide this by the size of the worker pool
 	// to get a nice average.
 	for _, worker = range scaler.pool.handles {
-		if worker.lastDuration != 0 {
-			scaler.stats += worker.lastDuration
+		if worker.LastDuration() != 0 {
+			scaler.stats += worker.LastDuration()
 			count++
 		}
 	}
@@ -171,13 +171,13 @@ func (scaler *Scaler) Shrink() {
 
 	// Drain any workers that are just sitting around idling.
 	for idx, handle := range scaler.pool.handles {
-		if time.Since(handle.lastUse) > scaler.maxIdle {
+		if time.Since(handle.LastUse()) > scaler.maxIdle {
 			scaler.drain(handle, idx)
 		}
 	}
 }
 
-func (scaler *Scaler) drain(worker *Worker, i int) {
+func (scaler *Scaler) drain(worker PoolWorker, i int) {
 	worker.Drain()
 	hCnt := 0
 

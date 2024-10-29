@@ -1,12 +1,18 @@
 package system
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/log"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/ai/types"
 	"github.com/theapemachine/amsh/errnie"
 )
 
@@ -16,15 +22,41 @@ It is ultimately controlled by an Agent called the Sequencer, which has been pro
 all the moving parts needed to make the system work.
 */
 type ProcessManager struct {
-	toolset *ai.Toolset
+	key          string
+	toolset      *ai.Toolset
+	orchestrator *ai.Agent
+	extractor    *ai.Agent
 }
 
 /*
 NewProcessManager sets up the process manager, and the Agent that will act as the sequencer.
 */
 func NewProcessManager(key string) *ProcessManager {
+	log.Info("NewProcessManager", "key", key)
+	planning := process.NewPlanning()
+	toolset := ai.NewToolset()
+
 	return &ProcessManager{
-		toolset: ai.NewToolset(),
+		key:     key,
+		toolset: toolset,
+		orchestrator: ai.NewAgent(
+			fmt.Sprintf("%s-orchestrator", key),
+			"orchestrator",
+			strings.ReplaceAll(
+				viper.GetString(fmt.Sprintf("ai.setups.%s.orchestration.prompt", key)),
+				"{{schemas}}",
+				planning.GenerateSchema(),
+			),
+		),
+		extractor: ai.NewAgent(
+			fmt.Sprintf("%s-extractor", key),
+			"extractor",
+			strings.ReplaceAll(
+				viper.GetString(fmt.Sprintf("ai.setups.%s.extraction.prompt", key)),
+				"{{schemas}}",
+				toolset.Schemas(),
+			),
+		),
 	}
 }
 
@@ -32,68 +64,97 @@ func NewProcessManager(key string) *ProcessManager {
 Execute the process manager, using the incoming message as the initial prompt for the process.
 */
 func (pm *ProcessManager) Execute(incoming string) <-chan provider.Event {
+	log.Info("Execute", "incoming", incoming)
 	out := make(chan provider.Event)
 
 	go func() {
 		defer close(out)
 
-		process := NewProcess()
-		accumulator := ""
+		var accumulator string
 
-		for event := range ai.NewAgent(
-			"orchestrator",
-			strings.ReplaceAll(
-				viper.GetString("ai.setups.marvin.orchestration"),
-				"{{incoming_request}}",
-				incoming,
-			),
-			map[string]types.Tool{},
-		).Execute(incoming) {
-			out <- event
+		for event := range pm.orchestrator.Execute(incoming) {
 			accumulator += event.Content
+			out <- event
 		}
 
-		if err := process.Unmarshal(accumulator); err != nil {
-			errnie.Error(err)
+		planning := process.NewPlanning().Extract(accumulator)
 
-			out <- provider.Event{
-				Type:    provider.EventError,
-				Content: err.Error(),
-			}
-
+		if planning == nil {
+			errnie.Error(errors.New("failed to extract planning"))
 			return
 		}
 
-		// Set up the teams.
-		teams := make(map[string]*ai.Team)
+		teams := map[string]*ai.Team{}
 
-		for _, team := range process.Teams {
-			agents := make(map[string]*ai.Agent)
+		for _, teamConfig := range planning.Teams {
+			agents := map[string]*ai.Agent{}
 
-			for _, agent := range team.Agents {
-				tools := make(map[string]types.Tool)
-
-				for _, tool := range agent.Tools {
-					t, err := pm.toolset.GetTool(tool)
-					if err != nil {
-						errnie.Error(err)
-						continue
-					}
-
-					tools[tool] = t
-				}
-
-				agents[agent.Name] = ai.NewAgent(agent.Name, agent.SystemPrompt, tools)
+			for _, agentConfig := range teamConfig.Agents {
+				agents[agentConfig.RoleKey] = ai.NewAgent(
+					fmt.Sprintf("%s-%s", teamConfig.TeamKey, agentConfig.RoleKey),
+					agentConfig.RoleKey,
+					agentConfig.SystemPrompt,
+				)
 			}
 
-			teams[team.Name] = ai.NewTeam(agents)
+			teams[teamConfig.TeamKey] = ai.NewTeam(pm.key, teamConfig.TeamKey, agents)
 		}
 
-		// Build an Execution, and supply the process and teams.
-		for event := range NewExecution(process, teams).Execute() {
-			out <- event
+		for _, goal := range planning.Goals {
+			for _, step := range goal.Steps {
+				var teamAccumulator string
+
+				for event := range teams[step.TeamKey].Execute(step) {
+					teamAccumulator += event.Content
+					out <- event
+				}
+
+				var extractionAccumulator string
+
+				for event := range pm.extractor.Execute(teamAccumulator) {
+					extractionAccumulator += event.Content
+					out <- event
+				}
+
+				toolResult := pm.detectToolCalls(extractionAccumulator)
+
+				out <- provider.Event{
+					Type:    provider.EventToolCall,
+					Content: toolResult,
+				}
+			}
 		}
+
 	}()
 
 	return out
+}
+
+func (processManager ProcessManager) detectToolCalls(content string) string {
+	log.Info("detectToolCalls")
+	// Extract all markdown JSON blocks
+	re := regexp.MustCompile("(?s)json\\s*(\\{.*?\\})\\s*")
+	matches := re.FindAllStringSubmatch(content, -1)
+	for _, match := range matches {
+		// Parse the JSON content into our map
+		toolCall := map[string]any{}
+		jsonContent := strings.TrimSpace(match[1]) // Trim any extraneous whitespace
+
+		if err := json.Unmarshal([]byte(jsonContent), &toolCall); err != nil {
+			errnie.Error(err)
+			spew.Dump(jsonContent) // Dump the specific JSON content causing the error
+			return "Something went wrong"
+		}
+
+		// Iterate through the tool calls
+		for toolName, arguments := range toolCall {
+			log.Info("toolName", toolName)
+			// Use the tool if it exists
+			if result := processManager.toolset.Use(toolName, arguments.(map[string]any)); result != "" {
+				return result
+			}
+		}
+	}
+
+	return "Something went wrong"
 }

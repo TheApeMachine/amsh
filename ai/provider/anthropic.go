@@ -57,9 +57,10 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 
 		// Prepare the request parameters
 		params := anthropic.MessageNewParams{
-			Model:     anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
-			Messages:  anthropic.F(convertToAnthropicMessages(processedMessages)),
-			MaxTokens: anthropic.F(a.maxTokens),
+			Model:       anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
+			Messages:    anthropic.F(convertToAnthropicMessages(processedMessages)),
+			MaxTokens:   anthropic.F(a.maxTokens),
+			Temperature: anthropic.F(1.0),
 		}
 
 		// Only add system message if it's not empty

@@ -24,6 +24,15 @@ const routes: Route[] = [{
         return await module.effect();
     }
 }, {
+    path: "/chat",
+    view: async () => {
+        const module = await import("@/routes/chat");
+        return await module.render();
+    },
+    effect: async () => {
+        return null;
+    }
+}, {
     path: "/product",
     view: async () => {
         const module = await import("@/routes/product");

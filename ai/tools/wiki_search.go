@@ -10,7 +10,6 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/search"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/searchshared"
-	"github.com/theapemachine/amsh/ai/types"
 )
 
 type WikiSearchTool struct {
@@ -68,17 +67,4 @@ func (w *WikiSearchTool) Execute(ctx context.Context, args map[string]interface{
 	}
 
 	return output.String(), nil
-}
-
-func (w *WikiSearchTool) GetSchema() types.ToolSchema {
-	return types.ToolSchema{
-		Name:        "wiki_search",
-		Description: "Search Azure DevOps Wiki pages.",
-		Parameters: map[string]interface{}{
-			"keywords": map[string]interface{}{
-				"type":        "string",
-				"description": "The keywords to search for in the wiki.",
-			},
-		},
-	}
 }

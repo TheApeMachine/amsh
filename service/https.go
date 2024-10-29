@@ -18,7 +18,6 @@ import (
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/comms"
-	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -28,7 +27,6 @@ to internal service endpoints.
 */
 type HTTPS struct {
 	app         *fiber.App
-	queue       *twoface.Queue
 	slackEvents *comms.Events
 	arch        *system.Architecture
 }
@@ -148,8 +146,6 @@ func (https *HTTPS) websocketHandler(w http.ResponseWriter, r *http.Request) {
 				berrt.Error("Stream", wsutil.WriteServerMessage(conn, op, []byte(result.Content)))
 				break
 			}
-
-			https.queue.PubCh <- *message
 		}
 	}()
 }

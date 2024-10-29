@@ -4,6 +4,8 @@ import { html } from "@/lib/template"
 import { match } from "@/lib/match"
 import { switchLayer } from "@/lib/layer"
 import { gsap } from "gsap"
+import * as vega from 'vega';
+import * as SandDance from '@msrvida/sanddance';
 import "@/components/layers/manager"
 import "@/components/slides/presentation"
 import "@/components/slides/zlide"
@@ -52,6 +54,28 @@ export const effect = async () => {
             el.addToast('Success!', 'success');
         }
     });
+
+    const data = [
+        { myX: 0, myY: 0, myZ: 0 },
+        { myX: 1, myY: 1, myZ: 1 },
+        { myX: 2, myY: 2, myZ: 2 },
+    ];
+
+    const viewer = new SandDance.Viewer(document.querySelector('#vis') as HTMLElement);
+    const insight = {
+        columns: {
+            x: 'myX',
+            y: 'myY',
+            z: 'myZ'
+        },
+        size: {
+            height: 700,
+            width: 700
+        },
+        chart: SandDance.Chart.Scatterplo
+    };
+
+    viewer.render({ insight: insight }, data);
 }
 
 export const render = async () => {
@@ -73,7 +97,7 @@ export const render = async () => {
                         <resizable></resizable>
                     </section>
                 </slides-component>
-                <sanddance-component></sanddance-component>
+                <div id="vis"></div>
             `
         }
     }), {

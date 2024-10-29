@@ -1,10 +1,20 @@
-package types
+package tools
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 )
+
+type Memory struct{}
+
+func NewMemory() *Memory {
+	return &Memory{}
+}
+
+func (memory *Memory) Use(args map[string]any) string {
+	return ""
+}
 
 // MemoryTool handles interactions with both vector and graph storage systems
 func MemoryTool(ctx context.Context, args map[string]interface{}) (string, error) {

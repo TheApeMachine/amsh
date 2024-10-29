@@ -29,7 +29,7 @@ type Pool struct {
 	cancel  context.CancelFunc
 	workers chan chan Job
 	jobs    chan Job
-	handles []*Worker
+	handles []PoolWorker
 }
 
 /*
@@ -44,7 +44,7 @@ func NewPool() *Pool {
 			cancel:  cancel,
 			workers: make(chan chan Job),
 			jobs:    make(chan Job),
-			handles: make([]*Worker, 0),
+			handles: make([]PoolWorker, 0),
 		}
 		poolInstance.Run()
 	})
