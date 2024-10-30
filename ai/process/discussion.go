@@ -8,7 +8,7 @@ import (
 )
 
 type Discussion struct {
-	NextSpeaker string `json:"next_speaker" jsonschema:"title=Next Speaker,description=The name of the next speaker; required"`
+	NextSpeaker string `json:"next_speaker" jsonschema:"title=Next Speaker,description=The name of the next speaker,required"`
 }
 
 func NewDiscussion() *Discussion {

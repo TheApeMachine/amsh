@@ -17,41 +17,41 @@ type Planning struct {
 }
 
 type Epic struct {
-	Title       string   `json:"title" jsonschema:"required; description:The title of the epic"`
-	Description string   `json:"description" jsonschema:"required; description:The Gherkin description of the epic"`
-	Tags        []Tag    `json:"tags" jsonschema:"required; description:The tags to use for the epic"`
-	Stories     []Story  `json:"stories" jsonschema:"required; description:The stories that are part of the epic"`
-	Assignee    Assignee `json:"assignee" jsonschema:"required; description:The assignee of the epic"`
-	Links       []Link   `json:"links" jsonschema:"required; description:The links to use for the epic"`
+	Title       string   `json:"title" jsonschema:"required,description:The title of the epic"`
+	Description string   `json:"description" jsonschema:"required,description:The Gherkin description of the epic"`
+	Tags        []Tag    `json:"tags" jsonschema:"required,description:The tags to use for the epic"`
+	Stories     []Story  `json:"stories" jsonschema:"required,description:The stories that are part of the epic"`
+	Assignee    Assignee `json:"assignee" jsonschema:"required,description:The assignee of the epic"`
+	Links       []Link   `json:"links" jsonschema:"required,description:The links to use for the epic"`
 }
 
 type Story struct {
-	Title       string   `json:"title" jsonschema:"required; description:The title of the story"`
-	Description string   `json:"description" jsonschema:"required; description:The Ghekrin description of the story"`
-	Tags        []Tag    `json:"tags" jsonschema:"required; description:The tags to use for the story"`
-	Tasks       []Task   `json:"tasks" jsonschema:"required; description:The tasks that are part of the story"`
-	Assignee    Assignee `json:"assignee" jsonschema:"required; description:The assignee of the story"`
+	Title       string   `json:"title" jsonschema:"required,description:The title of the story"`
+	Description string   `json:"description" jsonschema:"required,description:The Ghekrin description of the story"`
+	Tags        []Tag    `json:"tags" jsonschema:"required,description:The tags to use for the story"`
+	Tasks       []Task   `json:"tasks" jsonschema:"required,description:The tasks that are part of the story"`
+	Assignee    Assignee `json:"assignee" jsonschema:"required,description:The assignee of the story"`
 }
 
 type Task struct {
-	Title       string   `json:"title" jsonschema:"required; description:The title of the task"`
-	Description string   `json:"description" jsonschema:"required; description:The Gherkin description of the task"`
-	Tags        []Tag    `json:"tags" jsonschema:"required; description:The tags to use for the task"`
-	Assignee    Assignee `json:"assignee" jsonschema:"required; description:The assignee of the task"`
+	Title       string   `json:"title" jsonschema:"required,description:The title of the task"`
+	Description string   `json:"description" jsonschema:"required,description:The Gherkin description of the task"`
+	Tags        []Tag    `json:"tags" jsonschema:"required,description:The tags to use for the task"`
+	Assignee    Assignee `json:"assignee" jsonschema:"required,description:The assignee of the task"`
 }
 
 type Tag struct {
-	Tag string `json:"tag" jsonschema:"required; description:The tag to use for the epic or story"`
+	Tag string `json:"tag" jsonschema:"required,description:The tag to use for the epic or story"`
 }
 
 type Assignee struct {
-	Username string `json:"username" jsonschema:"required; description:The username of the assignee of the task"`
+	Username string `json:"username" jsonschema:"required,description:The username of the assignee of the task"`
 }
 
 type Link struct {
-	FromID string `json:"from_id" jsonschema:"required; description:The ID of the link to use for the epic, story or task"`
-	ToID   string `json:"to_id" jsonschema:"required; description:The ID of the link to use for the epic, story or task"`
-	Type   string `json:"type" jsonschema:"required; description:The type of the link to use for the epic, story or task"`
+	FromID string `json:"from_id" jsonschema:"required,description:The ID of the link to use for the epic, story or task"`
+	ToID   string `json:"to_id" jsonschema:"required,description:The ID of the link to use for the epic, story or task"`
+	Type   string `json:"type" jsonschema:"required,description:The type of the link to use for the epic, story or task"`
 }
 
 func NewPlanning() *Planning {

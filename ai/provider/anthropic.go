@@ -2,9 +2,9 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/charmbracelet/log"
 )
 
@@ -16,11 +16,14 @@ type Anthropic struct {
 }
 
 func NewAnthropic(apiKey string, model string) *Anthropic {
-	client := anthropic.NewClient()
+	client := anthropic.NewClient(
+		option.WithAPIKey(apiKey),
+		option.WithHeader("x-api-key", apiKey),
+	)
 	return &Anthropic{
 		client:    client,
 		model:     model,
-		maxTokens: 2000,
+		maxTokens: 4096,
 	}
 }
 
@@ -30,48 +33,30 @@ func (a *Anthropic) Configure(config map[string]interface{}) {
 	}
 }
 
-func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Event {
+func (a *Anthropic) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
 	log.Info("generating with", "provider", "anthropic")
 	events := make(chan Event, 64)
 
 	go func() {
 		defer close(events)
 
-		// Parse the user's message from JSON
-		var userMsg struct {
-			Text string `json:"text"`
-		}
-		if err := json.Unmarshal([]byte(messages[len(messages)-1].Content), &userMsg); err != nil {
-			log.Error("Failed to parse user message", "error", err)
-			events <- Event{Type: EventError, Error: err}
-			return
-		}
-
-		// Create the messages array with the user's message
-		processedMessages := []Message{
-			{
-				Role:    "user",
-				Content: userMsg.Text,
-			},
-		}
-
 		// Prepare the request parameters
-		params := anthropic.MessageNewParams{
+		requestParams := anthropic.MessageNewParams{
 			Model:       anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
-			Messages:    anthropic.F(convertToAnthropicMessages(processedMessages)),
+			Messages:    anthropic.F(convertToAnthropicMessages(messages)),
 			MaxTokens:   anthropic.F(a.maxTokens),
-			Temperature: anthropic.F(1.0),
+			Temperature: anthropic.F(params.Temperature),
 		}
 
 		// Only add system message if it's not empty
 		if a.system != "" {
-			params.System = anthropic.F([]anthropic.TextBlockParam{{
+			requestParams.System = anthropic.F([]anthropic.TextBlockParam{{
 				Text: anthropic.F(a.system),
 				Type: anthropic.F(anthropic.TextBlockParamTypeText),
 			}})
 		}
 
-		stream := a.client.Messages.NewStreaming(ctx, params)
+		stream := a.client.Messages.NewStreaming(ctx, requestParams)
 		message := anthropic.Message{}
 
 		for stream.Next() {
@@ -105,7 +90,7 @@ func (a *Anthropic) Generate(ctx context.Context, messages []Message) <-chan Eve
 	return events
 }
 
-func (a *Anthropic) GenerateSync(ctx context.Context, messages []Message) (string, error) {
+func (a *Anthropic) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
 	// Filter out system messages as they're handled separately
 	var filteredMessages []Message
 	for _, msg := range messages {
@@ -115,20 +100,20 @@ func (a *Anthropic) GenerateSync(ctx context.Context, messages []Message) (strin
 	}
 
 	// Prepare the request parameters
-	params := anthropic.MessageNewParams{
+	requestParams := anthropic.MessageNewParams{
 		Model:    anthropic.F(a.model),
 		Messages: anthropic.F(convertToAnthropicMessages(filteredMessages)),
 	}
 
 	// Only add system message if it's not empty
 	if a.system != "" {
-		params.System = anthropic.F([]anthropic.TextBlockParam{{
+		requestParams.System = anthropic.F([]anthropic.TextBlockParam{{
 			Text: anthropic.F(a.system),
 			Type: anthropic.F(anthropic.TextBlockParamTypeText),
 		}})
 	}
 
-	message, err := a.client.Messages.New(ctx, params)
+	message, err := a.client.Messages.New(ctx, requestParams)
 	if err != nil {
 		return "", err
 	}

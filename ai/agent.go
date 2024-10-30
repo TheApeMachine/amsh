@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/provider"
+	"golang.org/x/exp/rand"
 )
 
 // AgentState represents the current state of an agent
@@ -27,6 +28,7 @@ type Agent struct {
 	Buffer   *Buffer `json:"buffer"`
 	provider provider.Provider
 	state    AgentState
+	params   provider.GenerationParams
 }
 
 // NewAgent creates a new agent with integrated reasoning and learning
@@ -59,19 +61,65 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 
 		var accumulator string
 
-		for event := range agent.provider.Generate(context.Background(), agent.Buffer.GetMessages()) {
-			accumulator += event.Content
-			out <- event
+		for event := range agent.provider.Generate(
+			context.Background(), agent.params, agent.Buffer.GetMessages(),
+		) {
+			if event.Type == provider.EventToken {
+				accumulator += event.Content
+				out <- event
+			}
 		}
 
-		out <- provider.Event{
-			Type:    provider.EventDone,
-			Content: "\n",
-		}
-
-		accumulator += "\n"
 		agent.Buffer.AddMessage("assistant", accumulator)
+		agent.Tweak()
 	}()
 
 	return out
+}
+
+func (agent *Agent) Tweak() provider.GenerationParams {
+	agent.params.Interestingness = agent.MeasureInterestingness()
+	if len(agent.params.InterestingnessHistory) > 5 {
+		// If results getting boring, increase temperature
+		if average(agent.params.InterestingnessHistory) < 0.5 {
+			agent.params.Temperature *= 1.1
+			agent.params.TopK += 10
+		}
+
+		// If results too wild, decrease temperature
+		if average(agent.params.InterestingnessHistory) > 0.8 {
+			agent.params.Temperature *= 0.9
+			agent.params.TopK -= 5
+		}
+
+		// Keep a moving window
+		agent.params.InterestingnessHistory = agent.params.InterestingnessHistory[1:]
+	}
+
+	return agent.params
+}
+
+func (agent *Agent) MeasureInterestingness() float64 {
+	interestingness := measureInterestingness()
+	agent.params.InterestingnessHistory = append(
+		agent.params.InterestingnessHistory, interestingness,
+	)
+
+	return interestingness
+}
+
+func measureInterestingness() float64 {
+	return rand.Float64()
+}
+
+func average(values []float64) float64 {
+	return sum(values) / float64(len(values))
+}
+
+func sum(values []float64) float64 {
+	total := 0.0
+	for _, value := range values {
+		total += value
+	}
+	return total
 }

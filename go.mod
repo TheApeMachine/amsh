@@ -1,8 +1,6 @@
 module github.com/theapemachine/amsh
 
-go 1.22.2
-
-toolchain go1.22.5
+go 1.22.5
 
 require (
 	capnproto.org/go/capnp/v3 v3.0.1-alpha.2
@@ -56,6 +54,7 @@ require (
 	github.com/charmbracelet/x/input v0.1.0 // indirect
 	github.com/charmbracelet/x/term v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.1.0 // indirect
+	github.com/cohere-ai/tokenizer v1.1.2 // indirect
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
@@ -77,6 +76,8 @@ require (
 	github.com/googleapis/gax-go/v2 v2.13.0 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/henomis/cohere-go v1.1.2 // indirect
+	github.com/henomis/restclientgo v1.2.0 // indirect
 	github.com/hokaccha/go-prettyjson v0.0.0-20211117102719-0474bc63780f // indirect
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
@@ -148,6 +149,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.33
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/log v0.4.0
+	github.com/cohere-ai/cohere-go v0.2.0
 	github.com/cohere-ai/cohere-go/v2 v2.12.0
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
@@ -158,6 +160,7 @@ require (
 	github.com/goccy/go-json v0.10.3
 	github.com/gofiber/fiber/v3 v3.0.0-beta.3
 	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/henomis/lingoose v0.2.0
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.12.0
 	github.com/lucasb-eyer/go-colorful v1.2.0
@@ -169,6 +172,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2
 	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
+	github.com/ollama/ollama v0.3.14
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/slack-go/slack v0.14.0
 	github.com/smartystreets/goconvey v1.8.1

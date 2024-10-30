@@ -1,81 +1,60 @@
 package system
 
 import (
-	"encoding/json"
+	"fmt"
 
 	"github.com/charmbracelet/log"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai"
-	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
 )
 
 type ProcessManager struct {
-	key       string
-	toolset   *ai.Toolset
-	processor *Processor
+	key     string
+	toolset *ai.Toolset
+	memory  *ai.Agent
 }
 
 func NewProcessManager(key, origin string) *ProcessManager {
 	log.Info("NewProcessManager", "key", key)
 
 	pm := &ProcessManager{
-		key:       key,
-		toolset:   ai.NewToolset(),
-		processor: NewProcessor(key),
+		key:     key,
+		toolset: ai.NewToolset(),
+		memory: ai.NewAgent(key, origin, viper.GetViper().GetString(
+			fmt.Sprintf("ai.setups.%s.memory.prompt", key),
+		)),
 	}
 
 	return pm
 }
 
-func (pm *ProcessManager) Execute(incoming string) <-chan provider.Event {
-	log.Info("Execute", "incoming", incoming)
-
+func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
+	log.Info("Execute", "accumulator", accumulator)
 	out := make(chan provider.Event)
 
 	go func() {
 		defer close(out)
 
-		// Process through all cores
-		log.Info("Starting processing", "incoming", incoming)
-		results := pm.processor.Process(incoming)
+		for _, cores := range [][]string{
+			{"surface", "pattern", "quantum", "time"},
+			{"narrative", "analogy", "practical", "context"},
+			{"moonshot", "sensible", "catalyst", "guardian"},
+			{"programmer", "data_scientist", "qa_engineer", "security_specialist"},
+		} {
+			log.Info("Starting processing", "cores", cores)
 
-		// Collect and combine results
-		var finalResult process.ThinkingResult
-		for result := range results {
-			log.Info("Received result", "core", result.CoreID)
-			if result.Error != nil {
-				log.Error("Core error", "core", result.CoreID, "error", result.Error)
-				out <- provider.Event{
-					Type:    provider.EventError,
-					Content: result.Error.Error(),
+			for result := range NewProcessor(
+				pm.key, cores...,
+			).Process(accumulator) {
+				if result.Type == provider.EventToken {
+					accumulator += result.Content
 				}
-				return
+
+				out <- result
 			}
 
-			if err := finalResult.Integrate(result); err != nil {
-				log.Error("Integration error", "error", err)
-				out <- provider.Event{
-					Type:    provider.EventError,
-					Content: err.Error(),
-				}
-				return
-			}
-		}
-
-		// Send integrated result
-		output, err := json.Marshal(finalResult)
-		if err != nil {
-			log.Error("Marshal error", "error", err)
-			out <- provider.Event{
-				Type:    provider.EventError,
-				Content: err.Error(),
-			}
-			return
-		}
-
-		out <- provider.Event{
-			Type:    provider.EventToken,
-			Content: string(output),
+			pm.memory.Execute(accumulator)
 		}
 	}()
 

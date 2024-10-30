@@ -18,17 +18,18 @@ func NewGoogle(apiKey string, model string) *Google {
 	ctx := context.Background()
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
+		log.Error("failed to create google client", "error", err)
 		return nil
 	}
 
 	return &Google{
 		client:    client,
 		model:     model,
-		maxTokens: 2000,
+		maxTokens: 4096,
 	}
 }
 
-func (g *Google) Generate(ctx context.Context, messages []Message) <-chan Event {
+func (g *Google) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
 	log.Info("generating with", "provider", "google")
 	events := make(chan Event, 64)
 
@@ -44,7 +45,7 @@ func (g *Google) Generate(ctx context.Context, messages []Message) <-chan Event 
 			parts = append(parts, content.Parts...) // Append the Parts from the Content
 		}
 
-		temp := float32(1.0)
+		temp := float32(params.Temperature)
 
 		model := g.client.GenerativeModel(g.model)
 		model.Temperature = &temp
@@ -73,7 +74,7 @@ func (g *Google) Generate(ctx context.Context, messages []Message) <-chan Event 
 	return events
 }
 
-func (g *Google) GenerateSync(ctx context.Context, messages []Message) (string, error) {
+func (g *Google) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
 	// Convert messages to Google format
 	var parts []genai.Part
 	for _, msg := range messages {
@@ -83,7 +84,9 @@ func (g *Google) GenerateSync(ctx context.Context, messages []Message) (string, 
 		parts = append(parts, content.Parts...) // Same fix as in Generate method
 	}
 
+	temp := float32(params.Temperature)
 	model := g.client.GenerativeModel(g.model)
+	model.Temperature = &temp
 	resp, err := model.GenerateContent(ctx, parts...)
 	if err != nil {
 		return "", err

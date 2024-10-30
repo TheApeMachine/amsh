@@ -33,11 +33,11 @@ func NewCohere(apiKey string, model string) *Cohere {
 	return &Cohere{
 		client:    client,
 		model:     model,
-		maxTokens: 2000,
+		maxTokens: 4096,
 	}
 }
 
-func (c *Cohere) Generate(ctx context.Context, messages []Message) <-chan Event {
+func (c *Cohere) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
 	log.Info("generating with", "provider", "cohere")
 	events := make(chan Event, 64)
 
@@ -51,7 +51,7 @@ func (c *Cohere) Generate(ctx context.Context, messages []Message) <-chan Event 
 		}
 
 		prompt := convertMessagesToCoherePrompt(messages)
-		temp := 1.0
+		temp := params.Temperature
 
 		stream, err := c.client.ChatStream(ctx, &cohere.ChatStreamRequest{
 			Message:     prompt,
@@ -85,11 +85,13 @@ func (c *Cohere) Generate(ctx context.Context, messages []Message) <-chan Event 
 	return events
 }
 
-func (c *Cohere) GenerateSync(ctx context.Context, messages []Message) (string, error) {
+func (c *Cohere) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
 	prompt := convertMessagesToCoherePrompt(messages)
 
 	resp, err := c.client.Chat(ctx, &cohere.ChatRequest{
-		Message: prompt,
+		Message:     prompt,
+		Model:       &c.model,
+		Temperature: &params.Temperature,
 	})
 	if err != nil {
 		return "", err

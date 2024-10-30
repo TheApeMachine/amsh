@@ -7,29 +7,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/charmbracelet/log"
+	"github.com/openai/openai-go"
 )
 
 type ProviderStatus struct {
 	provider Provider
 	occupied bool
-	lastUsed time.Time
-	requests int64
-	failures int64
 	mu       sync.Mutex
 }
 
 type BalancedProvider struct {
 	providers []*ProviderStatus
-	queue     chan queuedRequest
-	mu        sync.RWMutex
-}
-
-type queuedRequest struct {
-	ctx       context.Context
-	messages  []Message
-	response  chan<- Event
-	timestamp time.Time
 }
 
 var (
@@ -37,156 +27,128 @@ var (
 	onceBalancedProvider     sync.Once
 )
 
+/*
+NewBalancedProvider creates a new BalancedProvider as an ambient context,
+so multiple calls to NewBalancedProvider will return the same instance.
+*/
 func NewBalancedProvider() *BalancedProvider {
-	log.Info("NewBalancedProvider")
+	onceBalancedProvider.Do(func() {
+		log.Info("NewBalancedProvider")
 
-	apiKeys := map[string]string{
-		"openai":    os.Getenv("OPENAI_API_KEY"),
-		"anthropic": os.Getenv("ANTHROPIC_API_KEY"),
-		"google":    os.Getenv("GEMINI_API_KEY"),
-		"cohere":    os.Getenv("COHERE_API_KEY"),
-	}
+		balancedProviderInstance = &BalancedProvider{
+			providers: []*ProviderStatus{
+				{
+					provider: NewOpenAI(os.Getenv("OPENAI_API_KEY"), openai.ChatModelGPT4oMini2024_07_18),
+					occupied: false,
+				},
+				{
+					provider: NewAnthropic(os.Getenv("ANTHROPIC_API_KEY"), anthropic.ModelClaude3_5Sonnet20241022),
+					occupied: false,
+				},
+				{
+					provider: NewGoogle(os.Getenv("GEMINI_API_KEY"), "gemini-1.5-flash"),
+					occupied: false,
+				},
+				{
+					provider: NewCohere(os.Getenv("COHERE_API_KEY"), "command-r"),
+					occupied: false,
+				},
+			},
+		}
+	})
 
-	lb := &BalancedProvider{
-		providers: []*ProviderStatus{
-			{
-				provider: NewOpenAI(apiKeys["openai"], "gpt-4-mini"),
-				occupied: false,
-				lastUsed: time.Now(),
-				requests: 0,
-				failures: 0,
-			},
-			{
-				provider: NewAnthropic(apiKeys["anthropic"], "claude-3-5-sonnet"),
-				occupied: false,
-				lastUsed: time.Now(),
-				requests: 0,
-				failures: 0,
-			},
-			{
-				provider: NewGoogle(apiKeys["google"], "gemini-1.5-flash"),
-				occupied: false,
-				lastUsed: time.Now(),
-				requests: 0,
-				failures: 0,
-			},
-			{
-				provider: NewCohere(apiKeys["cohere"], "command-r"),
-				occupied: false,
-				lastUsed: time.Now(),
-				requests: 0,
-				failures: 0,
-			},
-		},
-		queue: make(chan queuedRequest, 100), // Buffer size configurable
-	}
-
-	// Start queue processor
-	go lb.processQueue()
-
-	return lb
+	return balancedProviderInstance
 }
 
-func (lb *BalancedProvider) Generate(ctx context.Context, messages []Message) <-chan Event {
+func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
 	log.Info("Generate")
-
 	resultChan := make(chan Event)
 
-	// Queue the request
-	lb.queue <- queuedRequest{
-		ctx:       ctx,
-		messages:  messages,
-		response:  resultChan,
-		timestamp: time.Now(),
-	}
+	go func() {
+		defer close(resultChan)
+
+		// Find available provider or wait
+		ps := lb.getAvailableProvider()
+		if ps == nil {
+			resultChan <- Event{
+				Type:    EventError,
+				Content: "no providers available",
+			}
+			return
+		}
+
+		// Ensure we release the provider when done
+		defer func() {
+			ps.mu.Lock()
+			ps.occupied = false
+			ps.mu.Unlock()
+			log.Info("provider released")
+		}()
+
+		// Create a separate context with timeout
+		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+
+		// Create done channel to handle cleanup
+		done := make(chan struct{})
+
+		// Start provider generation in separate goroutine
+		go func() {
+			defer close(done)
+			for event := range ps.provider.Generate(timeoutCtx, params, messages) {
+				select {
+				case resultChan <- event:
+				case <-timeoutCtx.Done():
+					return
+				}
+			}
+		}()
+
+		// Wait for either completion or timeout
+		select {
+		case <-done:
+			return
+		case <-timeoutCtx.Done():
+			resultChan <- Event{
+				Type:    EventError,
+				Content: "provider timeout",
+			}
+			return
+		}
+	}()
 
 	return resultChan
 }
 
-func (lb *BalancedProvider) processQueue() {
-	log.Info("Starting queue processor")
-
-	for request := range lb.queue {
-		// Find available provider or wait
-		provider := lb.getAvailableProvider()
-
-		go func(req queuedRequest, ps *ProviderStatus) {
-			// Mark provider as occupied
-			ps.mu.Lock()
-			ps.occupied = true
-			ps.lastUsed = time.Now()
-			ps.requests++
-			ps.mu.Unlock()
-
-			// Process request
-			for event := range ps.provider.Generate(req.ctx, req.messages) {
-				select {
-				case req.response <- event:
-				case <-req.ctx.Done():
-					close(req.response)
-					ps.mu.Lock()
-					ps.failures++
-					ps.occupied = false
-					ps.mu.Unlock()
-					return
-				}
-			}
-
-			// Mark provider as free
-			ps.mu.Lock()
-			ps.occupied = false
-			ps.mu.Unlock()
-
-			close(req.response)
-		}(request, provider)
-	}
-}
-
 func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 	log.Info("getAvailableProvider")
+	maxAttempts := 10
 
-	for {
-		lb.mu.RLock()
-		// First try: find any non-occupied provider
+	for attempt := 0; attempt < maxAttempts; attempt++ {
 		for _, ps := range lb.providers {
 			ps.mu.Lock()
+			defer ps.mu.Unlock()
+
 			if !ps.occupied {
-				lb.mu.RUnlock()
+				ps.occupied = true
+				log.Info("found available provider", "provider", ps.provider)
 				return ps
 			}
-			ps.mu.Unlock()
 		}
 
-		// All providers are busy, find least recently used
-		var leastRecent *ProviderStatus
-		oldestTime := time.Now()
-
-		for _, ps := range lb.providers {
-			ps.mu.Lock()
-			if ps.lastUsed.Before(oldestTime) {
-				oldestTime = ps.lastUsed
-				leastRecent = ps
-			}
-			ps.mu.Unlock()
-		}
-
-		if leastRecent != nil {
-			lb.mu.RUnlock()
-			// Wait a bit before reusing a busy provider
-			time.Sleep(100 * time.Millisecond)
-			return leastRecent
-		}
-
-		lb.mu.RUnlock()
 		// If all providers are busy, wait a bit before trying again
-		time.Sleep(100 * time.Millisecond)
+		log.Warn("all providers occupied, waiting...", "attempt", attempt+1)
+		time.Sleep(1 * time.Second)
 	}
+
+	log.Error("no providers available after maximum attempts")
+	return nil
 }
 
-func (lb *BalancedProvider) GenerateSync(ctx context.Context, messages []Message) (string, error) {
+func (lb *BalancedProvider) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
 	log.Info("GenerateSync")
 
-	events := lb.Generate(ctx, messages)
+	events := lb.Generate(ctx, params, messages)
 	var result string
 
 	for event := range events {
@@ -197,35 +159,6 @@ func (lb *BalancedProvider) GenerateSync(ctx context.Context, messages []Message
 	}
 
 	return result, nil
-}
-
-// Add monitoring methods
-func (lb *BalancedProvider) GetStats() []ProviderStats {
-	log.Info("GetStats")
-
-	var stats []ProviderStats
-	lb.mu.RLock()
-	defer lb.mu.RUnlock()
-
-	for _, ps := range lb.providers {
-		ps.mu.Lock()
-		stats = append(stats, ProviderStats{
-			Occupied: ps.occupied,
-			Requests: ps.requests,
-			Failures: ps.failures,
-			LastUsed: ps.lastUsed,
-		})
-		ps.mu.Unlock()
-	}
-
-	return stats
-}
-
-type ProviderStats struct {
-	Occupied bool
-	Requests int64
-	Failures int64
-	LastUsed time.Time
 }
 
 func (lb *BalancedProvider) Configure(config map[string]interface{}) {

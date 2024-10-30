@@ -24,7 +24,7 @@ func runTest(cmd *cobra.Command, args []string) error {
 	pm := system.NewProcessManager("marvin", "test")
 	// tests := viper.GetViper().GetStringSlice("ai.tests")
 
-	for event := range pm.Execute("How many times do we find the letter r in the word strawberry?") {
+	for event := range pm.Execute("Solve the riddle: In a fruit's sweet name, I'm hidden three, A triple threat within its juicy spree. Find me and you'll discover a secret delight.") {
 		fmt.Print(event.Content)
 	}
 
