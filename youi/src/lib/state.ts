@@ -5,7 +5,7 @@ export interface StateModel {
     eventHandlers: Record<string, (event: any) => void>;
 }
 
-export const StateManager = () => {
+const StateManager = () => {
     const state: Record<string, any> = {
         ready: false
     };
@@ -70,4 +70,4 @@ export const StateManager = () => {
     };
 }
 
-export default StateManager;
+export const stateManager = StateManager();

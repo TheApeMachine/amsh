@@ -6,6 +6,7 @@ import (
 
 // Event represents different types of provider events
 type Event struct {
+	AgentID string
 	Type    EventType
 	Content string
 	Error   error

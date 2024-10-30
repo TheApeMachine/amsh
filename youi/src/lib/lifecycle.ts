@@ -5,7 +5,12 @@ interface LifecycleHandler {
 
 const lifecycleHandlers: WeakMap<Node, LifecycleHandler> = new WeakMap();
 
-export const onMount = (element: HTMLElement, handler: () => void) => {
+export const onMount = (element: HTMLElement | null, handler: () => void) => {
+    if (!element) {
+        console.warn("onMount: Received null element");
+        return;
+    }
+
     const wrappedHandler = () => {
         handler();
         // If this element has a shadow root, observe it too
@@ -13,7 +18,7 @@ export const onMount = (element: HTMLElement, handler: () => void) => {
             observeShadowRoot(element.shadowRoot);
         }
     };
-    
+
     if (element.isConnected) {
         wrappedHandler();
     } else {
@@ -21,7 +26,12 @@ export const onMount = (element: HTMLElement, handler: () => void) => {
     }
 };
 
-export const onUnmount = (element: HTMLElement, handler: () => void) => {
+export const onUnmount = (element: HTMLElement | null, handler: () => void) => {
+    if (!element) {
+        console.warn("onUnmount: Received null element");
+        return;
+    }
+
     element.addEventListener('disconnected', handler, { once: true });
 };
 
@@ -68,6 +78,6 @@ const observer = new MutationObserver((mutationsList) => {
 
 // Start observing the document for added/removed nodes
 observer.observe(
-    document.body, 
+    document.body,
     { childList: true, subtree: true }
 );

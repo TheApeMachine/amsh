@@ -12,19 +12,24 @@ export const Transition = (
     element: DocumentFragment,
     { enter, exit }: { enter: (el: HTMLElement) => void, exit: (el: HTMLElement) => void }
 ): DocumentFragment => {
-    const targetElement = element.firstElementChild as HTMLElement;
+    const targetElement = element.firstElementChild as HTMLElement | null;
 
-    // Trigger the enter animation when the element is added to the DOM
-    onMount(targetElement, () => {
-        console.debug("transition", "onMount", targetElement)
-        enter(targetElement);  // Apply the enter animation
-    });
+    // Add null check before proceeding
+    if (targetElement) {
+        // Trigger the enter animation when the element is added to the DOM
+        onMount(targetElement, () => {
+            console.debug("transition", "onMount", targetElement);
+            enter(targetElement);  // Apply the enter animation
+        });
 
-    // Trigger the exit animation when the element is removed from the DOM
-    onUnmount(targetElement, () => {
-        console.debug("transition", "onUnmount", targetElement)
-        exit(targetElement);  // Apply the exit animation
-    });
+        // Trigger the exit animation when the element is removed from the DOM
+        onUnmount(targetElement, () => {
+            console.debug("transition", "onUnmount", targetElement);
+            exit(targetElement);  // Apply the exit animation
+        });
+    } else {
+        console.warn("Transition: No element found in DocumentFragment");
+    }
 
     return element;
 };

@@ -10,9 +10,9 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@blocksuite/blocks": "0.15.0-canary-202406291027-8aed732",
-    "@blocksuite/presets": "0.15.0-canary-202406291027-8aed732",
-    "@blocksuite/store": "0.15.0-canary-202406291027-8aed732",
+    "@blocksuite/blocks": "^0.0.0-canary-20241030093445",
+    "@blocksuite/presets": "^0.0.0-canary-20241030093445",
+    "@blocksuite/store": "^0.0.0-canary-20241030093445",
     "@dotlottie/player-component": "^2.7.12",
     "@lexical/dragon": "^0.19.0",
     "@lexical/history": "^0.19.0",
@@ -21,6 +21,7 @@
     "@msrvida/sanddance": "^4.0.6",
     "@tauri-apps/api": ">=2.0.0",
     "@tauri-apps/plugin-shell": ">=2.0.0",
+    "affine": "^0.0.5",
     "arquero": "^7.1.0",
     "cannon": "^0.6.2",
     "cytoscape": "^3.30.2",

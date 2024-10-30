@@ -19,7 +19,8 @@ type ProviderStatus struct {
 }
 
 type BalancedProvider struct {
-	providers []*ProviderStatus
+	providers   []*ProviderStatus
+	selectIndex int
 }
 
 var (
@@ -53,7 +54,13 @@ func NewBalancedProvider() *BalancedProvider {
 					provider: NewCohere(os.Getenv("COHERE_API_KEY"), "command-r"),
 					occupied: false,
 				},
+				{
+					provider: NewOllama("llama3.2:3b"),
+					occupied: false,
+				},
 			},
+
+			selectIndex: 0,
 		}
 	})
 
@@ -125,15 +132,13 @@ func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 	maxAttempts := 10
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		for _, ps := range lb.providers {
-			ps.mu.Lock()
-			defer ps.mu.Unlock()
+		ps := lb.providers[lb.selectIndex%len(lb.providers)]
+		lb.selectIndex++
 
-			if !ps.occupied {
-				ps.occupied = true
-				log.Info("found available provider", "provider", ps.provider)
-				return ps
-			}
+		if !ps.occupied {
+			ps.occupied = true
+			log.Info("found available provider", "provider", ps.provider)
+			return ps
 		}
 
 		// If all providers are busy, wait a bit before trying again

@@ -58,6 +58,35 @@ services:
   #     - "host.docker.internal:host-gateway"
   #   volumes:
   #     - ./youi:/app
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - 11434:11434
+    volumes:
+      - ollama_storage:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  
+  ollama-pull-llama:
+    image: ollama/ollama:latest
+    container_name: ollama-pull-llama
+    volumes:
+      - ollama_storage:/root/.ollama
+    entrypoint: /bin/sh
+    command:
+      - "-c"
+      - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull llama3.2"
+    depends_on:
+      - ollama
 
   minio:
     image: minio/minio
@@ -112,3 +141,4 @@ volumes:
   neo4j_logs:
   neo4j_import:
   neo4j_plugins:
+  ollama_storage:

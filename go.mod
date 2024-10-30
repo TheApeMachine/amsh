@@ -7,9 +7,9 @@ require (
 	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.0
-	github.com/charmbracelet/bubbles v0.19.0
-	github.com/charmbracelet/bubbletea v0.27.0
-	github.com/charmbracelet/lipgloss v0.12.1
+	github.com/charmbracelet/bubbles v0.20.0
+	github.com/charmbracelet/bubbletea v1.1.0
+	github.com/charmbracelet/lipgloss v0.13.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/fasthttp/websocket v1.5.10
 	github.com/gofiber/utils/v2 v2.0.0-beta.4
@@ -38,6 +38,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.21 // indirect
@@ -50,11 +51,8 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/charmbracelet/x/ansi v0.1.4 // indirect
-	github.com/charmbracelet/x/input v0.1.0 // indirect
-	github.com/charmbracelet/x/term v0.1.1 // indirect
-	github.com/charmbracelet/x/windows v0.1.0 // indirect
-	github.com/cohere-ai/tokenizer v1.1.2 // indirect
+	github.com/charmbracelet/x/ansi v0.2.3 // indirect
+	github.com/charmbracelet/x/term v0.2.0 // indirect
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
@@ -76,10 +74,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.13.0 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/henomis/cohere-go v1.1.2 // indirect
-	github.com/henomis/restclientgo v1.2.0 // indirect
 	github.com/hokaccha/go-prettyjson v0.0.0-20211117102719-0474bc63780f // indirect
-	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/klauspost/compress v1.17.10 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
@@ -112,7 +107,6 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
-	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/ysmood/fetchup v0.2.3 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect
 	github.com/ysmood/got v0.40.0 // indirect
@@ -142,14 +136,12 @@ require (
 )
 
 require (
-	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/anthropics/anthropic-sdk-go v0.2.0-alpha.3
 	github.com/aws/aws-sdk-go-v2 v1.32.2
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.41
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.33
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/log v0.4.0
-	github.com/cohere-ai/cohere-go v0.2.0
 	github.com/cohere-ai/cohere-go/v2 v2.12.0
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
@@ -160,7 +152,6 @@ require (
 	github.com/goccy/go-json v0.10.3
 	github.com/gofiber/fiber/v3 v3.0.0-beta.3
 	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/henomis/lingoose v0.2.0
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.12.0
 	github.com/lucasb-eyer/go-colorful v1.2.0

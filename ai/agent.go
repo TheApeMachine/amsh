@@ -65,6 +65,7 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 			context.Background(), agent.params, agent.Buffer.GetMessages(),
 		) {
 			if event.Type == provider.EventToken {
+				event.AgentID = agent.Name
 				accumulator += event.Content
 				out <- event
 			}
@@ -72,6 +73,8 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 
 		agent.Buffer.AddMessage("assistant", accumulator)
 		agent.Tweak()
+
+		out <- provider.Event{Type: provider.EventDone}
 	}()
 
 	return out

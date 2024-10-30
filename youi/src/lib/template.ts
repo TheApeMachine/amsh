@@ -9,7 +9,7 @@ export const html = (strings: TemplateStringsArray, ...values: any[]): DocumentF
 
     const htmlString = strings.reduce((result, string, i) => {
         let value = values[i];
-        
+
         // Handle arrays
         if (Array.isArray(value)) {
             return `${result}${string}${value.join("")}`;
@@ -47,26 +47,89 @@ export const sanitizeHTML = (str: string): string => {
     return temp.innerHTML;
 }
 
-export function jsx(tag: string | Function, props: any, ...children: any[]) {
+// Add Fragment type
+export const Fragment = Symbol('Fragment');
+
+type JSXElementType = string | Function | typeof Fragment;
+
+// Update event handler types to be more specific
+type EventHandlers = {
+    [K in keyof HTMLElementEventMap]?: (event: HTMLElementEventMap[K]) => void;
+};
+
+type Props = {
+    [key: string]: any;
+} & {
+    [K in keyof EventHandlers as `on${Capitalize<K>}`]?: EventHandlers[K];
+};
+
+/*
+jsx is a function that takes a tag, props, and children and returns a Node.
+@param tag The tag to render.
+@param props The props to render.
+@param children The children to render.
+@returns A Node containing the rendered tag, props, and children.
+*/
+export function jsx(
+    tag: JSXElementType,
+    props: Props | null,
+    ...children: (Node | string | Array<Node | string>)[]
+) {
+    // Handle Fragments
+    if (tag === Fragment) {
+        const fragment = document.createDocumentFragment();
+        children.forEach(child => {
+            fragment.appendChild(
+                child instanceof Node ? child : document.createTextNode(String(child))
+            );
+        });
+        return fragment;
+    }
+
+    // Handle function components
     if (typeof tag === 'function') {
-        return tag({ ...props, children });
+        // Handle prop spreading
+        const componentProps = props ? { ...props } : {};
+
+        // If there are children, add them to props
+        if (children.length > 0) {
+            componentProps.children = children.length === 1 ? children[0] : children;
+        }
+
+        return tag(componentProps);
     }
 
     const element = document.createElement(tag);
 
-    for (const [name, value] of Object.entries(props || {})) {
-        if (name.startsWith('on') && typeof value === 'function') {
-            element.addEventListener(name.slice(2).toLowerCase(), value);
-        } else {
-            element.setAttribute(name, value);
-        }
+    if (props) {
+        // Handle prop spreading for HTML elements
+        Object.entries(props).forEach(([name, value]) => {
+            if (name === 'className') {
+                element.setAttribute('class', String(value));
+            } else if (name.startsWith('on') && typeof value === 'function') {
+                element.addEventListener(
+                    name.slice(2).toLowerCase(),
+                    value as EventListener
+                );
+            } else if (typeof value === 'boolean') {
+                if (value) {
+                    element.setAttribute(name, '');
+                } else {
+                    element.removeAttribute(name);
+                }
+            } else {
+                element.setAttribute(name, String(value));
+            }
+        });
     }
 
-    for (const child of children) {
-        element.appendChild(
-            child instanceof Node ? child : document.createTextNode(child)
-        );
-    }
+    children.forEach(child => {
+        if (child instanceof Node) {
+            element.appendChild(child);
+        } else {
+            element.appendChild(document.createTextNode(String(child)));
+        }
+    });
 
     return element;
 }

@@ -2,39 +2,85 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"net/http"
+	"net/url"
 
+	"github.com/charmbracelet/log"
 	"github.com/ollama/ollama/api"
+	"github.com/theapemachine/amsh/utils"
 )
 
-func (o *ollama.Ollama) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	client, err := api.ClientFromEnvironment()
-	if err != nil {
-		log.Fatal(err)
+type Ollama struct {
+	Model string
+}
+
+func NewOllama(model string) *Ollama {
+	return &Ollama{Model: model}
+}
+
+func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
+	log.Info("generating with", "model", ollama.Model)
+	eventChan := make(chan Event)
+
+	go func() {
+		defer close(eventChan)
+
+		client := api.NewClient(
+			&url.URL{Scheme: "http", Host: "ollama:11434"},
+			&http.Client{},
+		)
+
+		// Convert messages into a prompt
+		prompt := messages[len(messages)-1].Content
+
+		req := &api.GenerateRequest{
+			Model:  ollama.Model,
+			Prompt: prompt,
+			Stream: utils.BoolPtr(true),
+			// Convert temperature and other params if needed
+			Options: map[string]interface{}{
+				"temperature": params.Temperature,
+			},
+		}
+
+		respFunc := func(resp api.GenerateResponse) error {
+			eventChan <- Event{
+				Type:    EventToken,
+				Content: resp.Response,
+			}
+			return nil
+		}
+
+		if err := client.Generate(ctx, req, respFunc); err != nil {
+			eventChan <- Event{Type: EventError, Error: err}
+			return
+		}
+
+		eventChan <- Event{Type: EventDone}
+	}()
+
+	return eventChan
+}
+
+func (ollama *Ollama) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
+	var result string
+
+	for event := range ollama.Generate(ctx, params, messages) {
+		switch event.Type {
+		case EventToken:
+			result += event.Content
+		case EventError:
+			return "", event.Error
+		}
 	}
 
-	// By default, GenerateRequest is streaming.
-	req := &api.GenerateRequest{
-		Model:  "gemma2",
-		Prompt: "how many planets are there?",
-	}
+	return result, nil
+}
 
-	ctx := context.Background()
-	respFunc := func(resp api.GenerateResponse) error {
-		// Only print the response here; GenerateResponse has a number of other
-		// interesting fields you want to examine.
-
-		// In streaming mode, responses are partial so we call fmt.Print (and not
-		// Println) in order to avoid spurious newlines being introduced. The
-		// model will insert its own newlines if it wants.
-		fmt.Print(resp.Response)
-		return nil
+func (ollama *Ollama) Configure(config map[string]interface{}) {
+	// Handle any Ollama-specific configuration here
+	// For example, if we need to update the model:
+	if model, ok := config["model"].(string); ok {
+		ollama.Model = model
 	}
-
-	err = client.Generate(ctx, req, respFunc)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println()
 }
