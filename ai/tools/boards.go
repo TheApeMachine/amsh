@@ -31,7 +31,7 @@ type Boards struct {
 NewBoards initializes the Boards struct with a connection client.
 */
 func NewBoards() *Boards {
-	client := azuredevops.NewPatConnection(os.Getenv("AZURE_DEVOPS_ORG"), os.Getenv("AZURE_DEVOPS_PAT"))
+	client := azuredevops.NewPatConnection(os.Getenv("AZDO_ORG_URL"), os.Getenv("AZDO_PAT"))
 	return &Boards{client: client}
 }
 

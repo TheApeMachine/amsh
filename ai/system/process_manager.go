@@ -1,12 +1,11 @@
 package system
 
 import (
-	"os"
-	"os/signal"
+	"encoding/json"
 	"sync"
-	"syscall"
 
 	"github.com/charmbracelet/log"
+	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
 )
 
@@ -28,29 +27,34 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 	log.Info("Execute", "accumulator", accumulator)
 	out := make(chan provider.Event)
 
-	// Handle terminal resizing
-	resizeCh := make(chan os.Signal, 1)
-	signal.Notify(resizeCh, syscall.SIGWINCH)
-
 	go func() {
 		defer close(out)
 
-		for _, layer := range [][]string{
-			{"surface", "pattern", "quantum", "time"},
-			{"narrative", "analogy", "practical", "context"},
-			{"moonshot", "sensible", "catalyst", "guardian"},
-			{"performance", "memory", "oversight", "integration"},
-			{"programmer", "data_scientist", "qa_engineer", "security_specialist"},
-		} {
+		// Create processor for task analysis
+		processor := NewProcessor(pm.key, "task_analyzer")
+
+		// Get analysis results
+		resultChan := processor.Process(accumulator)
+		var analysis process.TaskAnalysis
+		var analysisStr string
+
+		for result := range resultChan {
+			if result.Type == provider.EventToken {
+				analysisStr += result.Content
+			}
+		}
+
+		if err := json.Unmarshal([]byte(analysisStr), &analysis); err != nil {
+			log.Error("Failed to parse task analysis", "error", err)
+			return
+		}
+
+		// Process each required layer group in priority order
+		for _, group := range analysis.RequiredLayers {
 			var wg sync.WaitGroup
-
-			// Create a processor for this layer
-			processor := NewProcessor(pm.key, layer...)
-
-			// Start processing and collect results
+			processor := NewProcessor(pm.key, group.Layers...)
 			resultChan := processor.Process(accumulator)
 
-			// Track active cores
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -62,9 +66,10 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 				}
 			}()
 
-			// Wait for all processing to complete before moving to next layer
 			wg.Wait()
-			log.Info("Layer processing complete", "layer", layer)
+			log.Info("Layer group processing complete",
+				"group", group.Name,
+				"layers", group.Layers)
 		}
 	}()
 

@@ -21,6 +21,7 @@ type Analysis interface {
 }
 
 var ProcessMap = map[string]Process{
+	"task_analyzer":       NewTaskAnalyzer(),
 	"default":             NewThinking(),
 	"surface":             NewSurfaceAnalysis(),
 	"pattern":             NewPatternAnalysis(),
@@ -40,4 +41,5 @@ var ProcessMap = map[string]Process{
 	"security_specialist": NewSecuritySpecialist(),
 	"trengo":              NewLabelling(),
 	"slack":               NewPlanning(),
+	"development":         NewDevelopment(),
 }

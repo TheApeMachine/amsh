@@ -29,6 +29,12 @@ func NewProcessor(key string, coreTypes ...string) *Processor {
 		done:     make(chan struct{}),
 	}
 
+	// Initialize channels before creating cores
+	for _, id := range coreTypes {
+		p.channels[id] = make(chan process.ProcessResult, 1)
+	}
+
+	// Create cores with their respective channels
 	for _, id := range coreTypes {
 		p.cores[id] = NewCore(id, process.ProcessMap[id], key, p.channels[id])
 	}
@@ -49,14 +55,36 @@ func (p *Processor) Process(input string) <-chan provider.Event {
 		var wg sync.WaitGroup
 		wg.Add(len(p.cores))
 
-		// Start all cores and forward their events
+		// Start all cores
 		for id, core := range p.cores {
 			go func(id string, core Core) {
 				defer wg.Done()
 
-				// Forward all events in real-time
-				for event := range core.team.Execute(input) {
-					out <- event
+				// Start the core's Run method
+				resultChan := core.Run()
+
+				// Send input to the core
+				core.input <- input
+
+				// Process results
+				for result := range resultChan {
+					if result.Error != nil {
+						out <- provider.Event{
+							Type:    provider.EventError,
+							Content: result.Error.Error(),
+							AgentID: id,
+						}
+						continue
+					}
+
+					// Convert result data to events
+					if len(result.Data) > 0 {
+						out <- provider.Event{
+							Type:    provider.EventToken,
+							Content: string(result.Data),
+							AgentID: id,
+						}
+					}
 				}
 			}(id, core)
 		}
