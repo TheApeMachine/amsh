@@ -2,32 +2,52 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/invopop/jsonschema"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/webapi"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/workitemtracking"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
 type Boards struct {
-	client *azuredevops.Connection
+	Operation    string `json:"operation" jsonschema:"enum=wiql,enum=details,enum=create,enum=update,enum=comment"`
+	Query        string `json:"query" jsonschema:"title=WIQL Query, description=The WIQL query to execute"`
+	Id           int    `json:"id" jsonschema:"title=Work Item ID, description=The ID of the work item to retrieve details for"`
+	Title        string `json:"title" jsonschema:"title=Title, description=The title of the work item to create or update"`
+	Description  string `json:"description" jsonschema:"title=Description, description=The description of the work item to create or update"`
+	WorkItemType string `json:"workItemType" jsonschema:"title=Work Item Type, description=The type of the work item to create"`
+	Tags         string `json:"tags" jsonschema:"title=Tags, description=The tags to assign to the work item"`
+	Comment      string `json:"comment" jsonschema:"title=Comment, description=The comment to publish to the work item"`
+	client       *azuredevops.Connection
 }
 
 /*
 NewBoards initializes the Boards struct with a connection client.
 */
-func NewBoards() (*Boards, error) {
+func NewBoards() *Boards {
 	client := azuredevops.NewPatConnection(os.Getenv("AZURE_DEVOPS_ORG"), os.Getenv("AZURE_DEVOPS_PAT"))
-	return &Boards{client: client}, nil
+	return &Boards{client: client}
+}
+
+func (boards *Boards) GenerateSchema() string {
+	schema := jsonschema.Reflect(&Boards{})
+	out, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		errnie.Error(err)
+	}
+	return string(out)
 }
 
 /*
 Use is the entry point for all operations in Boards tool.
 */
-func (boards *Boards) Use(args map[string]any) string {
+func (boards *Boards) Use(ctx context.Context, args map[string]any) string {
 	if operation, ok := args["operation"].(string); ok {
 		switch operation {
 		case "wiql":

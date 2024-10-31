@@ -13,9 +13,11 @@ import (
 )
 
 type Core struct {
-	id      string
+	ctx     context.Context
+	cancel  context.CancelFunc
+	ID      string
 	process process.Process
-	agent   *ai.Agent
+	team    *ai.Team
 	input   chan string
 	output  chan process.ProcessResult
 }
@@ -23,34 +25,34 @@ type Core struct {
 func NewCore(id string, proc process.Process, key string, outputChan chan process.ProcessResult) Core {
 	log.Info("NewCore", "id", id, "key", key)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return Core{
-		id:      id,
+		ctx:     ctx,
+		cancel:  cancel,
+		ID:      id,
 		process: proc,
-		agent: ai.NewAgent(
-			fmt.Sprintf("%s-%s", key, id),
-			id,
-			proc.SystemPrompt(key),
-		),
-		input:  make(chan string, 1),
-		output: outputChan,
+		team:    ai.NewTeam(ctx, key, proc.SystemPrompt(key)),
+		input:   make(chan string, 1),
+		output:  outputChan,
 	}
 }
 
-func (c *Core) Run() chan process.ProcessResult {
-	log.Info("Starting core", "id", c.id)
+func (core *Core) Run() chan process.ProcessResult {
+	log.Info("Starting core", "id", core.ID)
 	outputChan := make(chan process.ProcessResult, 1)
 
 	go func() {
 		defer close(outputChan)
 
-		for input := range c.input {
-			log.Info("Core received input", "id", c.id, "input", input)
+		for input := range core.input {
+			log.Info("Core received input", "id", core.ID, "input", input)
 
 			// Create context with timeout
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
 			var result process.ProcessResult
-			result.CoreID = c.id
+			result.CoreID = core.ID
 
 			// Create done channel for agent execution
 			done := make(chan struct{})
@@ -59,7 +61,7 @@ func (c *Core) Run() chan process.ProcessResult {
 			// Execute agent in separate goroutine
 			go func() {
 				defer close(done)
-				for event := range c.agent.Execute(input) {
+				for event := range core.team.Execute(input) {
 					if event.Type == provider.EventToken {
 						output += event.Content
 					}
@@ -82,7 +84,7 @@ func (c *Core) Run() chan process.ProcessResult {
 			select {
 			case outputChan <- result:
 			default:
-				log.Error("Failed to send result", "core", c.id)
+				log.Error("Failed to send result", "core", core.ID)
 			}
 		}
 	}()

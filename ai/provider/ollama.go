@@ -26,7 +26,7 @@ func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams, mes
 		defer close(eventChan)
 
 		client := api.NewClient(
-			&url.URL{Scheme: "http", Host: "ollama:11434"},
+			&url.URL{Scheme: "http", Host: "localhost:11434"},
 			&http.Client{},
 		)
 

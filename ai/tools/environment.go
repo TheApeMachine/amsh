@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/invopop/jsonschema"
 	"github.com/theapemachine/amsh/container"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -29,8 +31,17 @@ func NewEnvironment() *Environment {
 	return &Environment{runner: runner}
 }
 
-func (environment *Environment) Use(args map[string]any) string {
-	result, err := environment.Execute(context.Background(), args)
+func (environment *Environment) GenerateSchema() string {
+	schema := jsonschema.Reflect(&Environment{})
+	out, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		errnie.Error(err)
+	}
+	return string(out)
+}
+
+func (environment *Environment) Use(ctx context.Context, args map[string]any) string {
+	result, err := environment.Execute(ctx, args)
 	if err != nil {
 		errnie.Error(err)
 	}

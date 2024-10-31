@@ -55,7 +55,7 @@ func (p *Processor) Process(input string) <-chan provider.Event {
 				defer wg.Done()
 
 				// Forward all events in real-time
-				for event := range core.agent.Execute(input) {
+				for event := range core.team.Execute(input) {
 					out <- event
 				}
 			}(id, core)

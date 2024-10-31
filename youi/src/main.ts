@@ -1,4 +1,4 @@
-import { StateManager } from "@/lib/state";
+import { stateManager } from "@/lib/state";
 import {router} from "@/router.ts";
 import "@/components/root.ts";
 import "@/components/ui/gridspace";
@@ -9,12 +9,12 @@ import "@/components/toast/message";
 
 declare global {
     interface Window {
-        stateManager: ReturnType<typeof StateManager>;
+        stateManager: typeof stateManager;
     }
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-    window.stateManager = StateManager();
+    window.stateManager = stateManager;
     window.stateManager.init();
 
     router(document.body!);

@@ -1,10 +1,11 @@
 package ai
 
-type Tool interface {
-	Use(arguments map[string]any) string
-}
+import (
+	"context"
+)
 
-type ToolCall struct {
-	Name      string         `json:"name"`
-	Arguments map[string]any `json:"arguments"`
+// Tool interface defines the contract for all tools
+type Tool interface {
+	Use(ctx context.Context, args map[string]any) string
+	GenerateSchema() string
 }

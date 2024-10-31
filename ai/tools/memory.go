@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
+	"github.com/invopop/jsonschema"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Memory struct{}
@@ -12,7 +15,16 @@ func NewMemory() *Memory {
 	return &Memory{}
 }
 
-func (memory *Memory) Use(args map[string]any) string {
+func (memory *Memory) GenerateSchema() string {
+	schema := jsonschema.Reflect(&Memory{})
+	out, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		errnie.Error(err)
+	}
+	return string(out)
+}
+
+func (memory *Memory) Use(ctx context.Context, args map[string]any) string {
 	return ""
 }
 

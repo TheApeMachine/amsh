@@ -1,9 +1,12 @@
 package tools
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"os"
 
+	"github.com/invopop/jsonschema"
 	"github.com/slack-go/slack"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -25,6 +28,15 @@ func NewSlack() *Slack {
 	}
 }
 
-func (slack *Slack) Use(args map[string]any) string {
+func (slack *Slack) GenerateSchema() string {
+	schema := jsonschema.Reflect(&Slack{})
+	out, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		errnie.Error(err)
+	}
+	return string(out)
+}
+
+func (slack *Slack) Use(ctx context.Context, args map[string]any) string {
 	return ""
 }

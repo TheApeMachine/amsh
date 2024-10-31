@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -11,16 +12,30 @@ import (
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/go-rod/stealth"
+	"github.com/invopop/jsonschema"
 	"github.com/spf13/cast"
-	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/errnie"
 )
 
+type BrowserArgs struct {
+	URL        string `json:"url" jsonschema:"required,description=The URL to navigate to"`
+	Selector   string `json:"selector" jsonschema:"description=CSS selector to find elements"`
+	Timeout    int    `json:"timeout" jsonschema:"description=Timeout in seconds"`
+	Screenshot bool   `json:"screenshot" jsonschema:"description=Whether to take a screenshot"`
+}
+
 type Browser struct {
-	instance *rod.Browser
-	page     *rod.Page
-	history  []BrowseAction
-	proxy    *url.URL
+	Operation  string            `json:"operation" jsonschema:"title=Operation,description=The operation to perform,enum=navigate,enum=click,enum=extract,enum=script,enum=wait,enum=form,enum=screenshot,enum=intercept,enum=cookies,enum=hijack,enum=response,enum=close"`
+	Javascript string            `json:"javascript" jsonschema:"title=JavaScript,description=JavaScript code to execute in the developer console"`
+	Hijack     string            `json:"hijack" jsonschema:"title=Hijack,description=Hijack a network request"`
+	Response   string            `json:"response" jsonschema:"title=Response,description=Response to return for a network request"`
+	Form       map[string]string `json:"form" jsonschema:"title=Form,description=Form data to fill in"`
+	Intercept  []string          `json:"intercept" jsonschema:"title=Intercept,description=Network intercept patterns"`
+	Cookies    string            `json:"cookies" jsonschema:"title=Cookies,description=Cookie operation,enum=get,enum=set,enum=delete"`
+	instance   *rod.Browser
+	page       *rod.Page
+	history    []BrowseAction
+	proxy      *url.URL
 }
 
 type BrowseAction struct {
@@ -54,7 +69,7 @@ func NewBrowser() *Browser {
 	}
 }
 
-func (browser *Browser) Use(args map[string]any) string {
+func (browser *Browser) Use(ctx context.Context, args map[string]any) string {
 	result, err := browser.Run(args)
 	if err != nil {
 		errnie.Error(err)
@@ -62,8 +77,13 @@ func (browser *Browser) Use(args map[string]any) string {
 	return result
 }
 
-func (browser *Browser) Description() string {
-	return viper.GetViper().GetString("tools.browser")
+func (browser *Browser) GenerateSchema() string {
+	schema := jsonschema.Reflect(&Browser{})
+	out, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		errnie.Error(err)
+	}
+	return string(out)
 }
 
 // SetProxy configures a proxy for the browser

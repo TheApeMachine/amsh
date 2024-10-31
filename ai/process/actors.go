@@ -53,11 +53,6 @@ type DataScientist struct {
 	Metrics []Metric `json:"metrics" jsonschema:"required;title=Metrics;description=The metrics to evaluate the model on."`
 }
 
-type Metric struct {
-	Name        string `json:"name" jsonschema:"required;title=Name;description=The name of the metric."`
-	Description string `json:"description" jsonschema:"required;title=Description;description=The description of the metric."`
-}
-
 func NewDataScientist() *DataScientist {
 	return &DataScientist{}
 }

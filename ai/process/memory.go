@@ -15,6 +15,24 @@ type Memory struct {
 	Observations []Observation `json:"observations" jsonschema:"required;title=Observations;description=Information observed from agent conversations"`
 	Connections  []Connection  `json:"connections" jsonschema:"required;title=Connections;description=Relationships between pieces of information"`
 	Context      Context       `json:"context" jsonschema:"required;title=Context;description=Current context of the conversation"`
+	Graph        Graph         `json:"graph" jsonschema:"required;title=Graph;description=Relational memories to remember using the graph database"`
+}
+
+type Graph struct {
+	Nodes  []Node `json:"nodes" jsonschema:"required;title=Nodes;description=Nodes in the graph"`
+	Edges  []Edge `json:"edges" jsonschema:"required;title=Edges;description=Edges in the graph"`
+	Cypher string `json:"cypher" jsonschema:"required;title=Cypher;description=Cypher query to run on the graph database"`
+}
+
+type Node struct {
+	Id     string   `json:"id" jsonschema:"required;title=Id;description=Id of the node"`
+	Labels []string `json:"labels" jsonschema:"required;title=Labels;description=Labels of the node"`
+}
+
+type Edge struct {
+	Source       string `json:"source" jsonschema:"required;title=Source;description=Source node of the edge"`
+	Target       string `json:"target" jsonschema:"required;title=Target;description=Target node of the edge"`
+	Relationship string `json:"relationship" jsonschema:"required;title=Relationship;description=Relationship between the source and target nodes"`
 }
 
 // Observation represents a piece of information worth remembering

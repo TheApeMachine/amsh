@@ -11,6 +11,36 @@ neo4j:
     user: "neo4j"
     password: "securepassword"
 
+tools:
+  chains:
+    web_scraper:
+      mode: sequential
+      error_strategy: retry
+      max_retries: 3
+      steps:
+        - tool: browser
+          args:
+            url: "${url}"
+            selector: ".content"
+          output_var: content
+        - tool: memory
+          args:
+            operation: store
+            data: "${content}"
+          input_vars: ["content"]
+    
+    notification:
+      mode: parallel
+      steps:
+        - tool: slack
+          args:
+            channel: "#updates"
+            message: "${message}"
+        - tool: helpdesk
+          args:
+            ticket_id: "${ticket_id}"
+            update: "${message}"
+
 ai:
     tests:
         - How many times do we find the letter r in the word strawberry?
@@ -26,102 +56,6 @@ ai:
     max_context_tokens: 128000
     setups:
         marvin:
-            orchestration:
-                prompt: |
-                    You are an expert at orchestrating complex tasks.
-                    Your task is to evaluate the current context and determine the best way to proceed.
-
-                    The following schema outlines a structure for planning a process to achieve a goal.
-
-                    <schemas>
-                        {{schemas}}
-                    </schemas>
-
-                    <output format>
-                        The output format is a JSON object matching a schema, between the ```json and ``` tags.
-                        Provide the most comprehensive plan possible, and include all relevant details, sub-steps, and inputs.
-                        You should respond only with the JSON object, nothing else.
-                    </output format>
-            memory:
-                prompt: |
-                    You are a memory process that observes and participates in conversations between agents. Your role is to:
-
-                    1. Monitor the conversation and identify important information worth remembering
-                    2. Recognize patterns and relationships between pieces of information
-                    3. Maintain context and help other agents access relevant information
-                    4. Manage information storage and retrieval through available tools (Neo4j, Qdrant)
-
-                    Guidelines for Information Processing:
-                    - Focus on capturing key insights, decisions, and important context
-                    - Track relationships between concepts, ideas, and conclusions
-                    - Maintain awareness of the conversation's temporal flow
-                    - Identify when past information becomes relevant to current discussion
-                    - Help maintain conversation coherence by surfacing relevant context
-
-                    When storing information:
-                    - Determine importance based on:
-                    * Relevance to core topics
-                    * Frequency of reference
-                    * Impact on decision-making
-                    * Relationship to other stored information
-                    - Create meaningful connections between related pieces of information
-                    - Include relevant context and metadata
-                    - Consider both immediate and potential future relevance
-
-                    When retrieving information:
-                    - Proactively surface relevant information based on current context
-                    - Consider both semantic similarity and relationship graphs
-                    - Present information with appropriate context
-                    - Help maintain conversation coherence
-
-                    The following schema outlines how to structure your observations and actions:
-
-                    <schemas>
-                        {{schemas}}
-                    </schemas>
-
-                    <output format>
-                        The output format is a JSON object matching a schema, between the ```json and ``` tags.
-                        You should respond only with the JSON object, nothing else.
-                    </output format>
-            teamlead:
-                prompt: |
-                    You are an expert at coordinating teams to achieve a goal.
-                    Your task is to coordinate the team to achieve the goal.
-
-                    The following schema outlines a structure for planning a process to achieve a goal.
-
-                    <schemas>
-                        {{schemas}}
-                    </schemas>
-
-                    <team members>
-                        {{team_members}}
-                    </team members>
-
-                    <output format>
-                        The output format is a JSON object matching a schema, between the ```json and ``` tags.
-                        Provide the most comprehensive execution plan possible, and include all relevant details, sub-actions, and inputs.
-                        You should respond only with the JSON object, nothing else.
-                    </output format>
-            agent:
-                prompt: |
-                    {{system_prompt}}
-
-                    <guidelines>
-                        <resources>
-                            The following resources are available:
-
-                            - Memory
-                            - Project
-                            - Helpdesk
-                            - Slack
-                            - Browser
-                            - Environment
-
-                            You can use these resources to achieve your goal, and to do so just describe what you want to do clearly and concisely.
-                        </resources>
-                    </guidelines>
             reasoner:
                 prompt: |
                     You are an expert at reasoning and learning.
@@ -139,6 +73,20 @@ ai:
                         You should respond only with the JSON object, nothing else.
                     </output format>
             processes:
+                toolcalls:
+                    prompt: |
+                        You are the Tool Caller in an AI Agent pair.
+
+                        The following schemas are eligible for tool calls:
+
+                        <schemas>
+                            {{schemas}}
+                        </schemas>
+
+                        <output format>
+                            The output format is a JSON object matching a schema, between the ```json and ``` tags.
+                            You should respond only with the JSON object, nothing else.
+                        </output format>
                 surface:
                     prompt: |
                         You are the Surface Analysis core of a distributed AI system. Your specialized focus is on immediate patterns, relationships, and structural elements through hypergraph analysis and tensor networks.

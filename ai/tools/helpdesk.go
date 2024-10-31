@@ -2,55 +2,74 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"regexp"
-	"strings"
 
-	"github.com/theapemachine/amsh/ai/process"
+	"github.com/invopop/jsonschema"
 	"github.com/theapemachine/amsh/errnie"
 )
 
-type Helpdesk struct{}
+type Helpdesk struct {
+	Operation string `json:"operation" jsonschema:"title=Operation,description=The operation to perform,enum=label,enum=create,enum=update,enum=close"`
+	TicketID  int    `json:"ticketId" jsonschema:"title=Ticket ID,description=The ID of the ticket to label"`
+	LabelIDs  []int  `json:"labelIds" jsonschema:"title=Label IDs,description=The IDs of the labels to assign to the ticket"`
+}
 
 func NewHelpdesk() *Helpdesk {
 	return &Helpdesk{}
 }
 
-func (helpdesk *Helpdesk) Use(args map[string]any) string {
+/*
+Use the tool by passing the map of arguments that was returned from the AI.
+*/
+func (helpdesk *Helpdesk) Use(ctx context.Context, args map[string]any) string {
+	if err := helpdesk.Unmarshal(args); err != nil {
+		return errnie.Error(err).Error()
+	}
+
+	switch helpdesk.Operation {
+	case "label":
+		return helpdesk.LabelTicket()
+	}
 	return ""
 }
 
-func (helpdesk *Helpdesk) LabelTicket(args string) {
-	// Extract the JSON from the Markdown JSON block.
-	re := regexp.MustCompile("(?s)json\\s*(\\{.*?\\})\\s*")
-	matches := re.FindAllStringSubmatch(args, -1)
-	jsonContent := []string{}
-
-	for _, match := range matches {
-		jsonContent = append(jsonContent, strings.TrimSpace(match[1]))
+/*
+Unmarshal upgrades the map to the struct, for easier access to the data.
+*/
+func (helpdesk *Helpdesk) Unmarshal(args map[string]any) (err error) {
+	var buf []byte
+	if buf, err = json.Marshal(args); err != nil {
+		return err
 	}
 
-	out := process.Labelling{}
-	if err := json.Unmarshal([]byte(jsonContent[0]), &out); err != nil {
+	return json.Unmarshal(buf, helpdesk)
+}
+
+func (helpdesk *Helpdesk) GenerateSchema() string {
+	schema := jsonschema.Reflect(&Helpdesk{})
+	out, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
 		errnie.Error(err)
-		return
 	}
+	return string(out)
+}
 
-	for _, labelID := range out.LabelIDs {
+func (helpdesk *Helpdesk) LabelTicket() string {
+	for _, labelID := range helpdesk.LabelIDs {
 		url := fmt.Sprintf(
-			"https://app.trengo.com/api/v2/tickets/%d/labels", out.TicketID,
+			"https://app.trengo.com/api/v2/tickets/%d/labels", helpdesk.TicketID,
 		)
 
 		req, err := http.NewRequest("POST", url, bytes.NewBuffer(
 			[]byte(fmt.Sprintf(`{"label_id": %d}`, labelID)),
 		))
 		if err != nil {
-			errnie.Error(err)
-			return
+			return errnie.Error(err).Error()
 		}
 
 		req.Header.Add("Authorization", fmt.Sprintf(
@@ -61,17 +80,15 @@ func (helpdesk *Helpdesk) LabelTicket(args string) {
 
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
-			errnie.Error(err)
-			return
+			return errnie.Error(err).Error()
 		}
 
 		defer res.Body.Close()
-		body, err := io.ReadAll(res.Body)
+		_, err = io.ReadAll(res.Body)
 		if err != nil {
-			errnie.Error(err)
-			return
+			return errnie.Error(err).Error()
 		}
-
-		fmt.Println(string(body))
 	}
+
+	return "success"
 }

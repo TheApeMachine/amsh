@@ -5,6 +5,7 @@ import { match } from "@/lib/match";
 import { switchLayer } from "@/lib/layer";
 import { gsap } from "gsap";
 import SlidesComponent from "@/components/slides/component";
+import { ConversationVisualizer } from "@/components/agentviz/conversation";
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
@@ -63,7 +64,7 @@ export const render = async () => {
             success: (_: any) => (
                 <SlidesComponent>
                     <section>
-                        <h1>Test</h1>
+                        <ConversationVisualizer />
                     </section>
                 </SlidesComponent>
             )

@@ -8,6 +8,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderMaterial } from 'three';
 import gsap from 'gsap';
 import { SpeechBubble } from './speechbubble';
+import { jsx } from '@/lib/template';
 
 interface AgentData {
     id: string;
@@ -18,33 +19,32 @@ interface AgentData {
     parentId?: string;
 }
 
-class InteractiveAI3DTimelineMindMap extends HTMLElement {
+export const InteractiveAI3DTimelineMindMap = () => {
     // Scene and rendering variables
-    private scene: THREE.Scene;
-    private camera: THREE.PerspectiveCamera;
-    private renderer: THREE.WebGLRenderer;
-    private labelRenderer: CSS2DRenderer;
-    private composer: EffectComposer;
-    private controls: OrbitControls;
-    private agents: Map<string, THREE.Mesh> = new Map();
-    private connections: THREE.Line[] = [];
-    private timeline: THREE.Object3D;
-    private particles: THREE.Points;
-    private currentLayoutName: string = 'force';
-    private bloomPass: UnrealBloomPass;
+    const scene = new THREE.Scene();
+    let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const labelRenderer = new CSS2DRenderer();
+    const composer = new EffectComposer(renderer);
+    const controls = new OrbitControls(camera, labelRenderer.domElement);
+    const agents = new Map<string, THREE.Mesh>();
+    let connections: THREE.Line[] = [];
+    const timeline = new THREE.Object3D();
+    const particles = new THREE.Points();
+    let currentLayoutName = 'force';
 
     // Interaction variables
-    private raycaster = new THREE.Raycaster();
-    private mouse = new THREE.Vector2();
-    private tooltip: HTMLDivElement;
-    private selectedAgent: THREE.Mesh | null = null;
-    private agentControlPanel: HTMLDivElement | null = null;
-    private isSimulationPaused = false;
-    private speechBubbles: SpeechBubble[] = [];
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const tooltip = document.createElement('div');
+    let selectedAgent: THREE.Mesh | null = null;
+    let agentControlPanel: HTMLDivElement | null = null;
+    let isSimulationPaused = false;
+    let speechBubbles: SpeechBubble[] = [];
 
     // Data variables
-    private agentDataList: AgentData[] = [];
-    private typeColors: { [key: string]: number } = {
+    let agentDataList: AgentData[] = [];
+    const typeColors: { [key: string]: number } = {
         'Controller': 0xff5733, // Orange
         'Worker': 0x33ff57,     // Green
         'Analyzer': 0x3357ff,   // Blue
@@ -52,87 +52,76 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         'Temporary': 0xffff00   // Yellow
     };
 
-    constructor() {
-        super();
-        this.attachShadow({ mode: 'open' });
-    }
-
-    connectedCallback() {
-        this.initializeScene();
-        this.createTooltip();
-        this.createTimeline();
-        this.createParticleSystem();
-        this.createControls();
-        this.addEventListeners();
-        this.loadData(); // Load initial data
-        this.startSimulation();
+    const initializeScene = () => {
+        createTooltip();
+        createTimeline();
+        createParticleSystem();
+        createControls();
+        addEventListeners();
+        loadData(); // Load initial data
+        startSimulation();
 
         // Use GSAP's ticker for synchronized animations
-        gsap.ticker.add(this.animate.bind(this));
-    }
+        gsap.ticker.add(animate.bind(this));
+        scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--background-color') || '#000011');
 
-    private initializeScene() {
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--background-color') || '#000011');
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.z = 100;
 
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.camera.position.z = 100;
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.shadowRoot.appendChild(this.renderer.domElement);
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0px';
+        document.body.appendChild(labelRenderer.domElement);
 
-        this.labelRenderer = new CSS2DRenderer();
-        this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
-        this.labelRenderer.domElement.style.position = 'absolute';
-        this.labelRenderer.domElement.style.top = '0px';
-        this.shadowRoot.appendChild(this.labelRenderer.domElement);
-
-        this.controls = new OrbitControls(this.camera, this.labelRenderer.domElement);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
+        const controls = new OrbitControls(camera, labelRenderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
 
         const ambientLight = new THREE.AmbientLight(0x333333);
-        this.scene.add(ambientLight);
+        scene.add(ambientLight);
 
         const pointLight = new THREE.PointLight(0xffffff, 2);
         pointLight.position.set(0, 0, 50);
-        this.scene.add(pointLight);
+        scene.add(pointLight);
 
         // Set up post-processing
-        const renderPass = new RenderPass(this.scene, this.camera);
-        this.bloomPass = new UnrealBloomPass(
+        const renderPass = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight),
             1.5,
             0.4,
             0.85
         );
 
-        this.composer = new EffectComposer(this.renderer);
-        this.composer.addPass(renderPass);
-        this.composer.addPass(this.bloomPass);
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderPass);
+        composer.addPass(bloomPass);
     }
 
-    private createTooltip() {
-        this.tooltip = document.createElement('div');
-        this.tooltip.style.position = 'absolute';
-        this.tooltip.style.background = 'rgba(0, 0, 0, 0.7)';
-        this.tooltip.style.color = '#fff';
-        this.tooltip.style.padding = '5px';
-        this.tooltip.style.borderRadius = '3px';
-        this.tooltip.style.pointerEvents = 'none';
-        this.tooltip.style.display = 'none';
-        this.shadowRoot?.appendChild(this.tooltip);
+    const createTooltip = () => {
+        const tooltip = document.createElement('div');
+        tooltip.style.position = 'absolute';
+        tooltip.style.background = 'rgba(0, 0, 0, 0.7)';
+        tooltip.style.color = '#fff';
+        tooltip.style.padding = '5px';
+        tooltip.style.borderRadius = '3px';
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.display = 'none';
+        document.body.appendChild(tooltip);
     }
 
-    private createTimeline() {
+    const createTimeline = () => {
         const geometry = new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(-50, -30, 0),
             new THREE.Vector3(50, -30, 0)
         ]);
         const material = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
-        this.timeline = new THREE.Line(geometry, material);
-        this.scene.add(this.timeline);
+        const timeline = new THREE.Line(geometry, material);
+        scene.add(timeline);
 
         const timeLabel = document.createElement('div');
         timeLabel.className = 'label';
@@ -141,10 +130,10 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         timeLabel.style.fontSize = '16px';
         const timeLabelObject = new CSS2DObject(timeLabel);
         timeLabelObject.position.set(0, -33, 0);
-        this.timeline.add(timeLabelObject);
+        timeline.add(timeLabelObject);
     }
 
-    private createParticleSystem() {
+    const createParticleSystem = () => {
         const particleCount = 1000;
         const particles = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
@@ -165,11 +154,11 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             opacity: 0.8
         });
 
-        this.particles = new THREE.Points(particles, particleMaterial);
-        this.scene.add(this.particles);
+        const particlePoints = new THREE.Points(particles, particleMaterial);
+        scene.add(particlePoints);
     }
 
-    private addAgent(agentData: AgentData) {
+    const addAgent = (agentData: AgentData) => {
         const { position, id, type } = agentData;
 
         // Ensure position is valid
@@ -178,14 +167,14 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         }
 
         // Choose geometry based on type
-        let geometry: THREE.Geometry | THREE.BufferGeometry;
+        let geometry: THREE.BufferGeometry;
         if (type === 'Temporary') {
             geometry = new THREE.TetrahedronGeometry(1, 0); // Different shape for temporary agents
         } else {
             geometry = new THREE.SphereGeometry(1, 32, 32);
         }
 
-        const color = new THREE.Color(this.typeColors[type] || 0xffffff);
+        const color = new THREE.Color(typeColors[type] || 0xffffff);
         const material = new ShaderMaterial({
             uniforms: {
                 time: { value: 0 },
@@ -221,8 +210,8 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         labelObject.position.set(0, 1.5, 0);
         agent.add(labelObject);
 
-        this.scene.add(agent);
-        this.agents.set(id, agent);
+        scene.add(agent);
+        agents.set(id, agent);
 
         // Add a point on the timeline
         const timePoint = new THREE.Mesh(
@@ -230,7 +219,7 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             new THREE.MeshBasicMaterial({ color: 0x00ffff })
         );
         timePoint.position.set(agentData.time * 2 - 50, -30, 0);
-        this.timeline.add(timePoint);
+        timeline.add(timePoint);
 
         // Add a vertical line connecting the agent to the timeline
         const lineGeometry = new THREE.BufferGeometry().setFromPoints([
@@ -239,12 +228,12 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         ]);
         const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.5, transparent: true });
         const line = new THREE.Line(lineGeometry, lineMaterial);
-        this.scene.add(line);
+        scene.add(line);
     }
 
-    public addConnection(agentId1: string, agentId2: string) {
-        const agent1 = this.agents.get(agentId1);
-        const agent2 = this.agents.get(agentId2);
+    const addConnection = (agentId1: string, agentId2: string) => {
+        const agent1 = agents.get(agentId1);
+        const agent2 = agents.get(agentId2);
 
         if (agent1 && agent2) {
             const points = [
@@ -256,15 +245,15 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             const material = new THREE.LineBasicMaterial({ color: 0x00ffff, opacity: 0.7, transparent: true });
             const connection = new THREE.Line(geometry, material);
             connection.userData = { start: agentId1, end: agentId2 }; // Store the connected agent IDs
-            this.scene.add(connection);
-            this.connections.push(connection);
+            scene.add(connection);
+            connections.push(connection);
 
             // Add data flow particles
-            this.addDataFlowParticles(agent1.position, agent2.position, connection);
+            addDataFlowParticles(agent1.position, agent2.position, connection);
         }
     }
 
-    private addDataFlowParticles(start: THREE.Vector3, end: THREE.Vector3, connection: THREE.Line) {
+    const addDataFlowParticles = (start: THREE.Vector3, end: THREE.Vector3, connection: THREE.Line) => {
         const particleMaterial = new THREE.PointsMaterial({
             color: 0xffa500,
             size: 0.2,
@@ -301,32 +290,32 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         });
     }
 
-    private async applyLayout(layoutName: string) {
+    const applyLayout = (layoutName: string) => {
         console.log("Applying layout:", layoutName);
 
         switch (layoutName) {
             case 'force':
-                this.applyForceLayout();
+                applyForceLayout();
                 break;
             case 'sphere':
-                this.applySphereLayout();
+                applySphereLayout();
                 break;
             case 'grid':
-                this.applyGridLayout();
+                applyGridLayout();
                 break;
             case 'circular':
-                this.applyCircularLayout();
+                applyCircularLayout();
                 break;
             default:
-                this.applyRandomLayout();
+                applyRandomLayout();
         }
 
-        this.currentLayoutName = layoutName;
+        currentLayoutName = layoutName;
     }
 
-    private animateToNewLayout() {
-        this.agentDataList.forEach(agentData => {
-            const agent = this.agents.get(agentData.id);
+    const animateToNewLayout = () => {
+        agentDataList.forEach(agentData => {
+            const agent = agents.get(agentData.id);
             if (agent) {
                 gsap.to(agent.position, {
                     x: agentData.position.x,
@@ -339,7 +328,7 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         });
     }
 
-    private applyForceLayout() {
+    const applyForceLayout = () => {
         // Simple force-directed layout using Coulomb's law and Hooke's law
 
         const iterations = 100;
@@ -349,15 +338,15 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         for (let i = 0; i < iterations; i++) {
             // Reset forces
             const forces: { [id: string]: THREE.Vector3 } = {};
-            this.agentDataList.forEach(agent => {
+            agentDataList.forEach(agent => {
                 forces[agent.id] = new THREE.Vector3();
             });
 
             // Calculate repulsion forces
-            for (let j = 0; j < this.agentDataList.length; j++) {
-                for (let k = j + 1; k < this.agentDataList.length; k++) {
-                    const agentA = this.agentDataList[j];
-                    const agentB = this.agentDataList[k];
+            for (let j = 0; j < agentDataList.length; j++) {
+                for (let k = j + 1; k < agentDataList.length; k++) {
+                    const agentA = agentDataList[j];
+                    const agentB = agentDataList[k];
                     const delta = agentA.position.clone().sub(agentB.position);
                     const distance = delta.length() + 0.1; // Avoid division by zero
                     const forceMagnitude = repulsionStrength / (distance * distance);
@@ -369,9 +358,9 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             }
 
             // Calculate spring forces
-            this.agentDataList.forEach(agent => {
+            agentDataList.forEach(agent => {
                 agent.connections.forEach(connId => {
-                    const connectedAgent = this.agentDataList.find(a => a.id === connId);
+                    const connectedAgent = agentDataList.find(a => a.id === connId);
                     if (connectedAgent) {
                         const delta = agent.position.clone().sub(connectedAgent.position);
                         const distance = delta.length();
@@ -384,20 +373,20 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             });
 
             // Update positions
-            this.agentDataList.forEach(agent => {
+            agentDataList.forEach(agent => {
                 agent.position.add(forces[agent.id].multiplyScalar(0.01));
             });
         }
 
-        this.animateToNewLayout();
+        animateToNewLayout();
     }
 
-    private applySphereLayout() {
+    const applySphereLayout = () => {
         const radius = 50;
         const phi = Math.PI * (3 - Math.sqrt(5)); // Golden angle in radians
 
-        this.agentDataList.forEach((agentData, i) => {
-            const y = 1 - (i / (this.agentDataList.length - 1)) * 2;
+        agentDataList.forEach((agentData, i) => {
+            const y = 1 - (i / (agentDataList.length - 1)) * 2;
             const radiusAtY = Math.sqrt(1 - y * y) * radius;
 
             const theta = phi * i;
@@ -408,15 +397,15 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             agentData.position.set(x, y * radius, z);
         });
 
-        this.animateToNewLayout();
+        animateToNewLayout();
     }
 
-    private applyGridLayout() {
-        const gridSize = Math.ceil(Math.cbrt(this.agentDataList.length));
+    const applyGridLayout = () => {
+        const gridSize = Math.ceil(Math.cbrt(agentDataList.length));
         const spacing = 20;
         const offset = (gridSize - 1) * spacing / 2;
 
-        this.agentDataList.forEach((agentData, i) => {
+        agentDataList.forEach((agentData, i) => {
             const x = (i % gridSize) * spacing - offset;
             const y = (Math.floor((i / gridSize) % gridSize)) * spacing - offset;
             const z = (Math.floor(i / (gridSize * gridSize))) * spacing - offset;
@@ -424,14 +413,14 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             agentData.position.set(x, y, z);
         });
 
-        this.animateToNewLayout();
+        animateToNewLayout();
     }
 
-    private applyCircularLayout() {
+    const applyCircularLayout = () => {
         const radius = 50;
-        const angleStep = (2 * Math.PI) / this.agentDataList.length;
+        const angleStep = (2 * Math.PI) / agentDataList.length;
 
-        this.agentDataList.forEach((agentData, i) => {
+        agentDataList.forEach((agentData, i) => {
             const angle = i * angleStep;
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
@@ -440,21 +429,21 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             agentData.position.set(x, y, z);
         });
 
-        this.animateToNewLayout();
+        animateToNewLayout();
     }
 
-    private applyRandomLayout() {
-        this.agentDataList.forEach(agentData => {
+    const applyRandomLayout = () => {
+        agentDataList.forEach(agentData => {
             agentData.position.set(
                 (Math.random() - 0.5) * 100,
                 (Math.random() - 0.5) * 100,
                 (Math.random() - 0.5) * 100
             );
         });
-        this.animateToNewLayout();
+        animateToNewLayout();
     }
 
-    private createControls() {
+    const createControls = () => {
         const controlsContainer = document.createElement('div');
         controlsContainer.style.position = 'absolute';
         controlsContainer.style.top = '10px';
@@ -473,7 +462,7 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             button.textContent = `Apply ${layout} layout`;
             button.onclick = () => {
                 console.log("Button clicked: Applying layout", layout);
-                this.applyLayout(layout);
+                applyLayout(layout);
             };
             controlsContainer.appendChild(button);
         });
@@ -486,9 +475,9 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         const playPauseButton = document.createElement('button');
         playPauseButton.textContent = 'Pause';
         playPauseButton.onclick = () => {
-            this.isSimulationPaused = !this.isSimulationPaused;
-            playPauseButton.textContent = this.isSimulationPaused ? 'Play' : 'Pause';
-            if (this.isSimulationPaused) {
+            isSimulationPaused = !isSimulationPaused;
+            playPauseButton.textContent = isSimulationPaused ? 'Play' : 'Pause';
+            if (isSimulationPaused) {
                 gsap.globalTimeline.pause();
             } else {
                 gsap.globalTimeline.resume();
@@ -496,7 +485,7 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         };
         simulationControls.appendChild(playPauseButton);
 
-        const speedSlider = this.createSlider('Speed', 0.5, 2, 1, 0.1, (value) => {
+        const speedSlider = createSlider('Speed', 0.5, 2, 1, 0.1, (value) => {
             gsap.globalTimeline.timeScale(value);
         });
         simulationControls.appendChild(speedSlider);
@@ -514,13 +503,13 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         });
 
         themeSelect.onchange = () => {
-            this.applyTheme(themeSelect.value);
+            applyTheme(themeSelect.value);
         };
         controlsContainer.appendChild(themeSelect);
 
         // Time slider
-        const timeSlider = this.createSlider('Time', 0, 100, 100, 1, (value) => {
-            this.filterAgentsByTime(value);
+        const timeSlider = createSlider('Time', 0, 100, 100, 1, (value) => {
+            filterAgentsByTime(value);
         });
         controlsContainer.appendChild(timeSlider);
 
@@ -546,7 +535,7 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         });
 
         typeSelect.onchange = () => {
-            this.filterAgentsByType(typeSelect.value);
+            filterAgentsByType(typeSelect.value);
         };
 
         controlsContainer.appendChild(typeSelect);
@@ -566,7 +555,7 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         searchInput.type = 'text';
         searchInput.style.width = '100%';
         searchInput.onchange = () => {
-            this.focusOnAgent(searchInput.value);
+            focusOnAgent(searchInput.value);
         };
         searchContainer.appendChild(searchInput);
 
@@ -576,14 +565,14 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         const saveButton = document.createElement('button');
         saveButton.textContent = 'Save Layout';
         saveButton.onclick = () => {
-            this.saveLayout();
+            saveLayout();
         };
         controlsContainer.appendChild(saveButton);
 
         const loadButton = document.createElement('button');
         loadButton.textContent = 'Load Layout';
         loadButton.onclick = () => {
-            this.loadLayout();
+            loadLayout();
         };
         controlsContainer.appendChild(loadButton);
 
@@ -591,15 +580,15 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         const exportButton = document.createElement('button');
         exportButton.textContent = 'Export Image';
         exportButton.onclick = () => {
-            this.exportImage();
+            exportImage();
         };
         controlsContainer.appendChild(exportButton);
 
         // Append controls to the shadow DOM
-        this.shadowRoot?.appendChild(controlsContainer);
+        document.body.appendChild(controlsContainer);
     }
 
-    private createSlider(label: string, min: number, max: number, value: number, step: number, onChange: (value: number) => void): HTMLDivElement {
+    const createSlider = (label: string, min: number, max: number, value: number, step: number, onChange: (value: number) => void): HTMLDivElement => {
         const container = document.createElement('div');
         container.style.display = 'flex';
         container.style.flexDirection = 'column';
@@ -629,55 +618,55 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         return container;
     }
 
-    private animate() {
+    const animate = () => {
         const time = performance.now();
 
         const timeInSeconds = time * 0.001; // Convert time to seconds for other uses
 
-        if (!this.isSimulationPaused) {
-            this.controls.update();
+        if (!isSimulationPaused) {
+            controls.update();
 
-            this.agents.forEach((agent) => {
+            agents.forEach((agent) => {
                 if (agent.material instanceof THREE.ShaderMaterial) {
                     agent.material.uniforms.time.value = timeInSeconds;
                 }
             });
 
-            this.particles.rotation.x = timeInSeconds * 0.05;
-            this.particles.rotation.y = timeInSeconds * 0.03;
+            particles.rotation.x = timeInSeconds * 0.05;
+            particles.rotation.y = timeInSeconds * 0.03;
 
-            this.updateConnectionPositions();
+            updateConnectionPositions();
 
-            this.speechBubbles = this.speechBubbles.filter(bubble => {
+            speechBubbles = speechBubbles.filter(bubble => {
                 const isAlive = bubble.update();
                 if (!isAlive) {
-                    bubble.remove(this.scene);
+                    bubble.remove(scene);
                 }
                 return isAlive;
             });
 
             // Update raycaster for tooltips and selection
-            this.raycaster.setFromCamera(this.mouse, this.camera);
-            const intersects = this.raycaster.intersectObjects(Array.from(this.agents.values()));
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(Array.from(agents.values()));
 
             if (intersects.length > 0) {
                 const intersectedAgent = intersects[0].object;
                 const agentName = intersectedAgent.name;
-                this.tooltip.textContent = `Agent: ${agentName}`;
-                this.tooltip.style.display = 'block';
+                tooltip.textContent = `Agent: ${agentName}`;
+                tooltip.style.display = 'block';
             } else {
-                this.tooltip.style.display = 'none';
+                tooltip.style.display = 'none';
             }
         }
 
-        this.composer.render();
-        this.labelRenderer.render(this.scene, this.camera);
+        composer.render();
+        labelRenderer.render(scene, camera);
     }
 
-    private updateConnectionPositions() {
-        this.connections.forEach((connection) => {
-            const startAgent = this.agents.get(connection.userData.start);
-            const endAgent = this.agents.get(connection.userData.end);
+    const updateConnectionPositions = () => {
+        connections.forEach((connection) => {
+            const startAgent = agents.get(connection.userData.start);
+            const endAgent = agents.get(connection.userData.end);
             if (startAgent && endAgent) {
                 const positions = connection.geometry.attributes.position.array as Float32Array;
                 positions[0] = startAgent.position.x;
@@ -691,79 +680,79 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         });
     }
 
-    private addEventListeners() {
-        window.addEventListener('resize', this.onWindowResize.bind(this));
-        this.labelRenderer.domElement.addEventListener('mousemove', this.onMouseMove.bind(this));
-        this.labelRenderer.domElement.addEventListener('click', this.onClick.bind(this));
+    const addEventListeners = () => {
+        window.addEventListener('resize', onWindowResize.bind(this));
+        labelRenderer.domElement.addEventListener('mousemove', onMouseMove.bind(this));
+        labelRenderer.domElement.addEventListener('click', onClick.bind(this));
     }
 
-    private onWindowResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
-        this.composer.setSize(window.innerWidth, window.innerHeight);
+    const onWindowResize = () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    private onMouseMove(event: MouseEvent) {
-        const rect = this.labelRenderer.domElement.getBoundingClientRect();
-        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const onMouseMove = (event: MouseEvent) => {
+        const rect = labelRenderer.domElement.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
         // Update tooltip position
-        this.tooltip.style.left = `${event.clientX + 10}px`;
-        this.tooltip.style.top = `${event.clientY + 10}px`;
+        tooltip.style.left = `${event.clientX + 10}px`;
+        tooltip.style.top = `${event.clientY + 10}px`;
     }
 
-    private onClick(event: MouseEvent) {
-        const rect = this.labelRenderer.domElement.getBoundingClientRect();
+    const onClick = (event: MouseEvent) => {
+        const rect = labelRenderer.domElement.getBoundingClientRect();
         const mouse = new THREE.Vector2(
             ((event.clientX - rect.left) / rect.width) * 2 - 1,
             -((event.clientY - rect.top) / rect.height) * 2 + 1
         );
 
-        this.raycaster.setFromCamera(mouse, this.camera);
-        const intersects = this.raycaster.intersectObjects(Array.from(this.agents.values()));
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(Array.from(agents.values()));
 
         if (intersects.length > 0) {
-            if (this.selectedAgent) {
+            if (selectedAgent) {
                 // Reset previous selection
-                this.selectedAgent.scale.set(1, 1, 1);
+                selectedAgent.scale.set(1, 1, 1);
             }
-            this.selectedAgent = intersects[0].object as THREE.Mesh;
-            this.selectedAgent.scale.set(1.5, 1.5, 1.5);
+            selectedAgent = intersects[0].object as THREE.Mesh;
+            selectedAgent.scale.set(1.5, 1.5, 1.5);
 
             // Highlight connections
-            this.highlightConnections(this.selectedAgent.name);
+            highlightConnections(selectedAgent.name);
 
             // Show agent control panel
-            this.showAgentControlPanel(this.selectedAgent.name);
-            this.showAgentResponse(this.selectedAgent.name);
-        } else if (this.selectedAgent) {
+            showAgentControlPanel(selectedAgent.name);
+            showAgentResponse(selectedAgent.name);
+        } else if (selectedAgent) {
             // Deselect if clicked on empty space
-            this.selectedAgent.scale.set(1, 1, 1);
-            this.selectedAgent = null;
-            this.resetConnectionHighlights();
-            this.hideAgentControlPanel();
+            selectedAgent.scale.set(1, 1, 1);
+            selectedAgent = null;
+            resetConnectionHighlights();
+            hideAgentControlPanel();
         }
     }
 
-    private highlightConnections(agentId: string) {
-        this.connections.forEach(connection => {
+    const highlightConnections = (agentId: string) => {
+        connections.forEach(connection => {
             const isConnected = connection.userData.start === agentId || connection.userData.end === agentId;
             (connection.material as THREE.LineBasicMaterial).color.set(isConnected ? 0xff0000 : 0x00ffff);
         });
     }
 
-    private resetConnectionHighlights() {
-        this.connections.forEach(connection => {
+    const resetConnectionHighlights = () => {
+        connections.forEach(connection => {
             (connection.material as THREE.LineBasicMaterial).color.set(0x00ffff);
         });
     }
 
-    private filterAgentsByType(type: string) {
-        this.agents.forEach((agentMesh, agentId) => {
-            const agentData = this.agentDataList.find(agent => agent.id === agentId);
+    const filterAgentsByType = (type: string) => {
+        agents.forEach((agentMesh, agentId) => {
+            const agentData = agentDataList.find(agent => agent.id === agentId);
             if (agentData) {
                 const shouldBeVisible = type === 'all' || agentData.type === type;
                 agentMesh.visible = shouldBeVisible;
@@ -771,16 +760,16 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         });
 
         // Update connections visibility
-        this.connections.forEach(connection => {
-            const startAgentVisible = this.agents.get(connection.userData.start)?.visible;
-            const endAgentVisible = this.agents.get(connection.userData.end)?.visible;
+        connections.forEach(connection => {
+            const startAgentVisible = agents.get(connection.userData.start)?.visible ?? false;
+            const endAgentVisible = agents.get(connection.userData.end)?.visible ?? false;
             connection.visible = startAgentVisible && endAgentVisible;
         });
     }
 
-    private filterAgentsByTime(maxTime: number) {
-        this.agents.forEach((agentMesh, agentId) => {
-            const agentData = this.agentDataList.find(agent => agent.id === agentId);
+    const filterAgentsByTime = (maxTime: number) => {
+        agents.forEach((agentMesh, agentId) => {
+            const agentData = agentDataList.find(agent => agent.id === agentId);
             if (agentData) {
                 const shouldBeVisible = agentData.time <= maxTime;
                 agentMesh.visible = shouldBeVisible;
@@ -788,24 +777,24 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         });
 
         // Update connections visibility
-        this.connections.forEach(connection => {
-            const startAgentVisible = this.agents.get(connection.userData.start)?.visible;
-            const endAgentVisible = this.agents.get(connection.userData.end)?.visible;
+        connections.forEach(connection => {
+            const startAgentVisible = agents.get(connection.userData.start)?.visible ?? false;
+            const endAgentVisible = agents.get(connection.userData.end)?.visible ?? false;
             connection.visible = startAgentVisible && endAgentVisible;
         });
     }
 
-    private focusOnAgent(agentId: string) {
-        const agent = this.agents.get(agentId);
+    const focusOnAgent = (agentId: string) => {
+        const agent = agents.get(agentId);
         if (agent) {
-            gsap.to(this.camera.position, {
+            gsap.to(camera.position, {
                 x: agent.position.x + 10,
                 y: agent.position.y + 10,
                 z: agent.position.z + 10,
                 duration: 1,
                 onUpdate: () => {
-                    this.camera.lookAt(agent.position);
-                    this.controls.target.copy(agent.position);
+                    camera.lookAt(agent.position);
+                    controls.target.copy(agent.position);
                 }
             });
         } else {
@@ -813,9 +802,9 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         }
     }
 
-    private saveLayout() {
+    const saveLayout = () => {
         const layoutData = {
-            agents: this.agentDataList.map(agentData => ({
+            agents: agentDataList.map(agentData => ({
                 id: agentData.id,
                 position: agentData.position,
                 type: agentData.type,
@@ -835,7 +824,7 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         linkElement.click();
     }
 
-    private async loadLayout() {
+    const loadLayout = async () => {
         const inputElement = document.createElement('input');
         inputElement.type = 'file';
         inputElement.accept = 'application/json';
@@ -843,14 +832,14 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             const file = event.target.files[0];
             const text = await file.text();
             const data = JSON.parse(text);
-            this.initializeAgentsAndConnections(data);
+            initializeAgentsAndConnections(data);
         };
         inputElement.click();
     }
 
-    private exportImage() {
-        this.renderer.render(this.scene, this.camera); // Ensure the latest frame is rendered
-        const dataURL = this.renderer.domElement.toDataURL('image/png');
+    const exportImage = () => {
+        renderer.render(scene, camera); // Ensure the latest frame is rendered
+        const dataURL = renderer.domElement.toDataURL('image/png');
         const link = document.createElement('a');
         link.download = 'visualization.png';
         link.href = dataURL;
@@ -858,36 +847,36 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
     }
 
     // Loading data from a source (can be modified to fetch from an API or file)
-    private loadData() {
-        this.generateTestData(); // For demonstration purposes
-        this.initializeAgentsAndConnections({ agents: this.agentDataList });
-        this.applyLayout('force'); // Apply initial layout
+    const loadData = () => {
+        generateTestData(); // For demonstration purposes
+        initializeAgentsAndConnections({ agents: agentDataList });
+        applyLayout('force'); // Apply initial layout
     }
 
-    private initializeAgentsAndConnections(data: any) {
+    const initializeAgentsAndConnections = (data: any) => {
         // Clear existing agents and connections
-        this.agents.forEach(agent => this.scene.remove(agent));
-        this.connections.forEach(connection => this.scene.remove(connection));
-        this.agents.clear();
-        this.connections = [];
+        agents.forEach(agent => scene.remove(agent));
+        connections.forEach(connection => scene.remove(connection));
+        agents.clear();
+        connections = [];
 
         // Reset agent data list
-        this.agentDataList = data.agents;
+        agentDataList = data.agents;
 
         // Add agents
-        this.agentDataList.forEach(agentData => {
-            this.addAgent(agentData);
+        agentDataList.forEach(agentData => {
+            addAgent(agentData);
         });
 
         // Add connections
-        this.agentDataList.forEach(agentData => {
+        agentDataList.forEach(agentData => {
             agentData.connections.forEach(connectedId => {
-                this.addConnection(agentData.id, connectedId);
+                addConnection(agentData.id, connectedId);
             });
         });
     }
 
-    private generateTestData() {
+    const generateTestData = () => {
         const agentTypes = ['Controller', 'Worker', 'Analyzer', 'Scheduler'];
         const numAgents = 30;
 
@@ -904,14 +893,14 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
                 type: type,
                 time: time
             };
-            this.agentDataList.push(agentData);
+            agentDataList.push(agentData);
         }
 
         // Add some random connections
         const numConnections = 45;
         for (let i = 0; i < numConnections; i++) {
-            const agent1 = this.agentDataList[Math.floor(Math.random() * this.agentDataList.length)];
-            const agent2 = this.agentDataList[Math.floor(Math.random() * this.agentDataList.length)];
+            const agent1 = agentDataList[Math.floor(Math.random() * agentDataList.length)];
+            const agent2 = agentDataList[Math.floor(Math.random() * agentDataList.length)];
             if (agent1 !== agent2 && !agent1.connections.includes(agent2.id)) {
                 agent1.connections.push(agent2.id);
                 agent2.connections.push(agent1.id);
@@ -919,7 +908,8 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         }
     }
 
-    private generateAgentResponse(agentId: string) {
+    const generateAgentResponse = (agentId: string) => {
+        console.log("Generating agent response for", agentId);
         // This is a placeholder. In a real system, you'd get the actual response from the LLM.
         const responses = [
             "Processing data...",
@@ -931,32 +921,32 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         return responses[Math.floor(Math.random() * responses.length)];
     }
 
-    private showAgentResponse(agentId: string) {
-        const agent = this.agents.get(agentId);
+    const showAgentResponse = (agentId: string) => {
+        const agent = agents.get(agentId);
         if (agent) {
-            const response = this.generateAgentResponse(agentId);
-            const bubble = new SpeechBubble(response, agent.position, this.scene);
-            this.speechBubbles.push(bubble);
+            const response = generateAgentResponse(agentId);
+            const bubble = new SpeechBubble(response, agent.position, scene);
+            speechBubbles.push(bubble);
         }
     }
 
-    private startSimulation() {
+    const startSimulation = () => {
         // Spawn a new agent every few seconds
         setInterval(() => {
-            if (!this.isSimulationPaused) {
-                this.spawnRandomAgent();
+            if (!isSimulationPaused) {
+                spawnRandomAgent();
             }
         }, 5000);
 
         // Remove an agent periodically
         setInterval(() => {
-            if (!this.isSimulationPaused) {
-                this.removeRandomAgent();
+            if (!isSimulationPaused) {
+                removeRandomAgent();
             }
         }, 8000);
     }
 
-    private spawnRandomAgent() {
+    const spawnRandomAgent = () => {
         const agentTypes = ['Controller', 'Worker', 'Analyzer', 'Scheduler'];
         const type = agentTypes[Math.floor(Math.random() * agentTypes.length)];
         const id = `${type}${Math.floor(Math.random() * 1000)}`;
@@ -976,93 +966,93 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
         };
 
         // Add to agent data list and scene
-        this.agentDataList.push(newAgentData);
-        this.addAgent(newAgentData);
+        agentDataList.push(newAgentData);
+        addAgent(newAgentData);
 
         // Randomly connect to an existing agent
-        if (this.agentDataList.length > 1) {
-            const existingAgents = this.agentDataList.filter(a => a.id !== id);
+        if (agentDataList.length > 1) {
+            const existingAgents = agentDataList.filter(a => a.id !== id);
             const randomAgent = existingAgents[Math.floor(Math.random() * existingAgents.length)];
             newAgentData.connections.push(randomAgent.id);
             randomAgent.connections.push(id);
-            this.addConnection(id, randomAgent.id);
+            addConnection(id, randomAgent.id);
         }
-        this.showAgentResponse(newAgentData.id);
+        showAgentResponse(newAgentData.id);
         // Reapply layout
-        this.applyLayout(this.currentLayoutName);
+        applyLayout(currentLayoutName);
     }
 
-    private removeRandomAgent() {
-        if (this.agentDataList.length === 0) return;
+    const removeRandomAgent = () => {
+        if (agentDataList.length === 0) return;
 
-        const index = Math.floor(Math.random() * this.agentDataList.length);
-        const agentData = this.agentDataList[index];
+        const index = Math.floor(Math.random() * agentDataList.length);
+        const agentData = agentDataList[index];
         const agentId = agentData.id;
 
         // Remove from data list
-        this.agentDataList.splice(index, 1);
+        agentDataList.splice(index, 1);
 
         // Remove agent mesh
-        const agentMesh = this.agents.get(agentId);
+        const agentMesh = agents.get(agentId);
         if (agentMesh) {
-            this.scene.remove(agentMesh);
-            this.agents.delete(agentId);
+            scene.remove(agentMesh);
+            agents.delete(agentId);
         }
 
         // Remove related connections
-        this.connections = this.connections.filter(connection => {
+        connections = connections.filter(connection => {
             if (connection.userData.start === agentId || connection.userData.end === agentId) {
-                this.scene.remove(connection);
+                scene.remove(connection);
                 return false;
             }
             return true;
         });
 
         // Update other agents' connections
-        this.agentDataList.forEach(agent => {
+        agentDataList.forEach(agent => {
             agent.connections = agent.connections.filter(id => id !== agentId);
         });
 
         // Reapply layout
-        this.applyLayout(this.currentLayoutName);
+        applyLayout(currentLayoutName);
     }
 
-    private showAgentControlPanel(agentId: string) {
+    const showAgentControlPanel = (agentId: string) => {
         // Create a control panel if it doesn't exist
-        if (!this.agentControlPanel) {
-            this.agentControlPanel = document.createElement('div');
-            this.agentControlPanel.style.position = 'absolute';
-            this.agentControlPanel.style.top = '50px';
-            this.agentControlPanel.style.right = '10px';
-            this.agentControlPanel.style.background = 'rgba(0, 0, 0, 0.7)';
-            this.agentControlPanel.style.color = '#fff';
-            this.agentControlPanel.style.padding = '10px';
-            this.agentControlPanel.style.borderRadius = '5px';
-            this.shadowRoot?.appendChild(this.agentControlPanel);
+        if (!agentControlPanel) {
+            agentControlPanel = document.createElement('div');
+            agentControlPanel.style.position = 'absolute';
+            agentControlPanel.style.top = '50px';
+            agentControlPanel.style.right = '10px';
+            agentControlPanel.style.background = 'rgba(0, 0, 0, 0.7)';
+            agentControlPanel.style.color = '#fff';
+            agentControlPanel.style.padding = '10px';
+            agentControlPanel.style.borderRadius = '5px';
+            document.body.appendChild(agentControlPanel);
         }
 
-        this.agentControlPanel.innerHTML = `<h3>Agent: ${agentId}</h3>`;
+        agentControlPanel.innerHTML = `<h3>Agent: ${agentId}</h3>`;
 
         // Add controls (e.g., buttons, sliders)
         const spawnButton = document.createElement('button');
         spawnButton.textContent = 'Spawn Child Agent';
         spawnButton.onclick = () => {
-            this.spawnChildAgent(agentId);
+            spawnChildAgent(agentId);
         };
-        this.agentControlPanel.appendChild(spawnButton);
+        agentControlPanel.appendChild(spawnButton);
 
         // Show the control panel
-        this.agentControlPanel.style.display = 'block';
+        agentControlPanel.style.display = 'block';
     }
 
-    private hideAgentControlPanel() {
-        if (this.agentControlPanel) {
-            this.agentControlPanel.style.display = 'none';
+    const hideAgentControlPanel = () => {
+        if (agentControlPanel) {
+            agentControlPanel.style.display = 'none';
         }
     }
 
-    private spawnChildAgent(parentAgentId: string) {
-        const parentAgentData = this.agentDataList.find(agent => agent.id === parentAgentId);
+    const spawnChildAgent = (parentAgentId: string) => {
+        const parentAgentData = agentDataList.find(agent => agent.id === parentAgentId);
         if (!parentAgentData) return;
 
         const childId = `${parentAgentId}-child${Math.floor(Math.random() * 1000)}`;
@@ -1081,15 +1071,15 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
             parentId: parentAgentId
         };
 
-        this.agentDataList.push(childAgentData);
-        this.addAgent(childAgentData);
-        this.addConnection(parentAgentId, childId);
+        agentDataList.push(childAgentData);
+        addAgent(childAgentData);
+        addConnection(parentAgentId, childId);
 
         // Reapply layout to accommodate new agent
-        this.applyLayout(this.currentLayoutName);
+        applyLayout(currentLayoutName);
     }
 
-    private applyTheme(theme: string) {
+    const applyTheme = (theme: string) => {
         switch (theme) {
             case 'dark':
                 document.documentElement.style.setProperty('--background-color', '#000000');
@@ -1107,8 +1097,12 @@ class InteractiveAI3DTimelineMindMap extends HTMLElement {
                 document.documentElement.style.setProperty('--control-background', 'rgba(0, 0, 0, 0.7)');
                 break;
         }
-        this.scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--background-color'));
+        scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--background-color'));
     }
-}
 
-customElements.define('cinematic-ai-3d-timeline-mindmap', InteractiveAI3DTimelineMindMap);
+    // Initialize the scene immediately
+    initializeScene();
+
+    // Return a container element for the timeline
+    return (<div id="timeline-container"></div>);
+}
