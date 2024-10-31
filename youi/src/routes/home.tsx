@@ -1,6 +1,6 @@
+import { jsx, Fragment } from "@/lib/template"; // Suppressing warning as this import is required for JSX processing
 import { loader } from "@/lib/loader";
 import { sequence, Transition, blurIn, blurOut } from "@/lib/transition";
-import { jsx } from "@/lib/template";
 import { match } from "@/lib/match";
 import { switchLayer } from "@/lib/layer";
 import { gsap } from "gsap";
@@ -9,7 +9,7 @@ import { ConversationVisualizer } from "@/components/agentviz/conversation";
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
-    let positions: string[] = ["product"];
+    let positions: string[] = [".product"];
     let distance: number = 1000;
     let currentLayer: number | undefined = 1;
 
@@ -62,9 +62,17 @@ export const render = async () => {
                 return <div>Error: {error} </div>;
             },
             success: (_: any) => (
-                <SlidesComponent>
+                <SlidesComponent className="product">
                     <section>
-                        <ConversationVisualizer />
+                        <section>
+                            <ConversationVisualizer />
+                        </section>
+                        <section>
+                            <h1>Hello</h1>
+                        </section>
+                    </section>
+                    <section>
+                        <h1>Hello</h1>
                     </section>
                 </SlidesComponent>
             )

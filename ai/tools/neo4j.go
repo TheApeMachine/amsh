@@ -2,15 +2,30 @@ package tools
 
 import (
 	"context"
-	"os"
+	"encoding/json"
+	"fmt"
 
+	"github.com/invopop/jsonschema"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/theapemachine/amsh/errnie"
 )
 
 // Neo4j represents the Neo4j client.
 type Neo4j struct {
-	client neo4j.DriverWithContext
+	client    neo4j.DriverWithContext `json:"-"`
+	ToolName  string                  `json:"tool_name" jsonschema:"title=Tool Name,description=The name of the tool that must be 'neo4j',enum=neo4j"`
+	Operation string                  `json:"operation" jsonschema:"title=Operation,description=The operation to perform,enum=query,enum=write,required"`
+	Cypher    string                  `json:"cypher" jsonschema:"title=Cypher,description=The Cypher query to execute,required"`
+}
+
+// GenerateSchema implements the Tool interface
+func (neo4j *Neo4j) GenerateSchema() string {
+	schema := jsonschema.Reflect(&Neo4j{})
+	out, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		errnie.Error(err)
+	}
+	return string(out)
 }
 
 // NewNeo4j creates a new Neo4j client.
@@ -21,7 +36,7 @@ func NewNeo4j() *Neo4j {
 		err    error
 	)
 
-	client, err = neo4j.NewDriverWithContext(os.Getenv("NEO4J_URL"), neo4j.BasicAuth("neo4j", "securepassword", ""))
+	client, err = neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
 
 	if err != nil {
 		errnie.Error(err)
@@ -76,8 +91,33 @@ func (n *Neo4j) Close() error {
 	return n.client.Close(ctx)
 }
 
-func (n *Neo4j) Use(args ...interface{}) (results []map[string]interface{}, err error) {
-	results, err = n.Query(args[0].(string))
+// Use implements the Tool interface
+func (neo4j *Neo4j) Use(ctx context.Context, args map[string]any) string {
+	switch neo4j.Operation {
+	case "query":
+		records, err := neo4j.Query(args["cypher"].(string))
+		if err != nil {
+			return err.Error()
+		}
+		result, err := json.Marshal(records)
+		if err != nil {
+			return err.Error()
+		}
+		return string(result)
 
-	return
+	case "write":
+		result, err := neo4j.Write(args["query"].(string))
+		if err != nil {
+			return err.Error()
+		}
+		// Convert result to string representation
+		summary, err := result.Consume(ctx)
+		if err != nil {
+			return err.Error()
+		}
+		return fmt.Sprintf("Affected nodes: %d", summary.Counters().NodesCreated())
+
+	default:
+		return "Unsupported operation"
+	}
 }

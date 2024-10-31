@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
@@ -25,7 +26,10 @@ type BrowserArgs struct {
 }
 
 type Browser struct {
+	ToolName   string            `json:"tool_name" jsonschema:"title=Tool Name,description=The name of the tool;enum=browser"`
 	Operation  string            `json:"operation" jsonschema:"title=Operation,description=The operation to perform,enum=navigate,enum=click,enum=extract,enum=script,enum=wait,enum=form,enum=screenshot,enum=intercept,enum=cookies,enum=hijack,enum=response,enum=close"`
+	URL        string            `json:"url" jsonschema:"title=URL,description=The URL to navigate to,required"`
+	Selector   string            `json:"selector" jsonschema:"title=Selector,description=CSS selector to find elements"`
 	Javascript string            `json:"javascript" jsonschema:"title=JavaScript,description=JavaScript code to execute in the developer console"`
 	Hijack     string            `json:"hijack" jsonschema:"title=Hijack,description=Hijack a network request"`
 	Response   string            `json:"response" jsonschema:"title=Response,description=Response to return for a network request"`
@@ -197,19 +201,28 @@ func (browser *Browser) GetHistory() []BrowseAction {
 
 // Run implements the enhanced interface with all new capabilities
 func (browser *Browser) Run(args map[string]any) (string, error) {
+	spew.Dump(args)
 	if proxyURL, ok := args["proxy"].(string); ok {
 		if err := browser.SetProxy(proxyURL); err != nil {
 			return "", err
 		}
 	}
 
-	if err := browser.StartSession(); err != nil {
-		return "", err
+	// Only start a new session if one doesn't exist
+	if browser.instance == nil {
+		if err := browser.StartSession(); err != nil {
+			return "", err
+		}
 	}
-	defer browser.instance.Close()
 
-	if err := browser.Navigate(args["url"].(string)); err != nil {
-		return "", err
+	// Remove the defer close
+	// defer browser.instance.Close()
+
+	// Handle navigation only if URL is provided
+	if url, ok := args["url"].(string); ok {
+		if err := browser.Navigate(url); err != nil {
+			return "", err
+		}
 	}
 
 	// Handle form filling
@@ -483,4 +496,13 @@ func getStringArg(args map[string]interface{}, key string, defaultValue string) 
 		return defaultValue, nil
 	}
 	return cast.ToStringE(value)
+}
+
+// Add a new method to explicitly close the browser when needed
+func (browser *Browser) CleanupSession() {
+	if browser.instance != nil {
+		browser.instance.Close()
+		browser.instance = nil
+		browser.page = nil
+	}
 }

@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"sync"
 
-	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 	"golang.org/x/exp/rand"
 )
@@ -29,13 +28,13 @@ type Agent struct {
 	ctx         context.Context
 	Name        string  `json:"name"`
 	Role        string  `json:"role"`
+	TeamMember  string  `json:"team_member"`
 	TeamBuffer  *Buffer `json:"team_buffer"`
 	AgentBuffer *Buffer `json:"agent_buffer"`
 	provider    provider.Provider
 	state       AgentState
 	params      provider.GenerationParams
 	toolset     *Toolset
-	wg          *sync.WaitGroup
 	iteration   int
 }
 
@@ -44,26 +43,28 @@ func NewAgent(
 	ctx context.Context,
 	key,
 	role,
+	teamMember string,
 	systemPrompt string,
 	teamBuffer *Buffer,
-	wg *sync.WaitGroup,
+	toolset *Toolset,
 ) *Agent {
-	log.Info("NewAgent", "key", key, "role", role)
+	errnie.Success("new agent created %s (%s) <%s>", key, role, teamMember)
+	errnie.Log(
+		"key: %s\nrole: %s\nteam member: %s\nsystem prompt: %s",
+		key, role, teamMember, systemPrompt,
+	)
 
 	return &Agent{
-		ctx:        ctx,
-		Name:       fmt.Sprintf("%s-%s", key, role),
-		Role:       role,
-		TeamBuffer: teamBuffer,
-		AgentBuffer: NewBuffer().AddMessage(
-			"system", strings.ReplaceAll(
-				systemPrompt, "{{schemas}}", "",
-			),
-		),
-		provider:  provider.NewBalancedProvider(),
-		state:     StateIdle,
-		wg:        wg,
-		iteration: 0,
+		ctx:         ctx,
+		Name:        fmt.Sprintf("%s-%s-%s", key, role, teamMember),
+		Role:        role,
+		TeamMember:  teamMember,
+		TeamBuffer:  teamBuffer,
+		AgentBuffer: NewBuffer().AddMessage("system", systemPrompt),
+		toolset:     toolset,
+		provider:    provider.NewBalancedProvider(),
+		state:       StateIdle,
+		iteration:   0,
 	}
 }
 
@@ -73,7 +74,12 @@ func (agent *Agent) WithToolset(toolset *Toolset) *Agent {
 }
 
 func (agent *Agent) Execute(prompt string) <-chan provider.Event {
-	log.Info("executing agent", "agent", agent.Name, "prompt", prompt)
+	errnie.Note("executing agent %s", agent.Name)
+
+	if agent.TeamMember == "toolcaller" && agent.toolset == nil {
+		errnie.Note("no tools for agent %s", agent.Name)
+	}
+
 	out := make(chan provider.Event)
 
 	if agent.toolset != nil {
@@ -96,23 +102,48 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 	go func() {
 		defer close(out)
 
-		var accumulator string
+		for {
+			var accumulator string
 
-		for event := range agent.provider.Generate(
-			context.Background(), agent.params, agent.AgentBuffer.GetMessages(),
-		) {
-			if event.Type == provider.EventToken {
-				event.AgentID = agent.Name
-				accumulator += event.Content
-				out <- event
+			for event := range agent.provider.Generate(
+				context.Background(), agent.params, agent.AgentBuffer.GetMessages(),
+			) {
+				if event.Type == provider.EventToken {
+					event.AgentID = agent.Name
+					accumulator += event.Content
+					out <- event
+				}
 			}
+
+			// Execute tool calls
+			agent.ExecuteToolCalls(accumulator)
+
+			agent.AgentBuffer.AddMessage("assistant", utils.JoinWith("\n",
+				fmt.Sprintf("<scratchpad (iteration: %d)>", agent.iteration),
+				accumulator,
+				"(you can iterate as much as you need, just say Task Complete if you're done)",
+				fmt.Sprintf("</scratchpad (iteration: %d)>", agent.iteration),
+			))
+
+			agent.Tweak()
+
+			if strings.Contains(strings.ToLower(accumulator), "task complete") {
+				agent.TeamBuffer.AddMessage("assistant", utils.JoinWith("\n",
+					fmt.Sprintf("<%s>", agent.Name),
+					accumulator,
+					fmt.Sprintf("</%s>", agent.Name),
+				))
+
+				break
+			}
+
+			errnie.Log(
+				"agent %s iteration %d\n\n%s\n\n",
+				agent.Name, agent.iteration, accumulator,
+			)
+
+			agent.iteration++
 		}
-
-		// Execute tool calls
-		agent.ExecuteToolCalls(accumulator)
-
-		agent.TeamBuffer.AddMessage("assistant", accumulator)
-		agent.Tweak()
 
 		out <- provider.Event{Type: provider.EventDone}
 	}()
@@ -121,6 +152,7 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 }
 
 func (agent *Agent) ExecuteToolCalls(accumulator string) {
+	errnie.Success("executing tool calls for agent %s", agent.Name)
 	// Extract all Markdown JSON blocks.
 	pattern := regexp.MustCompile("(?s)```json\\s*([\\s\\S]*?)```")
 	matches := pattern.FindAllStringSubmatch(accumulator, -1)
@@ -133,7 +165,8 @@ func (agent *Agent) ExecuteToolCalls(accumulator string) {
 			continue
 		}
 
-		if toolValue, ok := data["tool"].(string); ok {
+		if toolValue, ok := data["tool_name"].(string); ok {
+			errnie.Success("executing tool %s", toolValue)
 			agent.toolset.Use(agent.ctx, toolValue, data)
 		}
 	}

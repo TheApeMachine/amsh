@@ -1,7 +1,10 @@
+import { Transition } from '@/lib/transition';
+import gsap from 'gsap';
+
 interface Route {
     path: string;
-    view: () => Promise<DocumentFragment>;
-    effect: () => Promise<void|null>;
+    view: () => Promise<Node>;
+    effect: () => Promise<void | null>;
 }
 
 const routes: Route[] = [{
@@ -59,12 +62,30 @@ export const router = async (targetElement: HTMLElement) => {
 
     // Always render if it's the initial load or the path has changed
     if (path !== currentPath) {
+        const previousContent = targetElement.firstChild as HTMLElement;
         currentPath = path;
+
         const route = routes.find(route => route.path === path) || routes[0]; // Default to first route if no match
 
         try {
+            // Apply exit transition to the current route content
+            if (previousContent) {
+                Transition(previousContent, {
+                    exit: (el: HTMLElement) => gsap.to(el, { opacity: 0, duration: 0.5, ease: "power2.in" })
+                });
+                await new Promise(resolve => setTimeout(resolve, 500)); // Wait for exit animation to finish
+                targetElement.removeChild(previousContent);
+            }
+
             const content = await route.view();
             targetElement.appendChild(content);
+
+            // Apply enter transition for the new route content
+            const newContent = targetElement.firstChild as HTMLElement;
+            Transition(newContent, {
+                enter: (el: HTMLElement) => gsap.from(el, { opacity: 0, duration: 0.5, ease: "power2.out" })
+            });
+
             await route.effect();
         } catch (error: any) {
             console.error("Routing error:", error);

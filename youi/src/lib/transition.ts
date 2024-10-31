@@ -1,32 +1,32 @@
 import { onMount, onUnmount } from './lifecycle';
-
-/*
-Transitions is a function that takes a duration and an easing and returns an object with enter and exit functions.
-@param duration The duration of the transition.
-@param easing The easing of the transition.
-@returns An object with enter and exit functions.
-*/
 import gsap from 'gsap';
 
+/*
+Transition function to manage both enter and exit animations for elements.
+Allows components or routes to declare animations, making the entire system more declarative.
+*/
 export const Transition = (
-    element: DocumentFragment,
-    { enter, exit }: { enter: (el: HTMLElement) => void, exit: (el: HTMLElement) => void }
-): DocumentFragment => {
-    const targetElement = element.firstElementChild as HTMLElement | null;
+    element: Node,
+    { enter, exit }: { enter?: (el: HTMLElement) => void, exit?: (el: HTMLElement) => void }
+) => {
+    const targetElement = element instanceof HTMLElement ? element : (element as Element).firstElementChild as HTMLElement;
 
-    // Add null check before proceeding
     if (targetElement) {
-        // Trigger the enter animation when the element is added to the DOM
-        onMount(targetElement, () => {
-            console.debug("transition", "onMount", targetElement);
-            enter(targetElement);  // Apply the enter animation
-        });
+        // Apply enter animation when the element is added to the DOM
+        if (enter) {
+            onMount(targetElement, () => {
+                console.debug("transition", "onMount", targetElement);
+                enter(targetElement);
+            });
+        }
 
-        // Trigger the exit animation when the element is removed from the DOM
-        onUnmount(targetElement, () => {
-            console.debug("transition", "onUnmount", targetElement);
-            exit(targetElement);  // Apply the exit animation
-        });
+        // Apply exit animation when the element is removed from the DOM
+        if (exit) {
+            onUnmount(targetElement, () => {
+                console.debug("transition", "onUnmount", targetElement);
+                exit(targetElement);
+            });
+        }
     } else {
         console.warn("Transition: No element found in DocumentFragment");
     }
@@ -34,6 +34,7 @@ export const Transition = (
     return element;
 };
 
+// Helper functions for creating transitions
 export const sequence = (...animations: Array<(el: HTMLElement) => gsap.core.Timeline | gsap.core.Tween>): ((el: HTMLElement) => gsap.core.Timeline) => {
     return (el: HTMLElement) => {
         const tl = gsap.timeline();
@@ -50,9 +51,10 @@ export const parallel = (...animations: Array<(el: HTMLElement) => gsap.core.Tim
     };
 };
 
+// Predefined animations for convenience
 export const fadeIn = (el: HTMLElement) => gsap.from(el, { opacity: 0, duration: 1, ease: "power2.out" });
 export const fadeOut = (el: HTMLElement) => gsap.to(el, { opacity: 0, duration: 1, ease: "power2.in" });
-export const scaleUp = (el: HTMLElement) => gsap.from(el, { scale: 1, duration: 1, ease: "power2.out" });
-export const scaleDown = (el: HTMLElement) => gsap.to(el, { scale: 1, duration: 1, ease: "power2.in" });
+export const scaleUp = (el: HTMLElement) => gsap.from(el, { scale: 0.9, duration: 1, ease: "power2.out" });
+export const scaleDown = (el: HTMLElement) => gsap.to(el, { scale: 0.9, duration: 1, ease: "power2.in" });
 export const blurIn = (el: HTMLElement) => gsap.from(el, { filter: "blur(10px)", duration: 1, ease: "power2.out" });
 export const blurOut = (el: HTMLElement) => gsap.to(el, { filter: "blur(10px)", duration: 1, ease: "power2.in" });

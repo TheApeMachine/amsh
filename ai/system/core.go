@@ -22,17 +22,17 @@ type Core struct {
 	output  chan process.ProcessResult
 }
 
-func NewCore(id string, proc process.Process, key string, outputChan chan process.ProcessResult) Core {
-	log.Info("NewCore", "id", id, "key", key)
+func NewCore(ID string, proc process.Process, key string, outputChan chan process.ProcessResult) Core {
+	log.Info("NewCore", "id", ID, "key", key)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return Core{
 		ctx:     ctx,
 		cancel:  cancel,
-		ID:      id,
+		ID:      ID,
 		process: proc,
-		team:    ai.NewTeam(ctx, key, proc.SystemPrompt(key)),
+		team:    ai.NewTeam(ctx, ID, key, proc),
 		input:   make(chan string, 1),
 		output:  outputChan,
 	}

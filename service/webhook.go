@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/theapemachine/amsh/ai/system"
-	"github.com/theapemachine/amsh/ai/tools"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -87,14 +86,6 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 					errnie.Error(fmt.Errorf("process result channel not found"))
 					return
 				}
-
-				var accumulator string
-				for result := range resultChan {
-					accumulator += result.Content
-					fmt.Print(result.Content)
-				}
-
-				tools.NewHelpdesk().LabelTicket(accumulator)
 			}()
 
 		case "github":

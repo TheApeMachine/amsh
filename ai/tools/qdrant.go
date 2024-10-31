@@ -2,11 +2,14 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/url"
 	"os"
 
 	"github.com/gofiber/fiber/v3/client"
+	"github.com/invopop/jsonschema"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/openai"
@@ -16,11 +19,58 @@ import (
 )
 
 type Qdrant struct {
-	ctx        context.Context
-	client     *qdrant.Store
-	embedder   embeddings.Embedder
-	collection string
-	dimension  uint64
+	ctx        context.Context     `json:"-"`
+	client     *qdrant.Store       `json:"-"`
+	embedder   embeddings.Embedder `json:"-"`
+	collection string              `json:"-"`
+	dimension  uint64              `json:"-"`
+	ToolName   string              `json:"tool_name" jsonschema:"title=Tool Name,description=The name of the tool that must be 'qdrant',enum=qdrant"`
+	Operation  string              `json:"operation" jsonschema:"title=Operation,description=The operation to perform,enum=add,enum=query,required"`
+	Question   string              `json:"question" jsonschema:"title=Question,description=The search query for similarity search (required for 'query' operation)"`
+	Documents  []string            `json:"documents" jsonschema:"title=Documents,description=The documents to add (required for 'add' operation)"`
+}
+
+// Use implements the Tool interface
+func (qdrant *Qdrant) Use(ctx context.Context, args map[string]any) string {
+	switch qdrant.Operation {
+	case "add":
+		if docs, ok := args["documents"].([]string); ok {
+			ids, err := qdrant.Add(docs)
+			if err != nil {
+				return err.Error()
+			}
+			return fmt.Sprintf("Successfully added documents with IDs: %v", ids)
+		}
+		return "Invalid documents format"
+
+	case "query":
+		if query, ok := args["query"].(string); ok {
+			results, err := qdrant.Query(query)
+			if err != nil {
+				return err.Error()
+			}
+			// Convert results to JSON string
+			jsonResults, err := json.Marshal(results)
+			if err != nil {
+				return err.Error()
+			}
+			return string(jsonResults)
+		}
+		return "Invalid query format"
+
+	default:
+		return "Unsupported operation"
+	}
+}
+
+// GenerateSchema implements the Tool interface
+func (qdrant *Qdrant) GenerateSchema() string {
+	schema := jsonschema.Reflect(&Qdrant{})
+	out, err := json.MarshalIndent(schema, "", "  ")
+	if err != nil {
+		errnie.Error(err)
+	}
+	return string(out)
 }
 
 func NewQdrant(collection string, dimension uint64) *Qdrant {

@@ -43,25 +43,28 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 			{"programmer", "data_scientist", "qa_engineer", "security_specialist"},
 		} {
 			var wg sync.WaitGroup
-			wg.Add(len(layer))
 
-			log.Info("Starting processing", "layer", layer)
+			// Create a processor for this layer
+			processor := NewProcessor(pm.key, layer...)
 
-			for result := range NewProcessor(
-				pm.key, layer...,
-			).Process(accumulator) {
-				if result.Type == provider.EventDone {
-					wg.Done()
+			// Start processing and collect results
+			resultChan := processor.Process(accumulator)
+
+			// Track active cores
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for result := range resultChan {
+					if result.Type == provider.EventToken {
+						accumulator += result.Content
+					}
+					out <- result
 				}
+			}()
 
-				if result.Type == provider.EventToken {
-					accumulator += result.Content
-				}
-
-				out <- result
-			}
-
+			// Wait for all processing to complete before moving to next layer
 			wg.Wait()
+			log.Info("Layer processing complete", "layer", layer)
 		}
 	}()
 

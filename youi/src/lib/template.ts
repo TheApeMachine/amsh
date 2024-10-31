@@ -1,3 +1,5 @@
+import { Transition } from "@/lib/transition";
+
 /*
 html is a function that takes a TemplateStringsArray and any number of values and returns a DocumentFragment.
 @param strings The TemplateStringsArray to render.
@@ -52,14 +54,23 @@ export const Fragment = Symbol('Fragment');
 
 type JSXElementType = string | Function | typeof Fragment;
 
+// Define base HTML attributes similar to React's approach
+export interface HTMLAttributes extends Record<string, any> {
+    className?: string;
+    id?: string;
+    style?: Partial<CSSStyleDeclaration> | string;
+    role?: string;
+    tabIndex?: number;
+    // Add other common HTML attributes as needed
+}
+
 // Update event handler types to be more specific
 type EventHandlers = {
     [K in keyof HTMLElementEventMap]?: (event: HTMLElementEventMap[K]) => void;
 };
 
-type Props = {
-    [key: string]: any;
-} & {
+// Combine HTML attributes with event handlers for our final Props type
+type Props = HTMLAttributes & {
     [K in keyof EventHandlers as `on${Capitalize<K>}`]?: EventHandlers[K];
 };
 
@@ -88,15 +99,11 @@ export function jsx(
 
     // Handle function components
     if (typeof tag === 'function') {
-        // Handle prop spreading
         const componentProps = props ? { ...props } : {};
-
-        // If there are children, add them to props
         if (children.length > 0) {
             componentProps.children = children.length === 1 ? children[0] : children;
         }
-
-        return tag(componentProps);
+        return (tag as (props: HTMLAttributes & { children?: any }) => Node)(componentProps);
     }
 
     const element = document.createElement(tag);
@@ -107,16 +114,16 @@ export function jsx(
             if (name === 'className') {
                 element.setAttribute('class', String(value));
             } else if (name.startsWith('on') && typeof value === 'function') {
-                element.addEventListener(
-                    name.slice(2).toLowerCase(),
-                    value as EventListener
-                );
+                element.addEventListener(name.slice(2).toLowerCase(), value as EventListener);
             } else if (typeof value === 'boolean') {
                 if (value) {
                     element.setAttribute(name, '');
                 } else {
                     element.removeAttribute(name);
                 }
+            } else if (name === 'transitionEnter' || name === 'transitionExit') {
+                // Store transition props in element dataset for use later
+                element.dataset[name] = JSON.stringify(value);
             } else {
                 element.setAttribute(name, String(value));
             }
@@ -130,6 +137,17 @@ export function jsx(
             element.appendChild(document.createTextNode(String(child)));
         }
     });
+
+    // Handle component-level transitions if props are available
+    if (props?.transitionEnter || props?.transitionExit) {
+        Transition(
+            element,
+            {
+                enter: props.transitionEnter || (() => { }),
+                exit: props.transitionExit || (() => { })
+            }
+        );
+    }
 
     return element;
 }

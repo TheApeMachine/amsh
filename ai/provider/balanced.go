@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 type ProviderStatus struct {
 	provider Provider
 	occupied bool
+	lastUsed time.Time
+	failures int // Track consecutive failures
 	mu       sync.Mutex
 }
 
@@ -74,7 +77,6 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 	go func() {
 		defer close(resultChan)
 
-		// Find available provider or wait
 		ps := lb.getAvailableProvider()
 		if ps == nil {
 			resultChan <- Event{
@@ -84,7 +86,6 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 			return
 		}
 
-		// Ensure we release the provider when done
 		defer func() {
 			ps.mu.Lock()
 			ps.occupied = false
@@ -92,17 +93,26 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 			log.Info("provider released")
 		}()
 
-		// Create a separate context with timeout
 		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
-		// Create done channel to handle cleanup
 		done := make(chan struct{})
 
-		// Start provider generation in separate goroutine
 		go func() {
 			defer close(done)
 			for event := range ps.provider.Generate(timeoutCtx, params, messages) {
+				if event.Type == EventError &&
+					(strings.Contains(event.Error.Error(), "429") ||
+						strings.Contains(event.Error.Error(), "rate_limit")) {
+					// Handle rate limit error
+					ps.mu.Lock()
+					ps.failures++
+					ps.mu.Unlock()
+					log.Warn("rate limit hit, increasing failure count",
+						"provider", ps.provider,
+						"failures", ps.failures)
+				}
+
 				select {
 				case resultChan <- event:
 				case <-timeoutCtx.Done():
@@ -111,7 +121,6 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 			}
 		}()
 
-		// Wait for either completion or timeout
 		select {
 		case <-done:
 			return
@@ -130,19 +139,59 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 	log.Info("getAvailableProvider")
 	maxAttempts := 10
+	cooldownPeriod := 60 * time.Second // Cooldown after rate limit
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		ps := lb.providers[lb.selectIndex%len(lb.providers)]
-		lb.selectIndex++
+		// Find the provider with the lowest failure count and oldest last use
+		var bestProvider *ProviderStatus
+		oldestUse := time.Now()
 
-		if !ps.occupied {
-			ps.occupied = true
-			log.Info("found available provider", "provider", ps.provider)
-			return ps
+		for _, ps := range lb.providers {
+			ps.mu.Lock()
+
+			// Skip if provider is occupied
+			if ps.occupied {
+				ps.mu.Unlock()
+				continue
+			}
+
+			// Skip if provider is in cooldown from rate limit
+			if ps.failures > 0 && time.Since(ps.lastUsed) < cooldownPeriod {
+				ps.mu.Unlock()
+				continue
+			}
+
+			// Reset failures if cooldown period has passed
+			if ps.failures > 0 && time.Since(ps.lastUsed) >= cooldownPeriod {
+				ps.failures = 0
+			}
+
+			// Select provider with lowest failure count and oldest last use
+			if bestProvider == nil ||
+				ps.failures < bestProvider.failures ||
+				(ps.failures == bestProvider.failures && ps.lastUsed.Before(oldestUse)) {
+				bestProvider = ps
+				oldestUse = ps.lastUsed
+			}
+
+			ps.mu.Unlock()
 		}
 
-		// If all providers are busy, wait a bit before trying again
-		log.Warn("all providers occupied, waiting...", "attempt", attempt+1)
+		if bestProvider != nil {
+			bestProvider.mu.Lock()
+			bestProvider.occupied = true
+			bestProvider.lastUsed = time.Now()
+			bestProvider.mu.Unlock()
+
+			log.Info("found available provider",
+				"provider", bestProvider.provider,
+				"failures", bestProvider.failures,
+				"lastUsed", bestProvider.lastUsed)
+			return bestProvider
+		}
+
+		// If all providers are busy, wait before trying again
+		log.Warn("all providers occupied or in cooldown, waiting...", "attempt", attempt+1)
 		time.Sleep(1 * time.Second)
 	}
 

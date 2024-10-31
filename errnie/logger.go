@@ -33,14 +33,13 @@ var (
 	logFile     *os.File
 	logFileMu   sync.Mutex
 	logFilePath string
-	nonofile    bool
 
 	logger = log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
 		CallerOffset:    3,
 		ReportTimestamp: true,
 		TimeFormat:      time.TimeOnly,
-		Level:           log.InfoLevel,
+		Level:           log.DebugLevel,
 	})
 )
 
@@ -53,7 +52,11 @@ func JSONtoMap(jsonString string) (map[string]any, error) {
 }
 
 func init() {
-	nonofile = os.Getenv("LOGFILE") == ""
+	// Initialize the log file first
+	initLogFile()
+	if logFile == nil {
+		fmt.Println("WARNING: Log file initialization failed!")
+	}
 
 	styles.Levels[log.ErrorLevel] = lipgloss.NewStyle().
 		Padding(0, 1, 0, 1).
@@ -72,13 +75,6 @@ func init() {
 		Background(lipgloss.Color(Muted)).
 		Foreground(lipgloss.Color(Highlight))
 
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportCaller:    true,
-		CallerOffset:    2,
-		ReportTimestamp: true,
-		TimeFormat:      time.TimeOnly,
-	})
-
 	logger.SetStyles(styles)
 
 	switch viper.GetViper().GetString("loglevel") {
@@ -96,7 +92,6 @@ func init() {
 		logger.SetLevel(log.DebugLevel)
 	}
 
-	initLogFile()
 	sync.OnceFunc(func() {
 		// Periodically print the number of active goroutines.
 		go func() {
@@ -108,28 +103,52 @@ func init() {
 }
 
 func initLogFile() {
-	if nonofile {
-		return
-	}
+	fmt.Println("Initializing log file...")
 
-	logDir := "./logs"
+	logDir := "./"
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		fmt.Printf("Failed to create log directory: %v\n", err)
 		return
 	}
 
-	timestamp := time.Now().UnixNano()
-	logFilePath = filepath.Join(logDir, fmt.Sprintf("amsh-%d.log", timestamp))
+	logFilePath = filepath.Join(logDir, "amsh.log")
+	fmt.Printf("Log file path: %s\n", logFilePath)
 
 	var err error
-	logFile, err = os.Create(logFilePath)
+	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Printf("Failed to create log file: %v\n", err)
+		fmt.Printf("Failed to open log file: %v\n", err)
+		logFile, err = os.Create(logFilePath)
+		if err != nil {
+			fmt.Printf("Failed to create new log file: %v\n", err)
+			return
+		}
 	}
+
+	if logFile == nil {
+		fmt.Println("Log file is nil after initialization!")
+		return
+	}
+
+	fmt.Printf("Log file successfully initialized: %v\n", logFile != nil)
+}
+
+func Log(format string, v ...interface{}) {
+	// Ensure we're actually getting a message to log
+	message := fmt.Sprintf(format, v...)
+	if message == "" {
+		return
+	}
+
+	writeToLog(message)
 }
 
 func Note(format string, v ...interface{}) {
 	fmt.Println(lipgloss.NewStyle().Background(lipgloss.Color(Purple)).Foreground(lipgloss.Color(Highlight)).Render("NOTE"), fmt.Sprintf(format, v...))
+}
+
+func Success(format string, v ...interface{}) {
+	fmt.Println(lipgloss.NewStyle().Background(lipgloss.Color(Green)).Foreground(lipgloss.Color(Highlight)).Render("SUCCESS"), fmt.Sprintf(format, v...))
 }
 
 /*
@@ -207,16 +226,30 @@ func Error(err error, v ...interface{}) error {
 	return err
 }
 
-func writeToLog(message string, v ...interface{}) {
-	if message == "" || nonofile {
+func writeToLog(message string) {
+	if message == "" || logFile == nil {
+		fmt.Println("Skipping log write: message empty or logFile nil")
 		return
 	}
 
 	logFileMu.Lock()
 	defer logFileMu.Unlock()
-	_, err := logFile.WriteString(stripansi.Strip(fmt.Sprintf(message, v...)) + "\n")
+
+	// Clean the message - trim but preserve intentional newlines
+	message = strings.TrimSpace(message)
+
+	timestamp := time.Now().Format("15:04:05")
+	formattedMessage := fmt.Sprintf("[%s] %s\n", timestamp, stripansi.Strip(message))
+
+	_, err := logFile.WriteString(formattedMessage)
 	if err != nil {
 		fmt.Printf("Failed to write to log file: %v\n", err)
+		return
+	}
+
+	// Ensure write is flushed to disk
+	if err := logFile.Sync(); err != nil {
+		fmt.Printf("Failed to sync log file: %v\n", err)
 	}
 }
 

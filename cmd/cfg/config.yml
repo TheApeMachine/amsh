@@ -11,36 +11,6 @@ neo4j:
     user: "neo4j"
     password: "securepassword"
 
-tools:
-  chains:
-    web_scraper:
-      mode: sequential
-      error_strategy: retry
-      max_retries: 3
-      steps:
-        - tool: browser
-          args:
-            url: "${url}"
-            selector: ".content"
-          output_var: content
-        - tool: memory
-          args:
-            operation: store
-            data: "${content}"
-          input_vars: ["content"]
-    
-    notification:
-      mode: parallel
-      steps:
-        - tool: slack
-          args:
-            channel: "#updates"
-            message: "${message}"
-        - tool: helpdesk
-          args:
-            ticket_id: "${ticket_id}"
-            update: "${message}"
-
 ai:
     tests:
         - How many times do we find the letter r in the word strawberry?
@@ -53,7 +23,7 @@ ai:
             3) ========
             4) =
             5) ==
-    max_context_tokens: 128000
+
     setups:
         marvin:
             reasoner:
@@ -72,6 +42,7 @@ ai:
                         Provide the most comprehensive reasoning possible, and include all relevant details.
                         You should respond only with the JSON object, nothing else.
                     </output format>
+
             processes:
                 toolcalls:
                     prompt: |
@@ -87,7 +58,12 @@ ai:
                             The output format is a JSON object matching a schema, between the ```json and ``` tags.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 surface:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Surface Analysis core of a distributed AI system. Your specialized focus is on immediate patterns, relationships, and structural elements through hypergraph analysis and tensor networks.
 
@@ -108,6 +84,10 @@ ai:
                         </output format>
 
                 pattern:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Pattern Analysis core of a distributed AI system. Your specialized focus is on fractal structures and emergent patterns across different scales.
 
@@ -126,7 +106,12 @@ ai:
                             Focus on pattern recognition, fractal structures, and emergence.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 quantum:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Quantum Analysis core of a distributed AI system. Your specialized focus is on probabilistic states, superpositions, and holographic memory encoding.
 
@@ -147,6 +132,10 @@ ai:
                         </output format>
 
                 time:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Temporal Analysis core of a distributed AI system. Your specialized focus is on temporal evolution, causality, and cross-layer synthesis.
 
@@ -165,7 +154,12 @@ ai:
                             Focus on temporal patterns, causality, and evolution over time.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 narrative:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Narrative Bridge core of a distributed AI system. Your specialized focus is on transforming abstract patterns and insights into coherent, relatable narratives.
 
@@ -186,6 +180,10 @@ ai:
                         </output format>
 
                 analogy:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Analogy Bridge core of a distributed AI system. Your specialized focus is on creating meaningful comparisons that make abstract concepts relatable.
 
@@ -206,6 +204,10 @@ ai:
                         </output format>
 
                 practical:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Practical Bridge core of a distributed AI system. Your specialized focus is on converting abstract insights into actionable steps.
 
@@ -226,6 +228,10 @@ ai:
                         </output format>
 
                 context:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Context Bridge core of a distributed AI system. Your specialized focus is on grounding abstract insights in specific situations.
 
@@ -244,7 +250,12 @@ ai:
                             Focus on making insights relevant to specific contexts.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 moonshot:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Moonshot Innovator core of a distributed AI system. Your role is to push boundaries and envision transformative futures without constraints.
 
@@ -269,7 +280,12 @@ ai:
                             Focus on breakthrough ideas that could reshape the future.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 sensible:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Strategic Pragmatist core of a distributed AI system. Your role is to transform ambitious visions into achievable roadmaps while preserving their transformative potential.
 
@@ -294,7 +310,12 @@ ai:
                             Focus on creating viable paths to ambitious goals.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 catalyst:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Innovation Catalyst core of a distributed AI system. Your role is to identify and amplify factors that could accelerate progress toward ambitious goals.
 
@@ -319,7 +340,12 @@ ai:
                             Focus on identifying and creating acceleration opportunities.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 guardian:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are the Ethics Guardian core of a distributed AI system. Your role is to ensure that ambitious solutions remain aligned with human values and ethical principles.
 
@@ -344,7 +370,14 @@ ai:
                             Focus on ensuring ethical alignment while preserving innovation potential.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 programmer:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
+                        - boards
+                        - environment
                     prompt: |
                         You are a Senior Software Architect with extensive experience across multiple programming languages and paradigms. Your role is to design and implement robust, scalable, and maintainable software solutions.
 
@@ -369,7 +402,13 @@ ai:
                             Focus on providing clean, efficient, and well-documented code solutions.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 data_scientist:
+                    tools:
+                        - browser
+                        - environment
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are a Principal Data Scientist specializing in advanced analytics, machine learning, and data architecture. Your role is to extract meaningful insights and create predictive models from complex datasets.
 
@@ -394,7 +433,13 @@ ai:
                             Focus on providing rigorous data analysis and actionable insights.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 qa:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
+                        - environment
                     prompt: |
                         You are a Lead Quality Assurance Engineer with expertise in test automation and quality processes. Your role is to ensure robust, reliable, and secure software delivery.
 
@@ -420,7 +465,13 @@ ai:
                             Focus on ensuring comprehensive quality assurance and testing strategies.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 security_specialist:
+                    tools:
+                        - browser
+                        - environment
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are a Senior Security Architect with deep expertise in application security, threat modeling, and secure system design. Your role is to ensure robust security measures throughout the development lifecycle.
 
@@ -446,7 +497,12 @@ ai:
                             Focus on providing comprehensive security analysis and recommendations.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 trengo:
+                    tools:
+                        - helpdesk
+                        - neo4j
+                        - qdrant
                     prompt: |
                         You are an expert at labelling tickets in Trengo.
                         Your task is to label the ticket with the most relevant labels.
@@ -467,7 +523,15 @@ ai:
                             The output format is a JSON object matching a schema, between the ```json and ``` tags.
                             You should respond only with the JSON object, nothing else.
                         </output format>
+
                 slack:
+                    tools:
+                        - browser
+                        - neo4j
+                        - qdrant
+                        - boards
+                        - github
+                        - helpdesk
                     prompt: |
                         You are an expert in discovering project related information from Slack conversations.
 

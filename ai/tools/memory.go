@@ -9,7 +9,12 @@ import (
 	"github.com/theapemachine/amsh/errnie"
 )
 
-type Memory struct{}
+type Memory struct {
+	ToolName  string `json:"tool_name" jsonschema:"title=Tool Name,description=The name of the tool that must be 'memory',enum=memory"`
+	Operation string `json:"operation" jsonschema:"title=Operation,description=The memory operation to perform,enum=get,enum=set,enum=delete,enum=query"`
+	Key       string `json:"key" jsonschema:"title=Key,description=The unique identifier for storing or retrieving data,required"`
+	Value     string `json:"value" jsonschema:"title=Value,description=The data to be stored (required for 'set' operation)"`
+}
 
 func NewMemory() *Memory {
 	return &Memory{}

@@ -1,12 +1,11 @@
 package ai
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 
-	"github.com/invopop/jsonschema"
+	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/tools"
-	"github.com/theapemachine/amsh/errnie"
 )
 
 var toolMap = map[string]Tool{
@@ -15,6 +14,8 @@ var toolMap = map[string]Tool{
 	"environment": tools.NewEnvironment(),
 	"helpdesk":    tools.NewHelpdesk(),
 	"memory":      tools.NewMemory(),
+	"neo4j":       tools.NewNeo4j(),
+	"qdrant":      tools.NewQdrant("amsh", 1536),
 	"slack":       tools.NewSlack(),
 	"wiki":        tools.NewWiki(),
 }
@@ -26,6 +27,7 @@ type Toolset struct {
 
 // NewToolset creates a new toolset and loads tools from configuration
 func NewToolset(keys ...string) *Toolset {
+	log.Info("Creating toolset", "keys", keys)
 	tools := make(map[string]Tool)
 
 	for _, key := range keys {
@@ -54,12 +56,11 @@ func (toolset *Toolset) GetTool(name string) (Tool, bool) {
 }
 
 func (toolset *Toolset) Schemas() string {
-	schema := jsonschema.Reflect(toolset.tools)
-	buf, err := json.MarshalIndent(schema, "", "  ")
+	buf := new(bytes.Buffer)
 
-	if err != nil {
-		errnie.Error(err)
+	for _, tool := range toolset.tools {
+		buf.WriteString(tool.GenerateSchema())
 	}
 
-	return string(buf)
+	return buf.String()
 }
