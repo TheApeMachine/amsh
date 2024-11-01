@@ -1,7 +1,6 @@
 package system
 
 import (
-	"encoding/json"
 	"sync"
 
 	"github.com/charmbracelet/log"
@@ -10,66 +9,39 @@ import (
 )
 
 type ProcessManager struct {
-	key string
+	key              string
+	compositeProcess process.CompositeProcess
 }
 
 func NewProcessManager(key, origin string) *ProcessManager {
 	log.Info("NewProcessManager", "key", key)
 
-	pm := &ProcessManager{
-		key: key,
+	return &ProcessManager{
+		key:              key,
+		compositeProcess: *process.CompositeProcessMap[key],
 	}
-
-	return pm
 }
 
 func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 	log.Info("Execute", "accumulator", accumulator)
 	out := make(chan provider.Event)
 
+	if len(pm.compositeProcess.Layers) == 0 {
+		log.Error("no composite process found, going for task analysis")
+	}
+
 	go func() {
 		defer close(out)
 
-		// Create processor for task analysis
-		processor := NewProcessor(pm.key, "task_analyzer")
-
-		// Get analysis results
-		resultChan := processor.Process(accumulator)
-		var analysis process.TaskAnalysis
-		var analysisStr string
-
-		for result := range resultChan {
-			if result.Type == provider.EventToken {
-				analysisStr += result.Content
-			}
-		}
-
-		if err := json.Unmarshal([]byte(analysisStr), &analysis); err != nil {
-			log.Error("Failed to parse task analysis", "error", err)
-			return
-		}
-
-		// Process each required layer group in priority order
-		for _, group := range analysis.RequiredLayers {
+		for _, layer := range pm.compositeProcess.Layers {
 			var wg sync.WaitGroup
-			processor := NewProcessor(pm.key, group.Layers...)
-			resultChan := processor.Process(accumulator)
+			wg.Add(len(layer.Processes))
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for result := range resultChan {
-					if result.Type == provider.EventToken {
-						accumulator += result.Content
-					}
-					out <- result
-				}
-			}()
+			for event := range NewProcessor(pm.key, layer, &wg).Process(accumulator) {
+				out <- event
+			}
 
 			wg.Wait()
-			log.Info("Layer group processing complete",
-				"group", group.Name,
-				"layers", group.Layers)
 		}
 	}()
 
