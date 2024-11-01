@@ -41,7 +41,7 @@ func (processor *Processor) Process(input string) <-chan provider.Event {
 		defer close(out)
 
 		for _, process := range processor.layer.Processes {
-			out <- <-NewCore(processor.key, process, processor.wg).Run()
+			out <- <-NewCore(processor.key, process, processor.wg).Run(input)
 		}
 	}()
 

@@ -15,7 +15,6 @@ type Core struct {
 	cancel  context.CancelFunc
 	key     string
 	process process.Process
-	team    *ai.Team
 	wg      *sync.WaitGroup
 }
 
@@ -29,17 +28,22 @@ func NewCore(key string, proc process.Process, wg *sync.WaitGroup) *Core {
 		cancel:  cancel,
 		key:     key,
 		process: proc,
-		team:    ai.NewTeam(ctx, key, "", proc),
 		wg:      wg,
 	}
 }
 
-func (core *Core) Run() <-chan provider.Event {
+func (core *Core) Run(input string) <-chan provider.Event {
 	log.Info("Starting core", "key", core.key)
 	out := make(chan provider.Event, 1)
 
 	go func() {
 		defer close(out)
+
+		for event := range ai.NewTeam(
+			core.ctx, core.key, core.process, core.wg,
+		).Execute(input) {
+			out <- event
+		}
 	}()
 
 	return out

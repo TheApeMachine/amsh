@@ -26,12 +26,9 @@ ai:
 
     setups:
         marvin:
-            reasoner:
-                prompt: |
-                    You are an expert at reasoning and learning.
-                    Your task is to reason about the current context and provide insights.
-
-                    The following schemas are eligible for reasoning:
+            templates:
+                schemas: |
+                    Your responses should follow one or more of the following schemas:
 
                     <schemas>
                         {{schemas}}
@@ -39,26 +36,17 @@ ai:
 
                     <output format>
                         The output format is a JSON object matching a schema, between the ```json and ``` tags.
-                        Provide the most comprehensive reasoning possible, and include all relevant details.
-                        You should respond only with the JSON object, nothing else.
+                        When responding with multiple schemas, each schema should be enclosed in its own ```json and ``` tags.
                     </output format>
-
-            processes:
-                toolcalls:
+            personas:
+                teamlead:
                     prompt: |
-                        You are the Tool Caller in an AI Agent pair.
-
-                        The following schemas are eligible for tool calls:
-
-                        <schemas>
-                            {{schemas}}
-                        </schemas>
-
-                        <output format>
-                            The output format is a JSON object matching a schema, between the ```json and ``` tags.
-                            You should respond only with the JSON object, nothing else.
-                        </output format>
-                task_analyzer:
+                        You are a Team Lead in a multi-agent AI team, responsible for coordinating and overseeing the work of your team members.
+                developer:
+                    prompt: |
+                        You are a Developer in a multi-agent AI team, responsible for implementing requirements and specifications.:w
+            processes:
+                task_analysis:
                     prompt: |
                         You are a Task Analyzer in a sophisticated multi-agent A.I. system. Your responsibility is to take an incoming user request and build up a layered approach to handle it. 
                         Each layer represents a level of abstraction or a set of steps towards a practical goal. 

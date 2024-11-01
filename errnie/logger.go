@@ -2,7 +2,6 @@ package errnie
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,20 +18,9 @@ import (
 )
 
 var (
-	Dark      = "#666666"
-	Muted     = "#999999"
-	Highlight = "#EEEEEE"
-	Blue      = "#6E95F7"
-	Red       = "#F7746D"
-	Yellow    = "#F7B96D"
-	Green     = "#06C26F"
-	Purple    = "#6C50FF"
-
-	styles = log.DefaultStyles()
-
-	logFile     *os.File
-	logFileMu   sync.Mutex
-	logFilePath string
+	styles    = createDefaultStyles()
+	logFile   *os.File
+	logFileMu sync.Mutex
 
 	logger = log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
@@ -43,44 +31,37 @@ var (
 	})
 )
 
-func JSONtoMap(jsonString string) (map[string]any, error) {
-	var result map[string]any
-	if err := json.Unmarshal([]byte(jsonString), &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
+/*
+Initialize logging system by configuring log styles, setting log levels,
+and initializing log files if applicable.
+*/
 func init() {
-	// Initialize the log file first
+	// Initialize the log file
 	initLogFile()
 	if logFile == nil {
 		fmt.Println("WARNING: Log file initialization failed!")
 	}
 
-	styles.Levels[log.ErrorLevel] = lipgloss.NewStyle().
-		Padding(0, 1, 0, 1).
-		Background(lipgloss.Color(Red)).
-		Foreground(lipgloss.Color(Highlight))
-	styles.Levels[log.WarnLevel] = lipgloss.NewStyle().
-		Padding(0, 1, 0, 1).
-		Background(lipgloss.Color(Yellow)).
-		Foreground(lipgloss.Color(Highlight))
-	styles.Levels[log.InfoLevel] = lipgloss.NewStyle().
-		Padding(0, 1, 0, 1).
-		Background(lipgloss.Color(Blue)).
-		Foreground(lipgloss.Color(Highlight))
-	styles.Levels[log.DebugLevel] = lipgloss.NewStyle().
-		Padding(0, 1, 0, 1).
-		Background(lipgloss.Color(Muted)).
-		Foreground(lipgloss.Color(Highlight))
-
+	// Configure logger styles
 	logger.SetStyles(styles)
 
-	switch viper.GetViper().GetString("loglevel") {
-	case "trace":
-		logger.SetLevel(log.DebugLevel)
-	case "debug":
+	// Set log level based on configuration
+	setLogLevel()
+
+	// Periodic routine to print the number of active goroutines
+	go func() {
+		for range time.Tick(time.Second * 5) {
+			logger.Debug("active goroutines", "count", runtime.NumGoroutine())
+		}
+	}()
+}
+
+/*
+Set the appropriate logging level from Viper configuration.
+*/
+func setLogLevel() {
+	switch viper.GetString("loglevel") {
+	case "trace", "debug":
 		logger.SetLevel(log.DebugLevel)
 	case "info":
 		logger.SetLevel(log.InfoLevel)
@@ -91,133 +72,130 @@ func init() {
 	default:
 		logger.SetLevel(log.DebugLevel)
 	}
-
-	sync.OnceFunc(func() {
-		// Periodically print the number of active goroutines.
-		go func() {
-			for range time.Tick(time.Second * 5) {
-				log.Debug("active goroutines", "count", runtime.NumGoroutine())
-			}
-		}()
-	})()
 }
 
-func initLogFile() {
-	fmt.Println("Initializing log file...")
+/*
+makeStyle creates a Lip Gloss style for the log levels.
 
+This helper function is used to reduce redundancy in style creation by specifying background and foreground colors.
+
+Example usage:
+
+	style := makeStyle("#F7746D", "#EEEEEE")
+*/
+func makeStyle(background, foreground string) lipgloss.Style {
+	return lipgloss.NewStyle().Padding(0, 1).Background(lipgloss.Color(background)).Foreground(lipgloss.Color(foreground))
+}
+
+/*
+Creates and returns the default set of styles for logging levels.
+*/
+func createDefaultStyles() *log.Styles {
+	styles := log.DefaultStyles()
+	styles.Levels[log.ErrorLevel] = makeStyle("#F7746D", "#EEEEEE")
+	styles.Levels[log.WarnLevel] = makeStyle("#F7B96D", "#EEEEEE")
+	styles.Levels[log.InfoLevel] = makeStyle("#6E95F7", "#EEEEEE")
+	styles.Levels[log.DebugLevel] = makeStyle("#999999", "#EEEEEE")
+	return styles
+}
+
+/*
+Initialize the log file by creating or opening the log file in append mode.
+Handles any errors during initialization gracefully.
+*/
+func initLogFile() {
 	logDir := "./"
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		fmt.Printf("Failed to create log directory: %v\n", err)
 		return
 	}
 
-	logFilePath = filepath.Join(logDir, "amsh.log")
-	fmt.Printf("Log file path: %s\n", logFilePath)
-
+	logFilePath := filepath.Join(logDir, "amsh.log")
 	var err error
 	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Failed to open log file: %v\n", err)
-		logFile, err = os.Create(logFilePath)
-		if err != nil {
-			fmt.Printf("Failed to create new log file: %v\n", err)
-			return
-		}
-	}
-
-	if logFile == nil {
-		fmt.Println("Log file is nil after initialization!")
 		return
 	}
 
-	fmt.Printf("Log file successfully initialized: %v\n", logFile != nil)
+	fmt.Printf("Log file successfully initialized: %s\n", logFilePath)
 }
 
+/*
+Log a formatted message to the standard logger as well as to the log file.
+*/
 func Log(format string, v ...interface{}) {
-	// Ensure we're actually getting a message to log
 	message := fmt.Sprintf(format, v...)
 	if message == "" {
 		return
 	}
-
 	writeToLog(message)
 }
 
-func Note(format string, v ...interface{}) {
-	fmt.Println(lipgloss.NewStyle().Background(lipgloss.Color(Purple)).Foreground(lipgloss.Color(Highlight)).Render("NOTE"), fmt.Sprintf(format, v...))
-}
-
-func Success(format string, v ...interface{}) {
-	fmt.Println(lipgloss.NewStyle().Background(lipgloss.Color(Green)).Foreground(lipgloss.Color(Highlight)).Render("SUCCESS"), fmt.Sprintf(format, v...))
+/*
+Raw is a full decomposition of the object passed in.
+*/
+func Raw(v ...interface{}) {
+	spew.Dump(v...)
 }
 
 /*
-Trace logs a trace message with the appropriate symbol
+Trace logs a trace message to the logger.
 */
 func Trace(v ...interface{}) {
-	pc := make([]uintptr, 10)
-	runtime.Callers(2, pc)
-	f := runtime.FuncForPC(pc[0])
-	_, line := f.FileLine(pc[0])
-	formatted := fmt.Sprintf("%d", line)
+	logger.Debug(v[0], v[1:]...)
+}
 
-	// Print the method name with arguments
-	fn := f.Name()
-	for _, arg := range v {
-		fn += fmt.Sprintf(" %v", arg)
+/*
+Debug logs a debug message to the logger.
+*/
+func Debug(format string, v ...interface{}) {
+	logger.Debug(fmt.Sprintf(format, v...))
+}
+
+/*
+Note is a custom log message with a different style.
+*/
+func Note(format string, v ...interface{}) {
+	logger.Info(fmt.Sprintf(format, v...))
+}
+
+/*
+Success is a custom log message with a different style.
+*/
+func Success(format string, v ...interface{}) {
+	logger.Info(fmt.Sprintf(format, v...))
+}
+
+/*
+Info logs an info message to the logger.
+*/
+func Info(format string, v ...interface{}) {
+	logger.Info(fmt.Sprintf(format, v...))
+}
+
+/*
+Warn logs a warn message to the logger.
+*/
+func Warn(format string, v ...interface{}) {
+	logger.Warn(fmt.Sprintf(format, v...))
+}
+
+/*
+Error logs the error and returns it, useful for inline error logging and returning.
+
+Example usage:
+
+	err := someFunction()
+	if err != nil {
+		return Error(err, "additional context")
 	}
-
-	logger.Debug("TRACE", "name", fn, "line", line)
-	writeToLog(fmt.Sprintf("▫️  %s %s", fn, formatted))
-}
-
-/*
-Raw provides a deep dump of the object, which is useful for
-debugging complex data structures.
-*/
-func Raw(obj any) {
-	level := viper.GetViper().GetString("loglevel")
-
-	if level != "trace" && level != "debug" {
-		return
-	}
-
-	logger.Debug(spew.Sdump(obj))
-	writeToLog(spew.Sdump(obj))
-}
-
-/*
-Debug logs a debug message with the appropriate symbol
-*/
-func Debug(msg interface{}, v ...interface{}) {
-	logger.Debug(msg, v...)
-}
-
-/*
-Info logs an info message with the appropriate symbol
-*/
-func Info(msg interface{}, v ...interface{}) {
-	logger.Info(msg, v...)
-}
-
-/*
-Warn logs a warning message with the appropriate symbol
-*/
-func Warn(msg interface{}, v ...interface{}) {
-	logger.Warn(msg, v...)
-}
-
-/*
-Error logs the error and returns it, which makes it easy to insert
-errnie error logging in many types of situations, acting as a
-transparent wrapper around the error.
 */
 func Error(err error, v ...interface{}) error {
 	if err == nil {
 		return nil
 	}
 
-	// Build the error message with stack trace and code snippet.
 	message := fmt.Sprintf("%s\n%s", err.Error(), getStackTrace())
 	message += "\n" + getCodeSnippet(err.Error(), 0, 10)
 
@@ -226,33 +204,34 @@ func Error(err error, v ...interface{}) error {
 	return err
 }
 
+/*
+Write a log message to the log file, ensuring thread safety.
+*/
 func writeToLog(message string) {
 	if message == "" || logFile == nil {
-		fmt.Println("Skipping log write: message empty or logFile nil")
 		return
 	}
 
 	logFileMu.Lock()
 	defer logFileMu.Unlock()
 
-	// Clean the message - trim but preserve intentional newlines
-	message = strings.TrimSpace(message)
-
-	timestamp := time.Now().Format("15:04:05")
-	formattedMessage := fmt.Sprintf("[%s] %s\n", timestamp, stripansi.Strip(message))
+	// Strip ANSI escape codes and add a timestamp
+	formattedMessage := fmt.Sprintf("[%s] %s\n", time.Now().Format("15:04:05"), stripansi.Strip(strings.TrimSpace(message)))
 
 	_, err := logFile.WriteString(formattedMessage)
 	if err != nil {
 		fmt.Printf("Failed to write to log file: %v\n", err)
-		return
 	}
 
-	// Ensure write is flushed to disk
+	// Ensure the write is flushed to disk
 	if err := logFile.Sync(); err != nil {
 		fmt.Printf("Failed to sync log file: %v\n", err)
 	}
 }
 
+/*
+Retrieve and format a stack trace from the current execution point.
+*/
 func getStackTrace() string {
 	const depth = 32
 	var pcs [depth]uintptr
@@ -266,28 +245,26 @@ func getStackTrace() string {
 			break
 		}
 
-		// Format the function name
 		funcName := frame.Function
 		if lastSlash := strings.LastIndexByte(funcName, '/'); lastSlash >= 0 {
 			funcName = funcName[lastSlash+1:]
 		}
 		funcName = strings.Replace(funcName, ".", ":", 1)
 
-		// Construct the colored line
-		line := fmt.Sprintf("%s%s%s %s(%d)\n",
-			lipgloss.NewStyle().Foreground(lipgloss.Color(Blue)).Render(funcName),
-			lipgloss.NewStyle().Foreground(lipgloss.Color(Muted)).Render(" at "),
-			lipgloss.NewStyle().Foreground(lipgloss.Color(Green)).Render(filepath.Base(frame.File)),
-			lipgloss.NewStyle().Foreground(lipgloss.Color(Yellow)).Render("line"),
+		line := fmt.Sprintf("%s at %s(line %d)\n",
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#6E95F7")).Render(funcName),
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#06C26F")).Render(filepath.Base(frame.File)),
 			frame.Line,
 		)
-
 		trace.WriteString(line)
 	}
 
 	return "\n===[STACK TRACE]===\n" + trace.String() + "===[/STACK TRACE]===\n"
 }
 
+/*
+Retrieve and return a code snippet surrounding the given line in the provided file.
+*/
 func getCodeSnippet(file string, line, radius int) string {
 	fileHandle, err := os.Open(file)
 	if err != nil {
@@ -297,7 +274,7 @@ func getCodeSnippet(file string, line, radius int) string {
 
 	scanner := bufio.NewScanner(fileHandle)
 	currentLine := 1
-	var snippet string
+	var snippet strings.Builder
 
 	for scanner.Scan() {
 		if currentLine >= line-radius && currentLine <= line+radius {
@@ -305,7 +282,7 @@ func getCodeSnippet(file string, line, radius int) string {
 			if currentLine == line {
 				prefix = "> "
 			}
-			snippet += fmt.Sprintf("%s%d: %s\n", prefix, currentLine, scanner.Text())
+			snippet.WriteString(fmt.Sprintf("%s%d: %s\n", prefix, currentLine, scanner.Text()))
 		}
 		currentLine++
 	}
@@ -314,5 +291,5 @@ func getCodeSnippet(file string, line, radius int) string {
 		return ""
 	}
 
-	return snippet
+	return snippet.String()
 }

@@ -1,16 +1,6 @@
 package process
 
 /*
-Process defines an interface that object can implement if the want to act
-as a predefined process. Predefined processes are used to direct specific
-behavior, useful is cases where we know what should be done based on an input.
-*/
-type Process interface {
-	GenerateSchema() string
-	SystemPrompt(string) string
-}
-
-/*
 CompositeProcess is a Process that is a composition of other Processes.
 */
 type CompositeProcess struct {
@@ -21,7 +11,7 @@ type CompositeProcess struct {
 CompositeProcessMap is a map of CompositeProcesses by key.
 */
 var CompositeProcessMap = map[string]*CompositeProcess{
-	"task_analyzer": {Layers: []*Layer{LayerMap["abstract"]}},
+	"task_analysis": {Layers: []*Layer{LayerMap["task_analysis"]}},
 	"trengo":        {Layers: []*Layer{LayerMap["trengo"]}},
 	"pull_request":  {Layers: []*Layer{LayerMap["pull_request"]}},
 }
@@ -39,8 +29,9 @@ type Layer struct {
 LayerMap finds a single layer of Processes by key.
 */
 var LayerMap = map[string]*Layer{
-	"task_analyzer": {Processes: []Process{
-		ProcessMap["task_analyzer"],
+	"task_analysis": {Processes: []Process{
+		ProcessMap["breakdown"],
+		ProcessMap["planning"],
 	}},
 	"trengo": {Processes: []Process{
 		ProcessMap["trengo"],
@@ -66,38 +57,22 @@ var LayerMap = map[string]*Layer{
 		ProcessMap["catalyst"],
 		ProcessMap["guardian"],
 	}},
-	"executive": {Processes: []Process{
-		ProcessMap["programmer"],
-		ProcessMap["data_scientist"],
-		ProcessMap["qa_engineer"],
-		ProcessMap["security_specialist"],
-	}},
 }
 
 /*
-processMap finds a single process by key, which is used to map incoming
+Process defines an interface that object can implement if the want to act
+as a predefined process. Predefined processes are used to direct specific
+behavior, useful is cases where we know what should be done based on an input.
+*/
+type Process interface {
+	SystemPrompt(key string) string
+}
+
+/*
+ProcessMap finds a single process by key, which is used to map incoming
 WebHooks to the correct pre-defined process.
 */
 var ProcessMap = map[string]Process{
-	"task_analyzer":       NewTaskAnalyzer(),
-	"surface":             NewSurfaceAnalysis(),
-	"pattern":             NewPatternAnalysis(),
-	"quantum":             NewQuantumAnalysis(),
-	"time":                NewTimeAnalysis(),
-	"narrative":           NewNarrativeAnalysis(),
-	"analogy":             NewAnalogyAnalysis(),
-	"practical":           NewPracticalAnalysis(),
-	"context":             NewContextAnalysis(),
-	"moonshot":            NewMoonshot(),
-	"sensible":            NewSensible(),
-	"catalyst":            NewCatalyst(),
-	"guardian":            NewGuardian(),
-	"programmer":          NewProgrammer(),
-	"data_scientist":      NewDataScientist(),
-	"qa_engineer":         NewQAEngineer(),
-	"security_specialist": NewSecuritySpecialist(),
-	"trengo":              NewLabelling(),
-	"pull_request":        NewDiscussion(),
-	"slack":               NewPlanning(),
-	"development":         NewDevelopment(),
+	"breakdown": &Breakdown{},
+	"planning":  &Planning{},
 }

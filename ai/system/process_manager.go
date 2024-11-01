@@ -6,19 +6,20 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type ProcessManager struct {
 	key              string
-	compositeProcess process.CompositeProcess
+	compositeProcess *process.CompositeProcess
 }
 
 func NewProcessManager(key, origin string) *ProcessManager {
-	log.Info("NewProcessManager", "key", key)
+	errnie.Info("starting process manager %s %s", key, origin)
 
 	return &ProcessManager{
 		key:              key,
-		compositeProcess: *process.CompositeProcessMap[key],
+		compositeProcess: process.CompositeProcessMap[origin],
 	}
 }
 
@@ -26,7 +27,7 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 	log.Info("Execute", "accumulator", accumulator)
 	out := make(chan provider.Event)
 
-	if len(pm.compositeProcess.Layers) == 0 {
+	if pm.compositeProcess == nil || len(pm.compositeProcess.Layers) == 0 {
 		log.Error("no composite process found, going for task analysis")
 	}
 
