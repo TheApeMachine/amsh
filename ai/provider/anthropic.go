@@ -5,7 +5,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/charmbracelet/log"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Anthropic struct {
@@ -34,7 +34,7 @@ func (a *Anthropic) Configure(config map[string]interface{}) {
 }
 
 func (a *Anthropic) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	log.Info("generating with", "provider", "anthropic")
+	errnie.Info("generating with anthropic provider")
 	events := make(chan Event, 64)
 
 	go func() {
@@ -64,7 +64,7 @@ func (a *Anthropic) Generate(ctx context.Context, params GenerationParams, messa
 
 			err := message.Accumulate(event)
 			if err != nil {
-				log.Error("Error accumulating message", "error", err)
+				errnie.Error(err)
 				events <- Event{Type: EventError, Error: err}
 				return
 			}
@@ -81,7 +81,7 @@ func (a *Anthropic) Generate(ctx context.Context, params GenerationParams, messa
 		}
 
 		if err := stream.Err(); err != nil {
-			log.Error("Stream error", "error", err)
+			errnie.Error(err)
 			events <- Event{Type: EventError, Error: err}
 			return
 		}
@@ -141,6 +141,5 @@ func convertToAnthropicMessages(msgs []Message) []anthropic.MessageParam {
 		}
 	}
 
-	log.Debug("Converted messages", "anthropicMsgs", anthropicMsgs)
 	return anthropicMsgs
 }

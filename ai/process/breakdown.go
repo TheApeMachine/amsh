@@ -11,5 +11,5 @@ type Breakdown struct {
 }
 
 func (ta *Breakdown) SystemPrompt(key string) string {
-	return utils.SystemPrompt(key, utils.GenerateSchema[Breakdown]())
+	return utils.SystemPrompt(key, "breakdown", utils.GenerateSchema[Breakdown]())
 }

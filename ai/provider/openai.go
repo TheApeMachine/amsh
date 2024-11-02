@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type OpenAI struct {
@@ -49,6 +50,7 @@ func (o *OpenAI) GenerateSync(ctx context.Context, params GenerationParams, mess
 }
 
 func (o *OpenAI) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
+	errnie.Info("generating with openai provider %s", o.model)
 	events := make(chan Event, 64)
 
 	go func() {

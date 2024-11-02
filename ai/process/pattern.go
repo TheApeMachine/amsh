@@ -1,14 +1,9 @@
 package process
 
 import (
-	"encoding/json"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/invopop/jsonschema"
-	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 type GlobalPattern struct {
@@ -64,21 +59,6 @@ type PatternAnalysis struct {
 	EmergentPatterns EmergentPatterns `json:"emergent_patterns" jsonschema:"description:Higher-order patterns that emerge from interactions,required"`
 }
 
-func NewPatternAnalysis() Process {
-	return &PatternAnalysis{}
-}
-
-// Similar implementations for PatternAnalysis
-func (pa *PatternAnalysis) GenerateSchema() string {
-	schema := jsonschema.Reflect(&PatternAnalysis{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-	return string(out)
-}
-
 func (pa *PatternAnalysis) SystemPrompt(key string) string {
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.pattern.prompt", key))
-	return strings.ReplaceAll(prompt, "{{schemas}}", pa.GenerateSchema())
+	return utils.SystemPrompt(key, "pattern", utils.GenerateSchema[PatternAnalysis]())
 }

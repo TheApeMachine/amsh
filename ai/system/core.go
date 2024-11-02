@@ -2,12 +2,12 @@ package system
 
 import (
 	"context"
-	"sync"
 
 	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Core struct {
@@ -15,11 +15,10 @@ type Core struct {
 	cancel  context.CancelFunc
 	key     string
 	process process.Process
-	wg      *sync.WaitGroup
 }
 
-func NewCore(key string, proc process.Process, wg *sync.WaitGroup) *Core {
-	log.Info("NewCore", "key", key)
+func NewCore(key string, proc process.Process) *Core {
+	errnie.Info("new core created %s", key)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -28,7 +27,6 @@ func NewCore(key string, proc process.Process, wg *sync.WaitGroup) *Core {
 		cancel:  cancel,
 		key:     key,
 		process: proc,
-		wg:      wg,
 	}
 }
 
@@ -40,7 +38,7 @@ func (core *Core) Run(input string) <-chan provider.Event {
 		defer close(out)
 
 		for event := range ai.NewTeam(
-			core.ctx, core.key, core.process, core.wg,
+			core.ctx, core.key, core.process,
 		).Execute(input) {
 			out <- event
 		}

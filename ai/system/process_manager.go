@@ -28,7 +28,8 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 	out := make(chan provider.Event)
 
 	if pm.compositeProcess == nil || len(pm.compositeProcess.Layers) == 0 {
-		log.Error("no composite process found, going for task analysis")
+		errnie.Warn("no composite process found, going for task analysis")
+		pm.compositeProcess = process.CompositeProcessMap["task_analysis"]
 	}
 
 	go func() {
@@ -38,8 +39,13 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 			var wg sync.WaitGroup
 			wg.Add(len(layer.Processes))
 
-			for event := range NewProcessor(pm.key, layer, &wg).Process(accumulator) {
+			for event := range NewProcessor(pm.key, layer).Process(accumulator) {
 				out <- event
+
+				if event.Type == provider.EventDone {
+					wg.Done()
+					return
+				}
 			}
 
 			wg.Wait()

@@ -7,8 +7,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/JesusIslam/tldr"
+	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 	"golang.org/x/exp/rand"
 )
 
@@ -24,15 +27,18 @@ const (
 
 // Agent represents an AI agent that can perform tasks and communicate with other agents
 type Agent struct {
-	ctx       context.Context
-	Name      string  `json:"name"`
-	TeamName  string  `json:"team_name"`
-	Role      string  `json:"role"`
-	Buffer    *Buffer `json:"agent_buffer"`
-	provider  provider.Provider
-	params    provider.GenerationParams
-	toolset   *Toolset
-	iteration int
+	ctx        context.Context
+	key        string
+	Name       string            `json:"name"`
+	TeamName   string            `json:"team_name"`
+	Role       string            `json:"role"`
+	Buffer     *Buffer           `json:"agent_buffer"`
+	Agents     map[string]*Agent `json:"agents"`
+	scratchpad []string
+	provider   provider.Provider
+	params     provider.GenerationParams
+	toolset    *Toolset
+	iteration  int
 }
 
 // NewAgent creates a new agent with integrated reasoning and learning
@@ -44,15 +50,36 @@ func NewAgent(
 	systemPrompt string,
 	toolset *Toolset,
 ) *Agent {
+	systemPrompt = utils.JoinWith("\n",
+		systemPrompt,
+		"",
+		"<your details>",
+		"name: "+fmt.Sprintf("%s-%s", teamName, role),
+		"role: "+role,
+		"team: "+teamName,
+		"</your details>",
+	)
+	if toolset != nil && len(toolset.tools) > 0 {
+		systemPrompt = utils.JoinWith("\n\n",
+			systemPrompt,
+			strings.ReplaceAll(
+				viper.GetViper().GetString("ai.setups."+key+".templates.tools"),
+				"{{tools}}", toolset.Schemas(),
+			),
+		)
+	}
+
 	return &Agent{
-		ctx:       ctx,
-		Name:      fmt.Sprintf("%s-%s-%s", key, teamName, role),
-		TeamName:  teamName,
-		Role:      role,
-		Buffer:    NewBuffer().AddMessage("system", systemPrompt),
-		toolset:   toolset,
-		provider:  provider.NewBalancedProvider(),
-		iteration: 0,
+		ctx:        ctx,
+		key:        key,
+		Name:       fmt.Sprintf("%s-%s", teamName, role),
+		TeamName:   teamName,
+		Role:       role,
+		Buffer:     NewBuffer().AddMessage("system", systemPrompt),
+		scratchpad: []string{},
+		toolset:    toolset,
+		provider:   provider.NewBalancedProvider(),
+		iteration:  0,
 	}
 }
 
@@ -60,13 +87,12 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 	errnie.Note("executing agent %s", agent.Name)
 
 	out := make(chan provider.Event)
-	buffer := agent.Buffer.GetMessages()
-	buffer = append(buffer, provider.Message{
-		Role:    "user",
-		Content: prompt,
-	})
-
-	scratchpad := []provider.Message{}
+	agent.Buffer.AddMessage("user", utils.JoinWith("\n",
+		"<user prompt>",
+		prompt,
+		"</user prompt>",
+		viper.GetViper().GetString("ai.setups."+agent.key+".templates.guidelines"),
+	))
 
 	go func() {
 		defer close(out)
@@ -74,8 +100,10 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 		for {
 			var accumulator string
 
+			errnie.Log("agent %s iteration %d\n\n%s\n\n", agent.Name, agent.iteration, agent.Buffer.GetMessages())
+
 			for event := range agent.provider.Generate(
-				context.Background(), agent.params, append(buffer, scratchpad...),
+				context.Background(), agent.params, agent.Buffer.GetMessages(),
 			) {
 				if event.Type == provider.EventToken {
 					event.AgentID = agent.Name
@@ -85,22 +113,17 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 			}
 
 			// Execute tool calls
-			agent.ExecuteToolCalls(accumulator)
-
-			scratchpad = append(scratchpad, provider.Message{
-				Role:    "assistant",
-				Content: accumulator,
-			})
+			agent.Buffer.AddMessage("assistant", accumulator)
+			agent.Buffer.AddMessage("assistant", agent.ExecuteToolCalls(accumulator))
 
 			agent.Tweak()
 
-			if strings.Contains(strings.ToLower(accumulator), "task complete") {
+			if strings.Contains(strings.ReplaceAll(strings.ToLower(accumulator), "_", ""), "task complete") {
 				break
 			}
 
 			errnie.Log(
-				"agent %s iteration %d\n\n%s\n\n",
-				agent.Name, agent.iteration, accumulator,
+				"agent %s iteration %d\n\n%s\n\n", agent.Name, agent.iteration, agent.Buffer.GetMessages(),
 			)
 
 			agent.iteration++
@@ -112,7 +135,7 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 	return out
 }
 
-func (agent *Agent) ExecuteToolCalls(accumulator string) {
+func (agent *Agent) ExecuteToolCalls(accumulator string) string {
 	errnie.Success("executing tool calls for agent %s", agent.Name)
 	// Extract all Markdown JSON blocks.
 	pattern := regexp.MustCompile("(?s)```json\\s*([\\s\\S]*?)```")
@@ -122,15 +145,48 @@ func (agent *Agent) ExecuteToolCalls(accumulator string) {
 	for _, match := range matches {
 		var data map[string]any
 		if err := json.Unmarshal([]byte(match[1]), &data); err != nil {
-			agent.Buffer.AddMessage("assistant", "Error unmarshalling tool call: "+err.Error())
-			continue
+			return "error unmarshalling tool call: " + err.Error()
 		}
 
 		if toolValue, ok := data["tool_name"].(string); ok {
 			errnie.Success("executing tool %s", toolValue)
-			agent.toolset.Use(agent.ctx, toolValue, data)
+
+			switch toolValue {
+			case "recruit":
+				agent.Agents[data["role"].(string)] = NewAgent(
+					agent.ctx,
+					agent.Name,
+					agent.TeamName,
+					data["role"].(string),
+					utils.JoinWith("\n",
+						data["system_prompt"].(string),
+						"{{tools}}",
+					),
+					agent.toolset,
+				)
+
+				return "new agent created"
+			case "inspect":
+				out := []string{}
+				for _, agnt := range agent.Agents {
+					bag := tldr.New()
+					result, _ := bag.Summarize(agnt.Buffer.String(), 10)
+
+					out = append(out, strings.Join([]string{
+						"NAME: " + agnt.Name,
+						"ROLE: " + agnt.Role,
+						"\nSUMMARY: \n\n" + strings.Join(result, "\n"),
+					}, "\n"))
+				}
+
+				return strings.Join(out, "\n---\n")
+			default:
+				return agent.toolset.Use(agent.ctx, toolValue, data)
+			}
 		}
 	}
+
+	return "all tool calls executed"
 }
 
 func (agent *Agent) Tweak() provider.GenerationParams {

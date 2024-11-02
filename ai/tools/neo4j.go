@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/invopop/jsonschema"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -21,32 +20,21 @@ type Neo4j struct {
 // GenerateSchema implements the Tool interface
 func (neo4j *Neo4j) GenerateSchema() string {
 	schema := jsonschema.Reflect(&Neo4j{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-	return string(out)
+	return string(errnie.SafeMust(func() ([]byte, error) {
+		return json.MarshalIndent(schema, "", "  ")
+	}))
 }
 
 // NewNeo4j creates a new Neo4j client.
 func NewNeo4j() *Neo4j {
 	ctx := context.Background()
-	var (
-		client neo4j.DriverWithContext
-		err    error
-	)
 
-	client, err = neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
-
-	if err != nil {
-		errnie.Error(err)
-	}
+	client := errnie.SafeMust(func() (neo4j.DriverWithContext, error) {
+		return neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
+	})
 
 	// Verify connectivity
-	if err := client.VerifyConnectivity(ctx); err != nil {
-		errnie.Error(err)
-	}
-
+	errnie.MustVoid(client.VerifyConnectivity(ctx))
 	return &Neo4j{client: client}
 }
 
@@ -95,27 +83,20 @@ func (n *Neo4j) Close() error {
 func (neo4j *Neo4j) Use(ctx context.Context, args map[string]any) string {
 	switch neo4j.Operation {
 	case "query":
-		records, err := neo4j.Query(args["cypher"].(string))
-		if err != nil {
-			return err.Error()
-		}
-		result, err := json.Marshal(records)
-		if err != nil {
-			return err.Error()
-		}
+		records := errnie.SafeMust(func() ([]map[string]interface{}, error) {
+			return neo4j.Query(args["cypher"].(string))
+		})
+		result := errnie.SafeMust(func() ([]byte, error) {
+			return json.Marshal(records)
+		})
 		return string(result)
 
 	case "write":
-		result, err := neo4j.Write(args["query"].(string))
-		if err != nil {
-			return err.Error()
-		}
-		// Convert result to string representation
-		summary, err := result.Consume(ctx)
-		if err != nil {
-			return err.Error()
-		}
-		return fmt.Sprintf("Affected nodes: %d", summary.Counters().NodesCreated())
+		errnie.SafeMust(func() (any, error) {
+			return neo4j.Write(args["query"].(string))
+		})
+
+		return "memory saved in graph store"
 
 	default:
 		return "Unsupported operation"

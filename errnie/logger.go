@@ -48,12 +48,12 @@ func init() {
 	// Set log level based on configuration
 	setLogLevel()
 
-	// Periodic routine to print the number of active goroutines
-	go func() {
-		for range time.Tick(time.Second * 5) {
-			logger.Debug("active goroutines", "count", runtime.NumGoroutine())
-		}
-	}()
+	// // Periodic routine to print the number of active goroutines
+	// go func() {
+	// 	for range time.Tick(time.Second * 5) {
+	// 		logger.Debug("active goroutines", "count", runtime.NumGoroutine())
+	// 	}
+	// }()
 }
 
 /*
@@ -100,7 +100,7 @@ func createDefaultStyles() *log.Styles {
 }
 
 /*
-Initialize the log file by creating or opening the log file in append mode.
+Initialize the log file by creating or overwriting the log file.
 Handles any errors during initialization gracefully.
 */
 func initLogFile() {
@@ -112,7 +112,7 @@ func initLogFile() {
 
 	logFilePath := filepath.Join(logDir, "amsh.log")
 	var err error
-	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Failed to open log file: %v\n", err)
 		return
@@ -137,6 +137,7 @@ Raw is a full decomposition of the object passed in.
 */
 func Raw(v ...interface{}) {
 	spew.Dump(v...)
+	writeToLog(spew.Sprint(v...))
 }
 
 /*
@@ -144,6 +145,7 @@ Trace logs a trace message to the logger.
 */
 func Trace(v ...interface{}) {
 	logger.Debug(v[0], v[1:]...)
+	writeToLog(fmt.Sprintf("%v", v))
 }
 
 /*
@@ -151,6 +153,7 @@ Debug logs a debug message to the logger.
 */
 func Debug(format string, v ...interface{}) {
 	logger.Debug(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*
@@ -158,6 +161,7 @@ Note is a custom log message with a different style.
 */
 func Note(format string, v ...interface{}) {
 	logger.Info(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*
@@ -165,6 +169,7 @@ Success is a custom log message with a different style.
 */
 func Success(format string, v ...interface{}) {
 	logger.Info(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*
@@ -172,6 +177,7 @@ Info logs an info message to the logger.
 */
 func Info(format string, v ...interface{}) {
 	logger.Info(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*
@@ -179,6 +185,7 @@ Warn logs a warn message to the logger.
 */
 func Warn(format string, v ...interface{}) {
 	logger.Warn(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*

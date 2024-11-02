@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/google/generative-ai-go/genai"
+	"github.com/theapemachine/amsh/errnie"
 	"google.golang.org/api/option"
 )
 
@@ -30,7 +31,7 @@ func NewGoogle(apiKey string, model string) *Google {
 }
 
 func (g *Google) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	log.Info("generating with", "provider", "google")
+	errnie.Info("generating with google provider")
 	events := make(chan Event, 64)
 
 	go func() {

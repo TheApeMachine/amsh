@@ -36,7 +36,9 @@ require (
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	cloud.google.com/go/longrunning v0.6.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
+	github.com/JesusIslam/tldr v0.6.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/alixaxel/pagerank v0.0.0-20160306110729-14bfb4c1d88c // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.21 // indirect
@@ -79,6 +81,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mergestat/timediff v0.0.3 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect

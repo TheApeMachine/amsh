@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/charmbracelet/log"
+	"github.com/mergestat/timediff"
 	"github.com/openai/openai-go"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type ProviderStatus struct {
+	name     string
 	provider Provider
 	occupied bool
 	lastUsed time.Time
@@ -37,28 +39,33 @@ so multiple calls to NewBalancedProvider will return the same instance.
 */
 func NewBalancedProvider() *BalancedProvider {
 	onceBalancedProvider.Do(func() {
-		log.Info("NewBalancedProvider")
+		errnie.Info("new balanced provider")
 
 		balancedProviderInstance = &BalancedProvider{
 			providers: []*ProviderStatus{
 				{
+					name:     "llama3.2:3b",
+					provider: NewOllama("llama3.2:3b"),
+					occupied: false,
+				},
+				{
+					name:     "gpt-4o-mini",
 					provider: NewOpenAI(os.Getenv("OPENAI_API_KEY"), openai.ChatModelGPT4oMini2024_07_18),
 					occupied: false,
 				},
 				{
+					name:     "claude-3-5-sonnet",
 					provider: NewAnthropic(os.Getenv("ANTHROPIC_API_KEY"), anthropic.ModelClaude3_5Sonnet20241022),
 					occupied: false,
 				},
 				{
+					name:     "gemini-1.5-flash",
 					provider: NewGoogle(os.Getenv("GEMINI_API_KEY"), "gemini-1.5-flash"),
 					occupied: false,
 				},
 				{
+					name:     "command-r",
 					provider: NewCohere(os.Getenv("COHERE_API_KEY"), "command-r"),
-					occupied: false,
-				},
-				{
-					provider: NewOllama("llama3.2:3b"),
 					occupied: false,
 				},
 			},
@@ -71,7 +78,7 @@ func NewBalancedProvider() *BalancedProvider {
 }
 
 func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	log.Info("Generate")
+	errnie.Info("generating with balanced provider")
 	resultChan := make(chan Event)
 
 	go func() {
@@ -90,7 +97,7 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 			ps.mu.Lock()
 			ps.occupied = false
 			ps.mu.Unlock()
-			log.Info("provider released")
+			errnie.Info("provider released")
 		}()
 
 		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -101,16 +108,15 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 		go func() {
 			defer close(done)
 			for event := range ps.provider.Generate(timeoutCtx, params, messages) {
-				if event.Type == EventError &&
-					(strings.Contains(event.Error.Error(), "429") ||
-						strings.Contains(event.Error.Error(), "rate_limit")) {
+				if event.Type == EventError && (strings.Contains(event.Error.Error(), "429") || strings.Contains(event.Error.Error(), "rate_limit")) {
 					// Handle rate limit error
 					ps.mu.Lock()
 					ps.failures++
 					ps.mu.Unlock()
-					log.Warn("rate limit hit, increasing failure count",
-						"provider", ps.provider,
-						"failures", ps.failures)
+					errnie.Warn(
+						"rate limit hit, increasing failure count %s %d",
+						ps.provider, ps.failures,
+					)
 				}
 
 				select {
@@ -137,7 +143,7 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 }
 
 func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
-	log.Info("getAvailableProvider")
+	errnie.Info("getting available provider")
 	maxAttempts := 10
 	cooldownPeriod := 60 * time.Second // Cooldown after rate limit
 
@@ -183,24 +189,25 @@ func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 			bestProvider.lastUsed = time.Now()
 			bestProvider.mu.Unlock()
 
-			log.Info("found available provider",
-				"provider", bestProvider.provider,
-				"failures", bestProvider.failures,
-				"lastUsed", bestProvider.lastUsed)
+			errnie.Info(
+				"found available provider %s %d %s",
+				bestProvider.name, bestProvider.failures, timediff.TimeDiff(bestProvider.lastUsed),
+			)
+
 			return bestProvider
 		}
 
 		// If all providers are busy, wait before trying again
-		log.Warn("all providers occupied or in cooldown, waiting...", "attempt", attempt+1)
+		errnie.Warn("all providers occupied or in cooldown, attempt %d, waiting...", attempt+1)
 		time.Sleep(1 * time.Second)
 	}
 
-	log.Error("no providers available after maximum attempts")
+	errnie.Error(errors.New("no providers available after maximum attempts"))
 	return nil
 }
 
 func (lb *BalancedProvider) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
-	log.Info("GenerateSync")
+	errnie.Info("generating with balanced provider")
 
 	events := lb.Generate(ctx, params, messages)
 	var result string

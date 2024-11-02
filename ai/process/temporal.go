@@ -1,14 +1,9 @@
 package process
 
 import (
-	"encoding/json"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/invopop/jsonschema"
-	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 /*
@@ -18,6 +13,20 @@ type TemporalDynamics struct {
 	Timeline       []TimePoint     `json:"timeline" jsonschema:"description:Sequence of thought states; required"`
 	CausalChains   []CausalChain   `json:"causal_chains" jsonschema:"description:Cause-effect relationships over time; required"`
 	EvolutionRules []EvolutionRule `json:"evolution_rules" jsonschema:"description:Patterns of state change; required"`
+}
+
+type CausalChain struct {
+	ID       string     `json:"id" jsonschema:"required,description:Unique identifier for causal chain"`
+	EventIDs []string   `json:"event_ids" jsonschema:"required,description:IDs of events in chain"`
+	Strength float64    `json:"strength" jsonschema:"required,description:Causal relationship strength"`
+	Evidence []Evidence `json:"evidence" jsonschema:"required,description:Supporting evidence"`
+}
+
+type Evidence struct {
+	Type        string  `json:"type" jsonschema:"required,description:Type of evidence"`
+	Description string  `json:"description" jsonschema:"required,description:Evidence description"`
+	Confidence  float64 `json:"confidence" jsonschema:"required,description:Confidence level"`
+	Source      string  `json:"source" jsonschema:"required,description:Evidence source"`
 }
 
 type TimePoint struct {
@@ -32,21 +41,6 @@ type TimeAnalysis struct {
 	CrossLayerSynthesis CrossLayerSynthesis `json:"cross_layer_synthesis" jsonschema:"description:Integration across different representation layers,required"`
 }
 
-func NewTimeAnalysis() Process {
-	return &TimeAnalysis{}
-}
-
-// Similar implementations for TimeAnalysis
-func (ta *TimeAnalysis) GenerateSchema() string {
-	schema := jsonschema.Reflect(&TimeAnalysis{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-	return string(out)
-}
-
 func (ta *TimeAnalysis) SystemPrompt(key string) string {
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.time.prompt", key))
-	return strings.ReplaceAll(prompt, "{{schemas}}", ta.GenerateSchema())
+	return utils.SystemPrompt(key, "time", utils.GenerateSchema[TimeAnalysis]())
 }
