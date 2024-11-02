@@ -4,6 +4,7 @@ go 1.22.5
 
 require (
 	capnproto.org/go/capnp/v3 v3.0.1-alpha.2
+	github.com/JesusIslam/tldr v0.6.0
 	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.0
@@ -17,6 +18,7 @@ require (
 	github.com/google/go-github/v66 v66.0.0
 	github.com/google/uuid v1.6.0
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
+	github.com/mergestat/timediff v0.0.3
 	github.com/openai/openai-go v0.1.0-alpha.26
 	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	github.com/spf13/cast v1.6.0
@@ -36,7 +38,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	cloud.google.com/go/longrunning v0.6.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
-	github.com/JesusIslam/tldr v0.6.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/alixaxel/pagerank v0.0.0-20160306110729-14bfb4c1d88c // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
@@ -82,7 +83,6 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mergestat/timediff v0.0.3 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
@@ -165,7 +165,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
-	github.com/muesli/cancelreader v0.2.2 // indirect
+	github.com/muesli/cancelreader v0.2.2
 	github.com/muesli/termenv v0.15.2
 	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
 	github.com/ollama/ollama v0.3.14
@@ -177,6 +177,6 @@ require (
 	github.com/valyala/fasthttp v1.56.0
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/term v0.25.0
+	golang.org/x/term v0.25.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 )

@@ -42,3 +42,9 @@ func (cursor *Cursor) MoveRight(buffer *Buffer) {
 func (cursor *Cursor) GetPosition() (int, int) {
 	return cursor.line, cursor.col
 }
+
+// MoveTo moves the cursor to a specific position
+func (cursor *Cursor) MoveTo(line, col int) {
+	cursor.line = line
+	cursor.col = col
+}

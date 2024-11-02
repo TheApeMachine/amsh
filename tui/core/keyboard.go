@@ -3,8 +3,8 @@ package core
 import (
 	"errors"
 	"io"
+	"log"
 	"os"
-	"strings"
 
 	"github.com/muesli/cancelreader"
 	"github.com/theapemachine/amsh/errnie"
@@ -18,21 +18,23 @@ const (
 	CmdTypeModeNormal
 	CmdTypeModeInsert
 	CmdTypeModeVisual
+	CmdMoveLeft
+	CmdMoveRight
+	CmdMoveUp
+	CmdMoveDown
+	CmdDeleteChar
+	CmdBackspace
+	CmdNewLineBelow
+	CmdNewLineAbove
+	CmdTeleportMode
+	CmdTeleportInput
+	CmdEnter
+	CmdBrowserToggle
+	CmdBrowserUp
+	CmdBrowserDown
+	CmdBrowserEnter
+	CmdBrowserBack
 )
-
-var cmdMap = map[Mode]map[string]CmdType{
-	ModeNormal: {
-		"q": CmdTypeQuit,
-		"i": CmdTypeModeInsert,
-		"v": CmdTypeModeVisual,
-	},
-	ModeInsert: {
-		"esc": CmdTypeModeNormal,
-	},
-	ModeVisual: {
-		"esc": CmdTypeModeNormal,
-	},
-}
 
 type KeyMsg struct {
 	Key rune
@@ -42,7 +44,6 @@ type KeyMsg struct {
 type Keyboard struct {
 	reader cancelreader.CancelReader
 	mode   Mode
-	buf    string
 }
 
 func NewKeyboard() *Keyboard {
@@ -56,22 +57,28 @@ func NewKeyboard() *Keyboard {
 
 func (keyboard *Keyboard) Pipe() chan KeyMsg {
 	msgChan := make(chan KeyMsg)
-	buffer := make([]byte, 1)
+	buffer := make([]byte, 3)
 
 	go func() {
 		defer close(msgChan)
 
-		// Read from the keyboard
 		for {
 			n := errnie.SafeMust(func() (int, error) {
 				return keyboard.Read(buffer)
 			})
 
 			if n > 0 {
-				key := rune(buffer[0])
-				if msg := keyboard.matchCmd(key); msg != nil {
-					msgChan <- *msg
-					keyboard.buf = ""
+				// Handle escape sequences (arrow keys)
+				if buffer[0] == 27 && n >= 3 && buffer[1] == 91 {
+					key := buffer[2]
+					if msg := keyboard.handleArrowKey(rune(key)); msg != nil {
+						msgChan <- *msg
+					}
+				} else {
+					// Regular key handling
+					if msg := keyboard.matchCmd(rune(buffer[0])); msg != nil {
+						msgChan <- *msg
+					}
 				}
 			}
 		}
@@ -80,33 +87,65 @@ func (keyboard *Keyboard) Pipe() chan KeyMsg {
 	return msgChan
 }
 
-/*
-matchCmd will be called any time a key is pressed, and one of the
-following conditions are met:
+func (keyboard *Keyboard) handleArrowKey(key rune) *KeyMsg {
+	var cmd CmdType
+	switch key {
+	case 65: // Up arrow
+		cmd = CmdMoveUp
+	case 66: // Down arrow
+		cmd = CmdMoveDown
+	case 67: // Right arrow
+		cmd = CmdMoveRight
+	case 68: // Left arrow
+		cmd = CmdMoveLeft
+	default:
+		return nil
+	}
+	log.Printf("Arrow key pressed: %d, sending command: %v", key, cmd)
+	return &KeyMsg{Key: key, Cmd: cmd}
+}
 
-1. The current key, combined with the previous keys, has not eliminated all potential matches.
-2. The current key is pressed within the timeout period after the previous key.
-3. The current key is the start of a new sequence, after the previous sequence resolved.
-*/
 func (keyboard *Keyboard) matchCmd(key rune) *KeyMsg {
-	keyboard.buf += string(key)
-
-	// First we check if we have a partial match in the cmdMap.
-	for key := range cmdMap[keyboard.mode] {
-		// If we have a partial match, we need to wait for a potential full match.
-		if strings.HasPrefix(keyboard.buf, key) {
-			return nil
+	// Handle special keys
+	switch key {
+	case 27: // ESC key
+		keyboard.mode = ModeNormal
+		return &KeyMsg{Key: key, Cmd: CmdTypeModeNormal}
+	case 13: // Enter key
+		return &KeyMsg{Key: key, Cmd: CmdEnter}
+	case 127, 8: // Backspace
+		return &KeyMsg{Key: key, Cmd: CmdBackspace}
+	case 32: // Space key
+		if keyboard.mode == ModeInsert {
+			return &KeyMsg{Key: key, Cmd: CmdTypeNone} // Allow space in insert mode
+		}
+	case 't':
+		if keyboard.mode == ModeNormal {
+			return &KeyMsg{Key: key, Cmd: CmdTeleportMode}
 		}
 	}
 
-	// If we have a full match, we can return the command.
-	if cmd, exists := cmdMap[keyboard.mode][keyboard.buf]; exists {
-		return &KeyMsg{Key: key, Cmd: cmd}
+	// For insert mode, send all regular characters directly
+	if keyboard.mode == ModeInsert && key >= 32 && key < 127 {
+		return &KeyMsg{Key: key, Cmd: CmdTypeNone}
 	}
 
-	// If we don't have a full match, and we don't have a partial match,
-	// we return the key as a normal key.
-	return &KeyMsg{Key: key, Cmd: CmdTypeNone}
+	// Handle normal mode commands
+	if keyboard.mode == ModeNormal {
+		switch key {
+		case 'q':
+			return &KeyMsg{Key: key, Cmd: CmdTypeQuit}
+		case 'i':
+			keyboard.mode = ModeInsert
+			return &KeyMsg{Key: key, Cmd: CmdTypeModeInsert}
+		case 'x':
+			return &KeyMsg{Key: key, Cmd: CmdDeleteChar}
+		case 'b':
+			return &KeyMsg{Key: key, Cmd: CmdBrowserToggle}
+		}
+	}
+
+	return nil
 }
 
 func (keyboard *Keyboard) Read(p []byte) (n int, err error) {
