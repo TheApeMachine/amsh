@@ -18,7 +18,6 @@ import (
 )
 
 var (
-	styles    = createDefaultStyles()
 	logFile   *os.File
 	logFileMu sync.Mutex
 
@@ -41,9 +40,6 @@ func init() {
 	if logFile == nil {
 		fmt.Println("WARNING: Log file initialization failed!")
 	}
-
-	// Configure logger styles
-	logger.SetStyles(styles)
 
 	// Set log level based on configuration
 	setLogLevel()
@@ -75,32 +71,7 @@ func setLogLevel() {
 }
 
 /*
-makeStyle creates a Lip Gloss style for the log levels.
-
-This helper function is used to reduce redundancy in style creation by specifying background and foreground colors.
-
-Example usage:
-
-	style := makeStyle("#F7746D", "#EEEEEE")
-*/
-func makeStyle(background, foreground string) lipgloss.Style {
-	return lipgloss.NewStyle().Padding(0, 1).Background(lipgloss.Color(background)).Foreground(lipgloss.Color(foreground))
-}
-
-/*
-Creates and returns the default set of styles for logging levels.
-*/
-func createDefaultStyles() *log.Styles {
-	styles := log.DefaultStyles()
-	styles.Levels[log.ErrorLevel] = makeStyle("#F7746D", "#EEEEEE")
-	styles.Levels[log.WarnLevel] = makeStyle("#F7B96D", "#EEEEEE")
-	styles.Levels[log.InfoLevel] = makeStyle("#6E95F7", "#EEEEEE")
-	styles.Levels[log.DebugLevel] = makeStyle("#999999", "#EEEEEE")
-	return styles
-}
-
-/*
-Initialize the log file by creating or opening the log file in append mode.
+Initialize the log file by creating or overwriting the log file.
 Handles any errors during initialization gracefully.
 */
 func initLogFile() {
@@ -112,7 +83,7 @@ func initLogFile() {
 
 	logFilePath := filepath.Join(logDir, "amsh.log")
 	var err error
-	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Failed to open log file: %v\n", err)
 		return
@@ -137,6 +108,7 @@ Raw is a full decomposition of the object passed in.
 */
 func Raw(v ...interface{}) {
 	spew.Dump(v...)
+	writeToLog(spew.Sprint(v...))
 }
 
 /*
@@ -144,6 +116,7 @@ Trace logs a trace message to the logger.
 */
 func Trace(v ...interface{}) {
 	logger.Debug(v[0], v[1:]...)
+	writeToLog(fmt.Sprintf("%v", v))
 }
 
 /*
@@ -151,6 +124,7 @@ Debug logs a debug message to the logger.
 */
 func Debug(format string, v ...interface{}) {
 	logger.Debug(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*
@@ -158,6 +132,7 @@ Note is a custom log message with a different style.
 */
 func Note(format string, v ...interface{}) {
 	logger.Info(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*
@@ -165,6 +140,7 @@ Success is a custom log message with a different style.
 */
 func Success(format string, v ...interface{}) {
 	logger.Info(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*
@@ -172,6 +148,7 @@ Info logs an info message to the logger.
 */
 func Info(format string, v ...interface{}) {
 	logger.Info(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*
@@ -179,6 +156,7 @@ Warn logs a warn message to the logger.
 */
 func Warn(format string, v ...interface{}) {
 	logger.Warn(fmt.Sprintf(format, v...))
+	writeToLog(fmt.Sprintf(format, v...))
 }
 
 /*

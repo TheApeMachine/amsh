@@ -2,6 +2,7 @@ package ai
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/theapemachine/amsh/ai/provider"
 )
@@ -48,6 +49,15 @@ func (b *Buffer) AddToolResult(name, result string) {
 		Role:    "tool",
 		Content: fmt.Sprintf("Tool %s returned: %s", name, result),
 	})
+}
+
+func (b *Buffer) String() string {
+	out := []string{}
+	for _, msg := range b.messages {
+		out = append(out, fmt.Sprintf("%s: %s", msg.Role, msg.Content))
+	}
+
+	return strings.Join(out, "\n")
 }
 
 func (b *Buffer) Clear() {

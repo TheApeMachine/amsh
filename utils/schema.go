@@ -21,10 +21,9 @@ func GenerateSchema[T any]() string {
 	}))
 }
 
-func SystemPrompt(key, schema string) string {
+func SystemPrompt(key, processKey, schema string) string {
 	return JoinWith("\n",
-		viper.GetString(fmt.Sprintf("ai.setups.%s.processes.task_analysis.prompt", key)),
-		viper.GetString(fmt.Sprintf("ai.setups.%s.personas.task_analyzer.prompt", key)),
+		viper.GetString(fmt.Sprintf("ai.setups.%s.processes.%s.prompt", key, processKey)),
 		strings.ReplaceAll(
 			viper.GetString(fmt.Sprintf("ai.setups.%s.templates.schemas", key)),
 			"{{schemas}}",

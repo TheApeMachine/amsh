@@ -13,10 +13,7 @@ var runCmd = &cobra.Command{
 	Short: "Run the service with the ~/.amsh/config.yml config values.",
 	Long:  runtxt,
 	RunE: func(cmd *cobra.Command, _ []string) (err error) {
-		app := tui.New()
-		app.Initialize()
-		app.Run()
-		return nil
+		return <-tui.New().Run()
 	},
 }
 

@@ -20,11 +20,9 @@ type Neo4j struct {
 // GenerateSchema implements the Tool interface
 func (neo4j *Neo4j) GenerateSchema() string {
 	schema := jsonschema.Reflect(&Neo4j{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-	return string(out)
+	return string(errnie.SafeMust(func() ([]byte, error) {
+		return json.MarshalIndent(schema, "", "  ")
+	}))
 }
 
 // NewNeo4j creates a new Neo4j client.
@@ -81,20 +79,16 @@ func (n *Neo4j) Close() error {
 func (neo4j *Neo4j) Use(ctx context.Context, args map[string]any) string {
 	switch neo4j.Operation {
 	case "query":
-		records, err := neo4j.Query(args["cypher"].(string))
-		if err != nil {
-			return err.Error()
-		}
-		result, err := json.Marshal(records)
-		if err != nil {
-			return err.Error()
-		}
+		records := errnie.SafeMust(func() ([]map[string]interface{}, error) {
+			return neo4j.Query(args["cypher"].(string))
+		})
+		result := errnie.SafeMust(func() ([]byte, error) {
+			return json.Marshal(records)
+		})
 		return string(result)
 
 	case "write":
-		result := neo4j.Write(args["query"].(string))
-		errnie.MustVoid(result.Err())
-		return "Success"
+		return neo4j.Write(args["query"].(string)).Err().Error()
 
 	default:
 		return "Unsupported operation"

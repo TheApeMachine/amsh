@@ -1,14 +1,7 @@
 package process
 
 import (
-	"encoding/json"
-	"fmt"
-	"strings"
-
-	"github.com/charmbracelet/log"
-	"github.com/invopop/jsonschema"
-	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 /*
@@ -20,28 +13,8 @@ type NarrativeAnalysis struct {
 	ThemeMapping  ThemeMapping   `json:"theme_mapping" jsonschema:"required,description:Abstract concepts mapped to narrative elements"`
 }
 
-func NewNarrativeAnalysis() NarrativeAnalysis {
-	return NarrativeAnalysis{}
-}
-
-func (n NarrativeAnalysis) GenerateSchema() string {
-	log.Info("GenerateSchema")
-	schema := jsonschema.Reflect(&NarrativeAnalysis{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-
-	return string(out)
-}
-
-func (n NarrativeAnalysis) SystemPrompt(key string) string {
-	log.Info("SystemPrompt", "key", key)
-
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.context.prompt", key))
-	prompt = strings.ReplaceAll(prompt, "{{schemas}}", n.GenerateSchema())
-
-	return prompt
+func (narrative *NarrativeAnalysis) SystemPrompt(key string) string {
+	return utils.SystemPrompt(key, "narrative", utils.GenerateSchema[NarrativeAnalysis]())
 }
 
 type StoryElement struct {
@@ -58,30 +31,6 @@ type StoryFlow struct {
 	Progression float64      `json:"progression" jsonschema:"required,description:Overall narrative progression"`
 }
 
-func NewStoryFlow() StoryFlow {
-	return StoryFlow{}
-}
-
-func (s StoryFlow) GenerateSchema() string {
-	log.Info("GenerateSchema")
-	schema := jsonschema.Reflect(&StoryFlow{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-
-	return string(out)
-}
-
-func (s StoryFlow) SystemPrompt(key string) string {
-	log.Info("SystemPrompt", "key", key)
-
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.context.prompt", key))
-	prompt = strings.ReplaceAll(prompt, "{{schemas}}", s.GenerateSchema())
-
-	return prompt
-}
-
 /*
 AnalogyAnalysis creates relatable comparisons for abstract concepts.
 */
@@ -91,36 +40,16 @@ type AnalogyAnalysis struct {
 	Relationships []Relationship `json:"relationships" jsonschema:"required,description:How analogies relate to each other"`
 }
 
+func (analogy *AnalogyAnalysis) SystemPrompt(key string) string {
+	return utils.SystemPrompt(key, "analogy", utils.GenerateSchema[AnalogyAnalysis]())
+}
+
 type Analogy struct {
 	ID            string  `json:"id" jsonschema:"required,description:Unique identifier for the analogy"`
 	SourceConcept string  `json:"source_concept" jsonschema:"required,description:The familiar concept used in the analogy"`
 	TargetConcept string  `json:"target_concept" jsonschema:"required,description:The abstract concept being explained"`
 	Explanation   string  `json:"explanation" jsonschema:"required,description:Human-friendly explanation"`
 	Strength      float64 `json:"strength" jsonschema:"required,description:How well the analogy fits"`
-}
-
-func NewAnalogyAnalysis() AnalogyAnalysis {
-	return AnalogyAnalysis{}
-}
-
-func (a AnalogyAnalysis) GenerateSchema() string {
-	log.Info("GenerateSchema")
-	schema := jsonschema.Reflect(&AnalogyAnalysis{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-
-	return string(out)
-}
-
-func (a AnalogyAnalysis) SystemPrompt(key string) string {
-	log.Info("SystemPrompt", "key", key)
-
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.context.prompt", key))
-	prompt = strings.ReplaceAll(prompt, "{{schemas}}", a.GenerateSchema())
-
-	return prompt
 }
 
 /*
@@ -132,28 +61,8 @@ type PracticalAnalysis struct {
 	Implementation Implementation `json:"implementation" jsonschema:"required,description:How to implement the actions"`
 }
 
-func NewPracticalAnalysis() PracticalAnalysis {
-	return PracticalAnalysis{}
-}
-
-func (p PracticalAnalysis) GenerateSchema() string {
-	log.Info("GenerateSchema")
-	schema := jsonschema.Reflect(&PracticalAnalysis{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-
-	return string(out)
-}
-
-func (p PracticalAnalysis) SystemPrompt(key string) string {
-	log.Info("SystemPrompt", "key", key)
-
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.context.prompt", key))
-	prompt = strings.ReplaceAll(prompt, "{{schemas}}", p.GenerateSchema())
-
-	return prompt
+func (practical *PracticalAnalysis) SystemPrompt(key string) string {
+	return utils.SystemPrompt(key, "practical", utils.GenerateSchema[PracticalAnalysis]())
 }
 
 /*
@@ -164,6 +73,10 @@ type ContextAnalysis struct {
 	Constraints     []Constraint     `json:"constraints" jsonschema:"required,description:Contextual limitations"`
 	Opportunities   []Opportunity    `json:"opportunities" jsonschema:"required,description:Context-specific possibilities"`
 	Recommendations []Recommendation `json:"recommendations" jsonschema:"required,description:Context-aware suggestions"`
+}
+
+func (context *ContextAnalysis) SystemPrompt(key string) string {
+	return utils.SystemPrompt(key, "context", utils.GenerateSchema[ContextAnalysis]())
 }
 
 type RelevanceMap struct {
@@ -200,28 +113,8 @@ type Recommendation struct {
 	Impact        float64  `json:"impact" jsonschema:"required,description:Expected effect of this recommendation"`
 }
 
-func NewContextAnalysis() ContextAnalysis {
-	return ContextAnalysis{}
-}
-
-func (c ContextAnalysis) GenerateSchema() string {
-	log.Info("GenerateSchema")
-	schema := jsonschema.Reflect(&ContextAnalysis{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-
-	return string(out)
-}
-
-func (c ContextAnalysis) SystemPrompt(key string) string {
-	log.Info("SystemPrompt", "key", key)
-
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.context.prompt", key))
-	prompt = strings.ReplaceAll(prompt, "{{schemas}}", c.GenerateSchema())
-
-	return prompt
+func (recommendation *Recommendation) SystemPrompt(key string) string {
+	return utils.SystemPrompt(key, "recommendation", utils.GenerateSchema[Recommendation]())
 }
 
 type Implementation struct {

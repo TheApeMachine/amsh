@@ -2,14 +2,9 @@ package process
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/invopop/jsonschema"
-	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/berrt"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 /*
@@ -76,72 +71,6 @@ type ThinkingResult struct {
 	Time    TimeAnalysis    `json:"time" jsonschema:"required,description:Time analysis"`
 }
 
-func (tr *ThinkingResult) Integrate(result ProcessResult) error {
-	var err error
-	switch result.CoreID {
-	case "surface":
-		err = json.Unmarshal(result.Data, &tr.Surface)
-	case "pattern":
-		err = json.Unmarshal(result.Data, &tr.Pattern)
-	case "quantum":
-		err = json.Unmarshal(result.Data, &tr.Quantum)
-	case "time":
-		err = json.Unmarshal(result.Data, &tr.Time)
-	default:
-		return fmt.Errorf("unknown core ID: %s", result.CoreID)
-	}
-	return err
-}
-
-/*
-NewThinking creates a new instance of the Thinking process.
-*/
-func NewThinking() *Thinking {
-	return &Thinking{}
-}
-
-/*
-Marshal the process into JSON.
-*/
-func (thinking *Thinking) Marshal() ([]byte, error) {
-	return json.Marshal(thinking)
-}
-
-/*
-Unmarshal the process from JSON.
-*/
-func (thinking *Thinking) Unmarshal(data []byte) error {
-	return json.Unmarshal(data, thinking)
-}
-
 func (thinking *Thinking) SystemPrompt(key string) string {
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.default.prompt", key))
-	prompt = strings.ReplaceAll(prompt, "{{schemas}}", thinking.GenerateSchema())
-
-	return prompt
-}
-
-func (thinking *Thinking) GenerateSchema() string {
-	schema := jsonschema.Reflect(&Thinking{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-
-	return string(out)
-}
-
-/*
-Format the process as a pretty-printed JSON string.
-*/
-func (thinking *Thinking) Format() string {
-	pretty, _ := json.MarshalIndent(thinking, "", "  ")
-	return string(pretty)
-}
-
-/*
-String returns a human-readable string representation of the process.
-*/
-func (thinking *Thinking) String() {
-	berrt.Info("Thinking", thinking)
+	return utils.SystemPrompt(key, "thinking", utils.GenerateSchema[Thinking]())
 }

@@ -30,10 +30,9 @@ func NewWiki() *Wiki {
 	}
 
 	connection := azuredevops.NewPatConnection(organizationURL, personalAccessToken)
-	client, err := search.NewClient(context.Background(), connection)
-	if err != nil {
-		return nil
-	}
+	client := errnie.SafeMust(func() (search.Client, error) {
+		return search.NewClient(context.Background(), connection)
+	})
 
 	return &Wiki{
 		client:      client,
@@ -43,11 +42,9 @@ func NewWiki() *Wiki {
 
 func (wiki *Wiki) GenerateSchema() string {
 	schema := jsonschema.Reflect(&Wiki{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-	return string(out)
+	return string(errnie.SafeMust(func() ([]byte, error) {
+		return json.MarshalIndent(schema, "", "  ")
+	}))
 }
 
 func (w *Wiki) Use(ctx context.Context, args map[string]any) string {
@@ -60,12 +57,11 @@ func (w *Wiki) Use(ctx context.Context, args map[string]any) string {
 		SearchText: &keywords,
 	}
 
-	response, err := w.client.FetchWikiSearchResults(ctx, search.FetchWikiSearchResultsArgs{
-		Request: &request,
+	response := errnie.SafeMust(func() (*searchshared.WikiSearchResponse, error) {
+		return w.client.FetchWikiSearchResults(ctx, search.FetchWikiSearchResultsArgs{
+			Request: &request,
+		})
 	})
-	if err != nil {
-		return errnie.Error(fmt.Errorf("failed to search wiki: %w", err)).Error()
-	}
 
 	if len(*response.Results) == 0 {
 		return "No wiki pages found for the given keywords."
@@ -75,7 +71,8 @@ func (w *Wiki) Use(ctx context.Context, args map[string]any) string {
 	output.WriteString("Wiki Search Results:\n")
 	for _, result := range *response.Results {
 		output.WriteString(
-			fmt.Sprintf("- Title: %s\n  Path: %s\n  URL: %s\n\n", *result.Wiki.Name, *result.Path, *result.Wiki.MappedPath))
+			fmt.Sprintf("- Title: %s\n  Path: %s\n  URL: %s\n\n", *result.Wiki.Name, *result.Path, *result.Wiki.MappedPath),
+		)
 	}
 
 	return output.String()

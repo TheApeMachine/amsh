@@ -1,6 +1,9 @@
 package core
 
-type Mode interface {
-	Enter(context *Context)
-	Exit()
-}
+type Mode uint
+
+const (
+	ModeNormal Mode = iota
+	ModeInsert
+	ModeVisual
+)

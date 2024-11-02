@@ -24,5 +24,5 @@ type Task struct {
 }
 
 func (p *Planning) SystemPrompt(key string) string {
-	return utils.SystemPrompt(key, utils.GenerateSchema[Planning]())
+	return utils.SystemPrompt(key, "planning", utils.GenerateSchema[Planning]())
 }

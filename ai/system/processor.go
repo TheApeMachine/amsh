@@ -1,8 +1,6 @@
 package system
 
 import (
-	"sync"
-
 	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
@@ -14,19 +12,17 @@ Processor is a struct that manages the cores and channels for a distributed AI s
 type Processor struct {
 	key   string
 	layer *process.Layer
-	wg    *sync.WaitGroup
 }
 
 /*
 NewProcessor creates a new processor with the given key.
 */
-func NewProcessor(key string, layer *process.Layer, wg *sync.WaitGroup) *Processor {
+func NewProcessor(key string, layer *process.Layer) *Processor {
 	log.Info("NewProcessor", "key", key)
 
 	return &Processor{
 		key:   key,
 		layer: layer,
-		wg:    wg,
 	}
 }
 
@@ -41,7 +37,9 @@ func (processor *Processor) Process(input string) <-chan provider.Event {
 		defer close(out)
 
 		for _, process := range processor.layer.Processes {
-			out <- <-NewCore(processor.key, process, processor.wg).Run(input)
+			for event := range NewCore(processor.key, process).Run(input) {
+				out <- event
+			}
 		}
 	}()
 

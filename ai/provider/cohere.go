@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/charmbracelet/log"
 	cohere "github.com/cohere-ai/cohere-go/v2"
 	cohereclient "github.com/cohere-ai/cohere-go/v2/client"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Cohere struct {
@@ -38,7 +38,7 @@ func NewCohere(apiKey string, model string) *Cohere {
 }
 
 func (c *Cohere) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	log.Info("generating with", "provider", "cohere")
+	errnie.Info("generating with cohere provider")
 	events := make(chan Event, 64)
 
 	go func() {

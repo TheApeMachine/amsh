@@ -30,11 +30,9 @@ func NewSlack() *Slack {
 
 func (slack *Slack) GenerateSchema() string {
 	schema := jsonschema.Reflect(&Slack{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-	return string(out)
+	return string(errnie.SafeMust(func() ([]byte, error) {
+		return json.MarshalIndent(schema, "", "  ")
+	}))
 }
 
 func (slack *Slack) Use(ctx context.Context, args map[string]any) string {

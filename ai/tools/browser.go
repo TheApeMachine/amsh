@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
@@ -74,34 +73,27 @@ func NewBrowser() *Browser {
 }
 
 func (browser *Browser) Use(ctx context.Context, args map[string]any) string {
-	result, err := browser.Run(args)
-	if err != nil {
-		errnie.Error(err)
-	}
-	return result
+	return errnie.SafeMust(func() (string, error) {
+		return browser.Run(args)
+	})
 }
 
 func (browser *Browser) GenerateSchema() string {
-	schema := jsonschema.Reflect(&Browser{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-	return string(out)
+	return string(errnie.SafeMust(func() ([]byte, error) {
+		schema := jsonschema.Reflect(&Browser{})
+		return json.MarshalIndent(schema, "", "  ")
+	}))
 }
 
 // SetProxy configures a proxy for the browser
-func (browser *Browser) SetProxy(proxyURL string) error {
-	proxy, err := url.Parse(proxyURL)
-	if err != nil {
-		return fmt.Errorf("invalid proxy URL: %w", err)
-	}
-	browser.proxy = proxy
-	return nil
+func (browser *Browser) SetProxy(proxyURL string) {
+	browser.proxy = errnie.SafeMust(func() (*url.URL, error) {
+		return url.Parse(proxyURL)
+	})
 }
 
 // StartSession initializes a new browsing session with stealth mode
-func (browser *Browser) StartSession() error {
+func (browser *Browser) StartSession() {
 	l := launcher.New().
 		Headless(false).
 		Set("disable-web-security", "").
@@ -112,86 +104,74 @@ func (browser *Browser) StartSession() error {
 		l.Proxy(browser.proxy.String())
 	}
 
-	url, err := l.Launch()
-	if err != nil {
-		return fmt.Errorf("failed to launch browser: %w", err)
-	}
+	url := errnie.SafeMust(func() (string, error) {
+		return l.Launch()
+	})
 
 	browser.instance = rod.New().
 		ControlURL(url).
 		MustConnect()
 
 	// Create a new stealth page instead of regular page
-	page, err := stealth.Page(browser.instance)
-	if err != nil {
-		return fmt.Errorf("failed to create stealth page: %w", err)
-	}
-	browser.page = page
+	browser.page = errnie.SafeMust(func() (*rod.Page, error) {
+		return stealth.Page(browser.instance)
+	})
 
-	// Enable stealth mode and network interception
 	browser.instance.MustIgnoreCertErrors(true)
-
-	return nil
 }
 
 // Navigate goes to a URL and waits for the page to load
-func (browser *Browser) Navigate(url string) error {
+func (browser *Browser) Navigate(url string) {
 	// Instead of creating a new page, use the existing stealth page
-	err := browser.page.Navigate(url)
-	if err != nil {
-		return fmt.Errorf("failed to navigate: %w", err)
-	}
-
-	err = browser.page.WaitLoad()
-	if err != nil {
-		return fmt.Errorf("failed to load page: %w", err)
-	}
-
-	browser.recordAction("navigate", url, "", err == nil)
-	return nil
+	errnie.MustVoid(browser.page.Navigate(url))
+	errnie.MustVoid(browser.page.WaitLoad())
+	browser.recordAction("navigate", url, "", true)
 }
 
 // Click finds and clicks an element using various selectors
-func (browser *Browser) Click(selector string) error {
-	el, err := browser.page.Element(selector)
-	if err != nil {
-		return fmt.Errorf("failed to find element: %w", err)
-	}
+func (browser *Browser) Click(selector string) {
+	el := errnie.SafeMust(func() (*rod.Element, error) {
+		return browser.page.Element(selector)
+	})
 
-	err = el.Click(proto.InputMouseButtonLeft, 1)
-	browser.recordAction("click", selector, "", err == nil)
-	return err
+	errnie.MustVoid(el.Click(proto.InputMouseButtonLeft, 1))
+	browser.recordAction("click", selector, "", true)
 }
 
 // Extract gets content from the page using a CSS selector
-func (browser *Browser) Extract(selector string) (string, error) {
-	el, err := browser.page.Element(selector)
-	if err != nil {
-		return "", fmt.Errorf("failed to find element: %w", err)
-	}
+func (browser *Browser) Extract(selector string) string {
+	el := errnie.SafeMust(func() (*rod.Element, error) {
+		return browser.page.Element(selector)
+	})
 
-	text, err := el.Text()
-	browser.recordAction("extract", selector, text, err == nil)
-	return text, err
+	text := errnie.SafeMust(func() (string, error) {
+		return el.Text()
+	})
+
+	browser.recordAction("extract", selector, text, true)
+	return text
 }
 
 // ExecuteScript runs custom JavaScript and returns the result
-func (browser *Browser) ExecuteScript(script string) (interface{}, error) {
-	result, err := browser.page.Eval(script)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute script: %w", err)
+func (browser *Browser) ExecuteScript(script string) interface{} {
+	if script == "" {
+		return nil
 	}
 
-	browser.recordAction("script", script, fmt.Sprintf("%v", result), err == nil)
-	return result.Value, nil
+	result := errnie.SafeMust(func() (interface{}, error) {
+		return browser.page.Eval(script)
+	})
+
+	browser.recordAction("script", script, fmt.Sprintf("%v", result), true)
+	return result
 }
 
 // WaitForElement waits for an element to appear
 func (browser *Browser) WaitForElement(selector string, timeout time.Duration) error {
 	// Remove unused context
-	err := browser.page.Timeout(timeout).MustElement(selector).WaitVisible()
-	browser.recordAction("wait", selector, "", err == nil)
-	return err
+	errnie.MustVoid(browser.page.Timeout(timeout).MustElement(selector).WaitVisible())
+	browser.recordAction("wait", selector, "", true)
+	return nil
 }
 
 // GetHistory returns the browsing session history
@@ -201,18 +181,13 @@ func (browser *Browser) GetHistory() []BrowseAction {
 
 // Run implements the enhanced interface with all new capabilities
 func (browser *Browser) Run(args map[string]any) (string, error) {
-	spew.Dump(args)
 	if proxyURL, ok := args["proxy"].(string); ok {
-		if err := browser.SetProxy(proxyURL); err != nil {
-			return "", err
-		}
+		browser.SetProxy(proxyURL)
 	}
 
 	// Only start a new session if one doesn't exist
 	if browser.instance == nil {
-		if err := browser.StartSession(); err != nil {
-			return "", err
-		}
+		browser.StartSession()
 	}
 
 	// Remove the defer close
@@ -220,130 +195,95 @@ func (browser *Browser) Run(args map[string]any) (string, error) {
 
 	// Handle navigation only if URL is provided
 	if url, ok := args["url"].(string); ok {
-		if err := browser.Navigate(url); err != nil {
-			return "", err
-		}
+		browser.Navigate(url)
 	}
 
 	// Handle form filling
 	if formData, ok := args["form"].(map[string]string); ok {
-		if err := browser.FillForm(formData); err != nil {
-			return "", err
-		}
+		browser.FillForm(formData)
 	}
 
 	// Handle screenshots
 	if screenshot, ok := args["screenshot"].(map[string]string); ok {
-		if err := browser.Screenshot(screenshot["selector"], screenshot["filepath"]); err != nil {
-			return "", err
-		}
+		browser.Screenshot(screenshot["selector"], screenshot["filepath"])
 	}
 
 	// Handle network interception
 	if patterns, ok := args["intercept"].([]string); ok {
-		if err := browser.InterceptNetwork(patterns); err != nil {
-			return "", err
-		}
+		browser.InterceptNetwork(patterns)
 	}
 
 	// Handle cookie operations
 	if cookieOp, ok := args["cookies"].(string); ok {
 		switch cookieOp {
 		case "get":
-			cookies, err := browser.ManageCookies()
-			if err != nil {
-				return "", err
-			}
-			return fmt.Sprintf("%+v", cookies), nil
+			browser.ManageCookies()
 		case "set":
 			if cookie, ok := args["cookie"].(Cookie); ok {
-				if err := browser.SetCookie(cookie); err != nil {
-					return "", err
-				}
+				browser.SetCookie(cookie)
 			}
 		case "delete":
 			if cookieData, ok := args["cookie_data"].(map[string]string); ok {
-				if err := browser.DeleteCookies(cookieData["name"], cookieData["domain"]); err != nil {
-					return "", err
-				}
+				browser.DeleteCookies(cookieData["name"], cookieData["domain"])
 			}
 		}
 	}
 
 	// Continue with existing functionality...
-	if script, ok := args["javascript"].(string); ok {
-		result, err := browser.ExecuteScript(script)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("%v", result), nil
+	if script, ok := args["javascript"].(string); ok && script != "" {
+		browser.ExecuteScript(script)
 	}
 
 	return browser.page.MustInfo().Title, nil
 }
 
 // FillForm fills form fields with provided data
-func (browser *Browser) FillForm(fields map[string]string) error {
+func (browser *Browser) FillForm(fields map[string]string) {
 	for selector, value := range fields {
-		el, err := browser.page.Element(selector)
-		if err != nil {
-			return fmt.Errorf("failed to find form field %s: %w", selector, err)
-		}
+		el := errnie.SafeMust(func() (*rod.Element, error) {
+			return browser.page.Element(selector)
+		})
 
 		// Clear existing value
 		el.MustEval(`el => el.value = ''`)
 
 		// Input new value
-		err = el.Input(value)
-		if err != nil {
-			return fmt.Errorf("failed to fill field %s: %w", selector, err)
-		}
+		errnie.MustVoid(el.Input(value))
 
 		browser.recordAction("fill_form", map[string]string{
 			"selector": selector,
 			"value":    value,
-		}, "", err == nil)
+		}, "", true)
 	}
-	return nil
 }
 
 // Screenshot captures the current page or element
-func (browser *Browser) Screenshot(selector string, filepath string) error {
+func (browser *Browser) Screenshot(selector string, filepath string) {
 	var img []byte
-	var err error
 
 	if selector == "" {
 		// Capture full page
-		img, err = browser.page.Screenshot(true, &proto.PageCaptureScreenshot{
-			Format:      proto.PageCaptureScreenshotFormatPng,
-			FromSurface: true,
+		img = errnie.SafeMust(func() ([]byte, error) {
+			return browser.page.Screenshot(true, &proto.PageCaptureScreenshot{
+				Format:      proto.PageCaptureScreenshotFormatPng,
+				FromSurface: true,
+			})
 		})
-
-		if err != nil {
-			return fmt.Errorf("failed to capture screenshot: %w", err)
-		}
 	} else {
 		// Capture specific element
-		el, err := browser.page.Element(selector)
-		if err != nil {
-			return fmt.Errorf("failed to find element for screenshot: %w", err)
-		}
-		img, err = el.Screenshot(proto.PageCaptureScreenshotFormatPng, 1)
-		if err != nil {
-			return fmt.Errorf("failed to capture screenshot: %w", err)
-		}
+		el := errnie.SafeMust(func() (*rod.Element, error) {
+			return browser.page.Element(selector)
+		})
+		img = errnie.SafeMust(func() ([]byte, error) {
+			return el.Screenshot(proto.PageCaptureScreenshotFormatPng, 1)
+		})
 	}
 
-	err = os.WriteFile(filepath, img, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to save screenshot: %w", err)
-	}
-
+	errnie.MustVoid(os.WriteFile(filepath, img, 0644))
 	browser.recordAction("screenshot", map[string]string{
 		"selector": selector,
 		"filepath": filepath,
-	}, "", err == nil)
-	return nil
+	}, "", true)
 }
 
 // InterceptNetwork starts intercepting network requests
@@ -378,11 +318,10 @@ func (browser *Browser) InterceptNetwork(patterns []string) error {
 }
 
 // ManageCookies provides cookie management capabilities
-func (browser *Browser) ManageCookies() ([]Cookie, error) {
-	cookies, err := browser.page.Cookies([]string{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get cookies: %w", err)
-	}
+func (browser *Browser) ManageCookies() []Cookie {
+	cookies := errnie.SafeMust(func() ([]*proto.NetworkCookie, error) {
+		return browser.page.Cookies([]string{})
+	})
 
 	var result []Cookie
 	for _, c := range cookies {
@@ -398,14 +337,14 @@ func (browser *Browser) ManageCookies() ([]Cookie, error) {
 		result = append(result, cookie)
 	}
 
-	browser.recordAction("get_cookies", nil, fmt.Sprintf("%d cookies", len(result)), err == nil)
-	return result, nil
+	browser.recordAction("get_cookies", nil, fmt.Sprintf("%d cookies", len(result)), true)
+	return result
 }
 
 // SetCookie adds a new cookie
-func (browser *Browser) SetCookie(cookie Cookie) error {
+func (browser *Browser) SetCookie(cookie Cookie) {
 	// Fix SetCookies argument type
-	err := browser.page.SetCookies([]*proto.NetworkCookieParam{
+	errnie.MustVoid(browser.page.SetCookies([]*proto.NetworkCookieParam{
 		{
 			Name:     cookie.Name,
 			Value:    cookie.Value,
@@ -415,27 +354,25 @@ func (browser *Browser) SetCookie(cookie Cookie) error {
 			Secure:   cookie.Secure,
 			HTTPOnly: cookie.HTTPOnly,
 		},
-	})
+	}))
 
-	browser.recordAction("set_cookie", cookie, "", err == nil)
-	return err
+	browser.recordAction("set_cookie", cookie, "", true)
 }
 
 // DeleteCookies removes cookies matching the given parameters
-func (browser *Browser) DeleteCookies(name, domain string) error {
+func (browser *Browser) DeleteCookies(name, domain string) {
 	// Fix non-variadic function call
-	err := browser.page.SetCookies([]*proto.NetworkCookieParam{
+	errnie.MustVoid(browser.page.SetCookies([]*proto.NetworkCookieParam{
 		{
 			Name:   name,
 			Domain: domain,
 		},
-	})
+	}))
 
 	browser.recordAction("delete_cookies", map[string]string{
 		"name":   name,
 		"domain": domain,
-	}, "", err == nil)
-	return err
+	}, "", true)
 }
 
 func (browser *Browser) recordAction(actionType string, data interface{}, result string, success bool) {
@@ -456,38 +393,27 @@ func (browser *Browser) Close() error {
 }
 
 // Add the Execute method to implement the Tool interface
-func (browser *Browser) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+func (browser *Browser) Execute(ctx context.Context, args map[string]interface{}) string {
 	// Get URL from args
-	url, ok := args["url"].(string)
-	if !ok {
-		return "", fmt.Errorf("url argument is required and must be a string")
-	}
+	url := errnie.SafeMust(func() (string, error) {
+		return getStringArg(args, "url", "")
+	})
 
 	// Navigate to URL
-	if err := browser.Navigate(url); err != nil {
-		return "", fmt.Errorf("failed to navigate: %w", err)
-	}
+	browser.Navigate(url)
 
 	// Get selector if provided, default to "body"
-	selector, err := getStringArg(args, "selector", "body")
-	if err != nil {
-		return "", fmt.Errorf("failed to get selector: %w", err)
-	}
+	selector := errnie.SafeMust(func() (string, error) {
+		return getStringArg(args, "selector", "body")
+	})
 
 	// Wait for element if timeout provided
 	if timeout, ok := args["timeout"].(float64); ok {
-		if err := browser.WaitForElement(selector, time.Duration(timeout)*time.Second); err != nil {
-			return "", fmt.Errorf("failed to find element: %w", err)
-		}
+		browser.WaitForElement(selector, time.Duration(timeout)*time.Second)
 	}
 
 	// Extract content
-	content, err := browser.Extract(selector)
-	if err != nil {
-		return "", fmt.Errorf("failed to extract content: %w", err)
-	}
-
-	return content, nil
+	return browser.Extract(selector)
 }
 
 func getStringArg(args map[string]interface{}, key string, defaultValue string) (string, error) {
@@ -495,7 +421,7 @@ func getStringArg(args map[string]interface{}, key string, defaultValue string) 
 	if !ok {
 		return defaultValue, nil
 	}
-	return cast.ToStringE(value)
+	return cast.ToString(value), nil
 }
 
 // Add a new method to explicitly close the browser when needed

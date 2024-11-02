@@ -16,12 +16,13 @@ import (
 )
 
 type Boards struct {
-	Operation    string `json:"operation" jsonschema:"enum=wiql,enum=details,enum=create,enum=update,enum=comment"`
+	ToolName     string `json:"tool_name" jsonschema:"title=Tool Name, description=The name of the tool to use,default=boards,required"`
+	Operation    string `json:"operation" jsonschema:"enum=wiql,enum=details,enum=create,enum=update,enum=comment,required"`
 	Query        string `json:"query" jsonschema:"title=WIQL Query, description=The WIQL query to execute"`
 	Id           int    `json:"id" jsonschema:"title=Work Item ID, description=The ID of the work item to retrieve details for"`
 	Title        string `json:"title" jsonschema:"title=Title, description=The title of the work item to create or update"`
-	Description  string `json:"description" jsonschema:"title=Description, description=The description of the work item to create or update"`
-	WorkItemType string `json:"workItemType" jsonschema:"title=Work Item Type, description=The type of the work item to create"`
+	Description  string `json:"description" jsonschema:"title=Description, description=The Gherkin description of the work item to create or update"`
+	WorkItemType string `json:"workItemType" jsonschema:"title=Work Item Type, description=The type of the work item to create,enum=Epic,enum=Issue,enum=Task"`
 	Tags         string `json:"tags" jsonschema:"title=Tags, description=The tags to assign to the work item"`
 	Comment      string `json:"comment" jsonschema:"title=Comment, description=The comment to publish to the work item"`
 	client       *azuredevops.Connection
@@ -106,7 +107,7 @@ func (boards *Boards) create(title, description, workItemType, tags string) stri
 	}
 
 	// Define the project name or ID
-	project := utils.StringPtr("your_project_name") // Replace with your actual project name or ID
+	project := utils.StringPtr("playground") // Replace with your actual project name or ID
 
 	// Define the fields for the new work item
 	fields := map[string]interface{}{
@@ -166,11 +167,12 @@ func (boards *Boards) update(id int, title, description, tags string) string {
 			Value: value,
 		})
 	}
-
+	project := utils.StringPtr("playground") // Replace with your actual project name or ID
 	// Update the work item
 	workItem, err := client.UpdateWorkItem(ctx, workitemtracking.UpdateWorkItemArgs{
 		Id:       utils.IntPtr(id),
 		Document: &document,
+		Project:  project,
 	})
 	if err != nil {
 		return fmt.Sprintf("Error updating work item: %v", err)
@@ -287,7 +289,7 @@ func (boards *Boards) search(wiql string) string {
 	}
 	queryResult, err := client.QueryByWiql(ctx, workitemtracking.QueryByWiqlArgs{
 		Wiql:          &query,
-		Project:       utils.StringPtr("fanapp"),
+		Project:       utils.StringPtr("playground"),
 		TimePrecision: utils.BoolPtr(true),
 		Top:           utils.IntPtr(20),
 	})
@@ -338,7 +340,7 @@ func (boards *Boards) publishComment(id int, text string) string {
 	}
 
 	// Define the project name or ID
-	project := utils.StringPtr("your_project_name") // Replace with your actual project name or ID
+	project := utils.StringPtr("playground") // Replace with your actual project name or ID
 
 	// Publish the comment to the specified work item
 	_, err = client.AddComment(ctx, workitemtracking.AddCommentArgs{

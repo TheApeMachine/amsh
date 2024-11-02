@@ -3,8 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
 	"net/url"
 	"os"
 
@@ -35,26 +33,20 @@ func (qdrant *Qdrant) Use(ctx context.Context, args map[string]any) string {
 	switch qdrant.Operation {
 	case "add":
 		if docs, ok := args["documents"].([]string); ok {
-			ids, err := qdrant.Add(docs)
-			if err != nil {
-				return err.Error()
-			}
-			return fmt.Sprintf("Successfully added documents with IDs: %v", ids)
+			return qdrant.Add(docs, args["metadata"].(map[string]any))
 		}
 		return "Invalid documents format"
 
 	case "query":
 		if query, ok := args["query"].(string); ok {
-			results, err := qdrant.Query(query)
-			if err != nil {
-				return err.Error()
-			}
+			results := errnie.SafeMust(func() ([]map[string]interface{}, error) {
+				return qdrant.Query(query)
+			})
+
 			// Convert results to JSON string
-			jsonResults, err := json.Marshal(results)
-			if err != nil {
-				return err.Error()
-			}
-			return string(jsonResults)
+			return string(errnie.SafeMust(func() ([]byte, error) {
+				return json.Marshal(results)
+			}))
 		}
 		return "Invalid query format"
 
@@ -66,42 +58,35 @@ func (qdrant *Qdrant) Use(ctx context.Context, args map[string]any) string {
 // GenerateSchema implements the Tool interface
 func (qdrant *Qdrant) GenerateSchema() string {
 	schema := jsonschema.Reflect(&Qdrant{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		errnie.Error(err)
-	}
-	return string(out)
+	return string(errnie.SafeMust(func() ([]byte, error) {
+		return json.MarshalIndent(schema, "", "  ")
+	}))
 }
 
 func NewQdrant(collection string, dimension uint64) *Qdrant {
 	ctx := context.Background()
 
-	llm, err := openai.New()
-	if err != nil {
-		log.Fatal(err)
-	}
+	llm := errnie.SafeMust(func() (*openai.LLM, error) {
+		return openai.New()
+	})
 
-	e, err := embeddings.NewEmbedder(llm)
-	if err != nil {
-		log.Fatal(err)
-	}
+	e := errnie.SafeMust(func() (embeddings.Embedder, error) {
+		return embeddings.NewEmbedder(llm)
+	})
 
-	url, err := url.Parse(os.Getenv("QDRANT_URL"))
-
-	if err != nil {
-		errnie.Error(err)
-	}
+	url := errnie.SafeMust(func() (*url.URL, error) {
+		return url.Parse(os.Getenv("QDRANT_URL"))
+	})
 
 	createCollectionIfNotExists(collection, url, dimension)
 
-	client, err := qdrant.New(
-		qdrant.WithURL(*url),
-		qdrant.WithCollectionName(collection),
-		qdrant.WithEmbedder(e),
-	)
-	if err != nil {
-		errnie.Error(err)
-	}
+	client := errnie.SafeMust(func() (qdrant.Store, error) {
+		return qdrant.New(
+			qdrant.WithURL(*url),
+			qdrant.WithCollectionName(collection),
+			qdrant.WithEmbedder(e),
+		)
+	})
 
 	return &Qdrant{
 		ctx:        ctx,
@@ -146,20 +131,19 @@ func (q *Qdrant) Query(query string) ([]map[string]interface{}, error) {
 	return results, nil
 }
 
-func (q *Qdrant) Add(docs []string) ([]string, error) {
-	_, err := q.embedder.EmbedDocuments(q.ctx, docs)
-	if errnie.Error(err) != nil {
-		return nil, err
+func (q *Qdrant) Add(docs []string, metadata map[string]any) string {
+	for _, doc := range docs {
+		errnie.SafeMust(func() ([]string, error) {
+			return q.client.AddDocuments(q.ctx, []schema.Document{
+				{
+					PageContent: doc,
+					Metadata:    metadata,
+				},
+			})
+		})
 	}
 
-	documents := make([]schema.Document, len(docs))
-	for i, doc := range docs {
-		documents[i] = schema.Document{
-			PageContent: doc,
-		}
-	}
-
-	return q.client.AddDocuments(q.ctx, documents)
+	return "memory saved in vector store"
 }
 
 /*
@@ -186,14 +170,14 @@ func createCollectionIfNotExists(collection string, uri *url.URL, dimension uint
 			},
 		}
 
-		if response, err = client.Put(uri.String()+"/collections/"+collection, client.Config{
-			Header: map[string]string{
-				"Content-Type": "application/json",
-			},
-			Body: requestBody,
-		}); errnie.Error(err) != nil {
-			return errnie.Error(err)
-		}
+		response = errnie.SafeMust(func() (*client.Response, error) {
+			return client.Put(uri.String()+"/collections/"+collection, client.Config{
+				Header: map[string]string{
+					"Content-Type": "application/json",
+				},
+				Body: requestBody,
+			})
+		})
 	}
 
 	errnie.Debug(response.String())

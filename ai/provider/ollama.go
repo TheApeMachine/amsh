@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/charmbracelet/log"
 	"github.com/ollama/ollama/api"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -19,7 +19,7 @@ func NewOllama(model string) *Ollama {
 }
 
 func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	log.Info("generating with", "model", ollama.Model)
+	errnie.Info("generating with ollama provider %s", ollama.Model)
 	eventChan := make(chan Event)
 
 	go func() {

@@ -1,5 +1,7 @@
 package process
 
+import "github.com/theapemachine/amsh/utils"
+
 /*
 CrossLayerSynthesis represents integration across different representation layers.
 */
@@ -7,6 +9,10 @@ type CrossLayerSynthesis struct {
 	Mappings     []LayerMapping `json:"mappings" jsonschema:"description:Correspondences between layers,required"`
 	Integrations []Integration  `json:"integrations" jsonschema:"description:Unified patterns across layers,required"`
 	Conflicts    []Conflict     `json:"conflicts" jsonschema:"description:Contradictions between layers,required"`
+}
+
+func (crosslayer *CrossLayerSynthesis) SystemPrompt(key string) string {
+	return utils.SystemPrompt(key, "crosslayer", utils.GenerateSchema[CrossLayerSynthesis]())
 }
 
 type LayerMapping struct {

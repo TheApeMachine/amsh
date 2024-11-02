@@ -4,7 +4,7 @@ package process
 CompositeProcess is a Process that is a composition of other Processes.
 */
 type CompositeProcess struct {
-	Layers []*Layer `json:"layers"`
+	Layers []*Layer `json:"layers" jsonschema:"title:Layers,description:The layers of the composite process,enum:task_analysis,trengo,pull_request,abstract,bridge,ideate,required"`
 }
 
 /*
@@ -22,7 +22,7 @@ that allows their results to be combined in a meaningful way, and serve as
 the input for the next layer, and can be run in parallel.
 */
 type Layer struct {
-	Processes []Process `json:"processes"`
+	Processes []Process `json:"processes" jsonschema:"title:Processes,description:The processes of the layer,enum:breakdown,planning,discussion,layering,required"`
 }
 
 /*
@@ -31,7 +31,7 @@ LayerMap finds a single layer of Processes by key.
 var LayerMap = map[string]*Layer{
 	"task_analysis": {Processes: []Process{
 		ProcessMap["breakdown"],
-		ProcessMap["planning"],
+		ProcessMap["layering"],
 	}},
 	"trengo": {Processes: []Process{
 		ProcessMap["trengo"],
@@ -73,6 +73,22 @@ ProcessMap finds a single process by key, which is used to map incoming
 WebHooks to the correct pre-defined process.
 */
 var ProcessMap = map[string]Process{
-	"breakdown": &Breakdown{},
-	"planning":  &Planning{},
+	"breakdown":  &Breakdown{},
+	"planning":   &Planning{},
+	"discussion": &Discussion{},
+	"layering":   &Layering{},
+	"moonshot":   &Moonshot{},
+	"sensible":   &Sensible{},
+	"catalyst":   &Catalyst{},
+	"guardian":   &Guardian{},
+	"thinking":   &Thinking{},
+	"memory":     &Memory{},
+	"surface":    &SurfaceAnalysis{},
+	"pattern":    &PatternAnalysis{},
+	"quantum":    &QuantumAnalysis{},
+	"time":       &TimeAnalysis{},
+	"narrative":  &NarrativeAnalysis{},
+	"analogy":    &AnalogyAnalysis{},
+	"practical":  &PracticalAnalysis{},
+	"context":    &ContextAnalysis{},
 }

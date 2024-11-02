@@ -1,13 +1,9 @@
 package process
 
 import (
-	"encoding/json"
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/invopop/jsonschema"
-	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/utils"
 )
 
 // Memory represents the memory process that observes and stores information
@@ -16,6 +12,10 @@ type Memory struct {
 	Connections  []Connection  `json:"connections" jsonschema:"required;title=Connections;description=Relationships between pieces of information"`
 	Context      Context       `json:"context" jsonschema:"required;title=Context;description=Current context of the conversation"`
 	Graph        Graph         `json:"graph" jsonschema:"required;title=Graph;description=Relational memories to remember using the graph database"`
+}
+
+func (memory *Memory) SystemPrompt(key string) string {
+	return utils.SystemPrompt(key, "memory", utils.GenerateSchema[Memory]())
 }
 
 type Graph struct {
@@ -67,23 +67,4 @@ type TimeFrame struct {
 	Start    time.Time `json:"start" jsonschema:"required;title=Start;description=When this context began"`
 	Duration string    `json:"duration" jsonschema:"required;title=Duration;description=How long this context has been active"`
 	Phase    string    `json:"phase" jsonschema:"required;title=Phase;description=Current phase of the conversation"`
-}
-
-func NewMemory() *Memory {
-	return &Memory{}
-}
-
-func (m *Memory) SystemPrompt(key string) string {
-	prompt := viper.GetViper().GetString(fmt.Sprintf("ai.setups.%s.processes.memory.prompt", key))
-	prompt = strings.ReplaceAll(prompt, "{{schemas}}", m.GenerateSchema())
-	return prompt
-}
-
-func (m *Memory) GenerateSchema() string {
-	schema := jsonschema.Reflect(&Memory{})
-	out, err := json.MarshalIndent(schema, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return string(out)
 }

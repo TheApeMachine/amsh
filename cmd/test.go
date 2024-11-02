@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,13 +22,22 @@ var testCmd = &cobra.Command{
 }
 
 func runTest(cmd *cobra.Command, args []string) error {
-	// Initialize process manager with development process
-	pm := system.NewProcessManager("marvin", "development")
-	for event := range pm.Execute(fmt.Sprintf(
-		"Use the following query on the boards tool to find an Epic to work on:\n\n%s\n\nYou can find the repository at: git@github.com:fanfactory/fancheck.git",
-		"SELECT [System.Id],[System.WorkItemType],[System.Title],[System.AssignedTo],[System.State],[System.Tags] FROM WorkItems WHERE [System.TeamProject] = 'fanapp' AND [System.WorkItemType] = 'Epic' AND [System.State] <> '' AND [System.Title] CONTAINS 'fan check functionaliteit'",
-	)) {
-		fmt.Print(event.Content)
+	// Start an input loop.
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print("prompt > ")
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		if input == "exit" {
+			break
+		}
+
+		pm := system.NewProcessManager("marvin", "test")
+		for event := range pm.Execute(input) {
+			fmt.Print(event.Content)
+		}
+		fmt.Println("execution complete")
 	}
 
 	return nil
