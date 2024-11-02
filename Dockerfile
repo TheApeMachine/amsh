@@ -19,7 +19,7 @@ ENV GOFLAGS=-buildvcs=false
 
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod tidy && go mod download
+RUN go clean -modcache && go mod download
 
 # Development stage
 FROM base AS dev

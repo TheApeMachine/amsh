@@ -49,11 +49,11 @@ func init() {
 	setLogLevel()
 
 	// Periodic routine to print the number of active goroutines
-	go func() {
-		for range time.Tick(time.Second * 5) {
-			logger.Debug("active goroutines", "count", runtime.NumGoroutine())
-		}
-	}()
+	// go func() {
+	// 	for range time.Tick(time.Second * 5) {
+	// 		logger.Debug("active goroutines", "count", runtime.NumGoroutine())
+	// 	}
+	// }()
 }
 
 /*

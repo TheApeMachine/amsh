@@ -1,21 +1,26 @@
+import "@/styles.css";
+import { createRouter } from '@/lib/router';
 import { stateManager } from "@/lib/state";
-import {router} from "@/router.ts";
-import "@/components/root.ts";
-import "@/components/ui/gridspace";
-import "@/components/error";
-import "@/components/loader";
-import "@/components/toast/container";
-import "@/components/toast/message";
+import { EventManager } from "@/lib/event";
 
-declare global {
-    interface Window {
-        stateManager: typeof stateManager;
-    }
-}
+// Initialize the state manager and event manager
+(async () => {
+    await stateManager.init();
+    console.log("State manager initialized");
 
-window.addEventListener("DOMContentLoaded", () => {
+    const eventManager = EventManager();
+    eventManager.init();
+    console.log("Event manager initialized");
+
+    // Now these are globally available
     window.stateManager = stateManager;
-    window.stateManager.init();
+    window.eventManager = eventManager;
+})();
 
-    router(document.body!);
+document.addEventListener("DOMContentLoaded", async () => {
+    const main = document.getElementById('app');
+    if (main) {
+        const { router } = await createRouter();
+        await router(main);
+    }
 });

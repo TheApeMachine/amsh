@@ -1,5 +1,4 @@
 import localforage from 'localforage';
-import { getWorker } from "@/workers/utils";
 
 export interface StateModel {
     eventHandlers: Record<string, (event: any) => void>;
@@ -8,17 +7,6 @@ export interface StateModel {
 const StateManager = () => {
     const state: Record<string, any> = {
         ready: false
-    };
-
-    const worker = getWorker();
-
-    worker.onmessage = (event: MessageEvent) => {
-        const { topic, effect } = event.data;
-        if (topic === "state" && effect) {
-            const fn = getState(effect)
-            console.log("lib.StateManager.onmessage", fn);
-            fn();
-        }
     };
 
     const registry: Record<string, any> = {};

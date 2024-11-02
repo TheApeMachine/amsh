@@ -8,8 +8,11 @@ declare namespace JSX {
     }
 
     // Define all valid HTML elements
-    interface IntrinsicElements extends HTMLElementTagNameMap {
-        [elemName: string]: any;
+    interface IntrinsicElements {
+        [elemName: string]: {
+            children?: string | Node | Array<string | Node>;
+            [key: string]: any;
+        };
     }
 }
 

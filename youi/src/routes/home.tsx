@@ -5,7 +5,7 @@ import { match } from "@/lib/match";
 import { switchLayer } from "@/lib/layer";
 import { gsap } from "gsap";
 import SlidesComponent from "@/components/slides/component";
-import { ConversationVisualizer } from "@/components/agentviz/conversation";
+import { DynamicIsland } from "@/components/ui/DynamicIsland";
 
 export const effect = async () => {
     let layers: Record<string, HTMLElement> = {};
@@ -56,23 +56,17 @@ export const render = async () => {
     return Transition(
         match(await loader({}), {
             loading: () => {
+                console.log("Rendering loading state");
                 return <div>Loading...</div>;
             },
             error: (error: any) => {
-                return <div>Error: {error} </div>;
+                console.log("Rendering error state:", error);
+                return <div>Error: {error}</div>;
             },
             success: (_: any) => (
                 <SlidesComponent className="product">
                     <section>
-                        <section>
-                            <ConversationVisualizer />
-                        </section>
-                        <section>
-                            <h1>Hello</h1>
-                        </section>
-                    </section>
-                    <section>
-                        <h1>Hello</h1>
+                        <DynamicIsland variant="page" />
                     </section>
                 </SlidesComponent>
             )

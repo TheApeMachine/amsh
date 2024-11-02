@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/invopop/jsonschema"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -31,22 +30,12 @@ func (neo4j *Neo4j) GenerateSchema() string {
 // NewNeo4j creates a new Neo4j client.
 func NewNeo4j() *Neo4j {
 	ctx := context.Background()
-	var (
-		client neo4j.DriverWithContext
-		err    error
-	)
 
-	client, err = neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
+	client := errnie.SafeMust(func() (neo4j.DriverWithContext, error) {
+		return neo4j.NewDriverWithContext("neo4j://localhost:7687", neo4j.BasicAuth("neo4j", "securepassword", ""))
+	})
 
-	if err != nil {
-		errnie.Error(err)
-	}
-
-	// Verify connectivity
-	if err := client.VerifyConnectivity(ctx); err != nil {
-		errnie.Error(err)
-	}
-
+	errnie.MustVoid(client.VerifyConnectivity(ctx))
 	return &Neo4j{client: client}
 }
 
@@ -58,11 +47,9 @@ func (n *Neo4j) Query(query string) (out []map[string]interface{}, err error) {
 	session := n.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
 	defer session.Close(ctx)
 
-	var result neo4j.ResultWithContext
-
-	if result, err = session.Run(ctx, query, nil); err != nil {
-		return nil, err
-	}
+	result := errnie.SafeMust(func() (neo4j.ResultWithContext, error) {
+		return session.Run(ctx, query, nil)
+	})
 
 	var records []map[string]interface{}
 	for result.Next(ctx) {
@@ -70,19 +57,18 @@ func (n *Neo4j) Query(query string) (out []map[string]interface{}, err error) {
 		records = append(records, record.Values[0].(neo4j.Node).Props)
 	}
 
-	if err = result.Err(); err != nil {
-		return nil, err
-	}
-
+	errnie.MustVoid(result.Err())
 	return records, nil
 }
 
-func (n *Neo4j) Write(query string) (neo4j.ResultWithContext, error) {
+func (n *Neo4j) Write(query string) neo4j.ResultWithContext {
 	ctx := context.Background()
 	session := n.client.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
 	defer session.Close(ctx)
 
-	return session.Run(ctx, query, nil)
+	return errnie.SafeMust(func() (neo4j.ResultWithContext, error) {
+		return session.Run(ctx, query, nil)
+	})
 }
 
 // Close closes the Neo4j client connection.
@@ -106,16 +92,9 @@ func (neo4j *Neo4j) Use(ctx context.Context, args map[string]any) string {
 		return string(result)
 
 	case "write":
-		result, err := neo4j.Write(args["query"].(string))
-		if err != nil {
-			return err.Error()
-		}
-		// Convert result to string representation
-		summary, err := result.Consume(ctx)
-		if err != nil {
-			return err.Error()
-		}
-		return fmt.Sprintf("Affected nodes: %d", summary.Counters().NodesCreated())
+		result := neo4j.Write(args["query"].(string))
+		errnie.MustVoid(result.Err())
+		return "Success"
 
 	default:
 		return "Unsupported operation"

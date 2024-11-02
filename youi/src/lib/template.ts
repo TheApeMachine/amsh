@@ -1,3 +1,4 @@
+// @ts-ignore: JSX factory import is used by the transpiler
 import { Transition } from "@/lib/transition";
 
 /*
@@ -61,7 +62,7 @@ export interface HTMLAttributes extends Record<string, any> {
     style?: Partial<CSSStyleDeclaration> | string;
     role?: string;
     tabIndex?: number;
-    // Add other common HTML attributes as needed
+    ref?: ((el: HTMLElement) => void) | { current: HTMLElement | null }; // Added `ref` prop
 }
 
 // Update event handler types to be more specific
@@ -89,7 +90,7 @@ export function jsx(
     // Handle Fragments
     if (tag === Fragment) {
         const fragment = document.createDocumentFragment();
-        children.forEach(child => {
+        children.flat().forEach(child => {
             fragment.appendChild(
                 child instanceof Node ? child : document.createTextNode(String(child))
             );
@@ -106,6 +107,7 @@ export function jsx(
         return (tag as (props: HTMLAttributes & { children?: any }) => Node)(componentProps);
     }
 
+    // Create the element
     const element = document.createElement(tag);
 
     if (props) {
@@ -115,6 +117,13 @@ export function jsx(
                 element.setAttribute('class', String(value));
             } else if (name.startsWith('on') && typeof value === 'function') {
                 element.addEventListener(name.slice(2).toLowerCase(), value as EventListener);
+            } else if (name === 'ref' && (typeof value === 'function' || typeof value === 'object')) {
+                // Handle `ref`
+                if (typeof value === 'function') {
+                    value(element);
+                } else if (typeof value === 'object' && value !== null) {
+                    value.current = element;
+                }
             } else if (typeof value === 'boolean') {
                 if (value) {
                     element.setAttribute(name, '');
@@ -122,7 +131,6 @@ export function jsx(
                     element.removeAttribute(name);
                 }
             } else if (name === 'transitionEnter' || name === 'transitionExit') {
-                // Store transition props in element dataset for use later
                 element.dataset[name] = JSON.stringify(value);
             } else {
                 element.setAttribute(name, String(value));
@@ -130,15 +138,25 @@ export function jsx(
         });
     }
 
-    children.forEach(child => {
-        if (child instanceof Node) {
+    // Flatten and append children
+    children.flat().forEach(child => {
+        if (Array.isArray(child)) {
+            // Recursively flatten arrays
+            child.forEach(subChild => {
+                if (subChild instanceof Node) {
+                    element.appendChild(subChild);
+                } else {
+                    element.appendChild(document.createTextNode(String(subChild)));
+                }
+            });
+        } else if (child instanceof Node) {
             element.appendChild(child);
         } else {
             element.appendChild(document.createTextNode(String(child)));
         }
     });
 
-    // Handle component-level transitions if props are available
+    // Handle transitions
     if (props?.transitionEnter || props?.transitionExit) {
         Transition(
             element,

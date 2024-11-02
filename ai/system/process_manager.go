@@ -29,6 +29,7 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 
 	if pm.compositeProcess == nil || len(pm.compositeProcess.Layers) == 0 {
 		log.Error("no composite process found, going for task analysis")
+		pm.compositeProcess = process.CompositeProcessMap["task_analysis"]
 	}
 
 	go func() {

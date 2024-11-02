@@ -1,64 +1,78 @@
-import './styles.css';
-import { jsx } from '@/lib/template';
+import { jsx, Fragment } from "@/lib/template"; // Suppressing warning as this import is required for JSX processing
+import { loader } from "@/lib/loader";
+import { sequence, Transition, blurIn, blurOut } from "@/lib/transition";
+import { match } from "@/lib/match";
+import { switchLayer } from "@/lib/layer";
+import { gsap } from "gsap";
+import SlidesComponent from "@/components/slides/component";
 
-import { registerDragonSupport } from '@lexical/dragon';
-import { createEmptyHistoryState, registerHistory } from '@lexical/history';
-import { HeadingNode, QuoteNode, registerRichText } from '@lexical/rich-text';
-import { mergeRegister } from '@lexical/utils';
-import { createEditor } from 'lexical';
+export const effect = async () => {
+    let layers: Record<string, HTMLElement> = {};
+    let positions: string[] = [".product"];
+    let distance: number = 1000;
+    let currentLayer: number | undefined = 1;
 
-export const render = async () => {
-
-    const editorRef = document.getElementById('lexical-editor');
-    const stateRef = document.getElementById(
-        'lexical-state',
-    ) as HTMLTextAreaElement;
-
-    const initialConfig = {
-        namespace: 'Vanilla JS Demo',
-        // Register nodes specific for @lexical/rich-text
-        nodes: [HeadingNode, QuoteNode],
-        onError: (error: Error) => {
-            throw error;
-        },
-        theme: {
-            // Adding styling to Quote node, see styles.css
-            quote: 'PlaygroundEditorTheme__quote',
-        },
+    layers = {
+        product: document.querySelector("slides-component") as HTMLElement
     };
-    const editor = createEditor(initialConfig);
-    editor.setRootElement(editorRef);
 
-    // Registring Plugins
-    mergeRegister(
-        registerRichText(editor),
-        registerDragonSupport(editor),
-        registerHistory(editor, createEmptyHistoryState(), 300),
-    );
-
-    editor.registerUpdateListener(({ editorState }) => {
-        stateRef!.value = JSON.stringify(editorState.toJSON(), undefined, 2);
+    positions.forEach((position: string, index: number) => {
+        gsap.set(layers[position], {
+            position: "absolute",
+            width: "100%",
+            height: "100%",
+            transformStyle: "preserve-3d",
+            backfaceVisibility: "hidden",
+            z: index * -distance,
+            zIndex: positions.length - index
+        });
     });
 
-    return Transition(match(await loader({}), {
-        loading: () => {
-            return html`<div>Loading...</div>`
-        },
-        error: (error: any) => {
-            return html`<div>Error: ${error}</div>`
-        },
-        success: (_: any) => (
-            <div>
-            <h1>Lexical Basic - Vanilla JS</h1>
-            <div class="editor-wrapper">
-              <div id="lexical-editor" contenteditable></div>
-            </div>
-            <h4>Editor state:</h4>
-            <textarea id="lexical-state"></textarea>
-          </div>
-    )}), {
-        enter: sequence(blurIn),
-        exit: sequence(blurOut)
-    })
+    window.addEventListener("keydown", (evt: KeyboardEvent) => {
+        if (["1", "2", "3"].includes(evt.key)) {
+            currentLayer = switchLayer(
+                currentLayer,
+                parseInt(evt.key, 10),
+                positions,
+                layers,
+                distance
+            );
+        }
+    });
 
-}
+    window.addEventListener("keydown", (evt: KeyboardEvent) => {
+        if (["4"].includes(evt.key)) {
+            const el = document.querySelector(
+                "toast-container"
+            ) as ToastContainer;
+            console.log("el", el);
+            el.addToast("Success!", "success");
+        }
+    });
+};
+
+export const render = async () => {
+    return Transition(
+        match(await loader({}), {
+            loading: () => {
+                console.log("Rendering loading state");
+                return <div>Loading...</div>;
+            },
+            error: (error: any) => {
+                console.log("Rendering error state:", error);
+                return <div>Error: {error}</div>;
+            },
+            success: (_: any) => (
+                <SlidesComponent className="product">
+                    <section>
+                        <h1>Hello</h1>
+                    </section>
+                </SlidesComponent>
+            )
+        }),
+        {
+            enter: sequence(blurIn),
+            exit: sequence(blurOut)
+        }
+    );
+};

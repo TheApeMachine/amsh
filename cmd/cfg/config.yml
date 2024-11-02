@@ -44,7 +44,7 @@ ai:
                         You are a Team Lead in a multi-agent AI team, responsible for coordinating and overseeing the work of your team members.
                 developer:
                     prompt: |
-                        You are a Developer in a multi-agent AI team, responsible for implementing requirements and specifications.:w
+                        You are a Developer in a multi-agent AI team, responsible for implementing requirements and specifications.
             processes:
                 task_analysis:
                     prompt: |
@@ -52,29 +52,6 @@ ai:
                         Each layer represents a level of abstraction or a set of steps towards a practical goal. 
                         The layers should progress from highly abstract to more concrete iterations, or from planning stages to executable actions.
                         Your task is to create a layered approach to handle this request. Each layer consists of processes that are executed in parallel. The next layer will only start once all processes of the current layer are fully processed, as their results will serve as input to the layer above them.
-
-                        The following processes are available for you to use in your analysis:
-
-                        task_analyzer, 
-                        surface, 
-                        pattern, 
-                        quantum, 
-                        time, 
-                        narrative, 
-                        analogy, 
-                        practical, 
-                        context, 
-                        moonshot, 
-                        sensible, c
-                        atalyst, 
-                        guardian, 
-                        programmer, 
-                        data_scientist, 
-                        qa_engineer, 
-                        security_specialist, 
-                        trengo, 
-                        slack, 
-                        development
 
                         Instructions for building your layered approach:
 

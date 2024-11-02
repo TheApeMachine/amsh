@@ -14,34 +14,34 @@ services:
   #   depends_on:
   #     - amsh-service
 
-  amsh-service:
-    image: amsh
-    env_file:
-      - .env
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - COHERE_API_KEY=${COHERE_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - MARVIN_APP_TOKEN=${MARVIN_APP_TOKEN}
-      - MARVIN_BOT_TOKEN=${MARVIN_BOT_TOKEN}
-      - MARVIN_USER_TOKEN=${MARVIN_USER_TOKEN}
-      - AZDO_ORG_URL=${AZDO_ORG_URL}
-      - AZDO_PAT=${AZDO_PAT}
-      - GITHUB_PAT=${GITHUB_PAT}
-      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
-      - TRENGO_API_TOKEN=${TRENGO_API_TOKEN}
-    build:
-      context: ./
-      dockerfile: Dockerfile
-      target: dev
-      platforms:
-        - linux/amd64
-        - linux/arm64
-    ports:
-      - "8567:8567"
-    volumes:
-      - ./:/app
+  # amsh-service:
+  #   image: amsh
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - GEMINI_API_KEY=${GEMINI_API_KEY}
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #     - COHERE_API_KEY=${COHERE_API_KEY}
+  #     - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+  #     - MARVIN_APP_TOKEN=${MARVIN_APP_TOKEN}
+  #     - MARVIN_BOT_TOKEN=${MARVIN_BOT_TOKEN}
+  #     - MARVIN_USER_TOKEN=${MARVIN_USER_TOKEN}
+  #     - AZDO_ORG_URL=${AZDO_ORG_URL}
+  #     - AZDO_PAT=${AZDO_PAT}
+  #     - GITHUB_PAT=${GITHUB_PAT}
+  #     - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+  #     - TRENGO_API_TOKEN=${TRENGO_API_TOKEN}
+  #   build:
+  #     context: ./
+  #     dockerfile: Dockerfile
+  #     target: dev
+  #     platforms:
+  #       - linux/amd64
+  #       - linux/arm64
+  #   ports:
+  #     - "8567:8567"
+  #   volumes:
+  #     - ./:/app
 
   # youi:
   #   image: youi

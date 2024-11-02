@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/tools"
+	"github.com/theapemachine/amsh/integration/git"
 )
 
 // Toolset manages a collection of tools available to an agent
@@ -22,9 +23,9 @@ func NewToolset(keys ...string) *Toolset {
 		"browser":     tools.NewBrowser(),
 		"environment": tools.NewEnvironment(),
 		"helpdesk":    tools.NewHelpdesk(),
-		"memory":      tools.NewMemory(),
 		"neo4j":       tools.NewNeo4j(),
 		"qdrant":      tools.NewQdrant("amsh", 1536),
+		"github":      git.NewHub(),
 		"slack":       tools.NewSlack(),
 		"wiki":        tools.NewWiki(),
 	}
