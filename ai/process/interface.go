@@ -4,7 +4,7 @@ package process
 CompositeProcess is a Process that is a composition of other Processes.
 */
 type CompositeProcess struct {
-	Layers []*Layer `json:"layers" jsonschema:"title:Layers,description:The layers of the composite process,enum:task_analysis,trengo,pull_request,abstract,bridge,ideate,required"`
+	Layers []*Layer `json:"layers" jsonschema:"title=Layers,description=The layers of the composite process,enum=task_analysis,enum=trengo,enum=pull_request,enum=abstract,enum=bridge,enum=ideate,required"`
 }
 
 /*
@@ -22,7 +22,7 @@ that allows their results to be combined in a meaningful way, and serve as
 the input for the next layer, and can be run in parallel.
 */
 type Layer struct {
-	Processes []Process `json:"processes" jsonschema:"title:Processes,description:The processes of the layer,enum:breakdown,planning,discussion,layering,required"`
+	Processes []Process `json:"processes" jsonschema:"title=Processes,description=The processes of the layer,enum=breakdown,enum=planning,enum=discussion,enum=layering,required"`
 }
 
 /*

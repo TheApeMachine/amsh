@@ -20,7 +20,6 @@ require (
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 	github.com/mergestat/timediff v0.0.3
 	github.com/openai/openai-go v0.1.0-alpha.26
-	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.1
 	github.com/theckman/yacspin v0.13.12

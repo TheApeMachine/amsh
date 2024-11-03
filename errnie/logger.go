@@ -83,7 +83,7 @@ func initLogFile() {
 
 	logFilePath := filepath.Join(logDir, "amsh.log")
 	var err error
-	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		fmt.Printf("Failed to open log file: %v\n", err)
 		return

@@ -30,7 +30,6 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 	if pm.compositeProcess == nil || len(pm.compositeProcess.Layers) == 0 {
 		errnie.Warn("no composite process found, going for task analysis")
 		pm.compositeProcess = process.CompositeProcessMap["task_analysis"]
-		pm.compositeProcess = process.CompositeProcessMap["task_analysis"]
 	}
 
 	go func() {
@@ -51,6 +50,8 @@ func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
 
 			wg.Wait()
 		}
+
+		errnie.Debug("process manager %s completed", pm.key)
 	}()
 
 	return out

@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 /*
@@ -41,6 +42,8 @@ func (processor *Processor) Process(input string) <-chan provider.Event {
 				out <- event
 			}
 		}
+
+		errnie.Debug("processor %s completed", processor.key)
 	}()
 
 	return out

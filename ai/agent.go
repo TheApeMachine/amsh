@@ -76,6 +76,7 @@ func NewAgent(
 		TeamName:   teamName,
 		Role:       role,
 		Buffer:     NewBuffer().AddMessage("system", systemPrompt),
+		Agents:     make(map[string]*Agent),
 		scratchpad: []string{},
 		toolset:    toolset,
 		provider:   provider.NewBalancedProvider(),
@@ -128,6 +129,8 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 		agent.iteration++
 
 		out <- provider.Event{Type: provider.EventDone}
+
+		errnie.Debug("agent %s iteration %d completed", agent.Name, agent.iteration)
 	}()
 
 	return out

@@ -42,6 +42,8 @@ func (core *Core) Run(input string) <-chan provider.Event {
 		).Execute(input) {
 			out <- event
 		}
+
+		errnie.Debug("core %s completed", core.key)
 	}()
 
 	return out

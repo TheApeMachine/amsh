@@ -3,8 +3,8 @@ package provider
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +26,9 @@ type ProviderStatus struct {
 type BalancedProvider struct {
 	providers   []*ProviderStatus
 	selectIndex int
+	// Add mutex for initialization state
+	initMu      sync.Mutex
+	initialized bool
 }
 
 var (
@@ -68,9 +71,20 @@ func NewBalancedProvider() *BalancedProvider {
 					provider: NewCohere(os.Getenv("COHERE_API_KEY"), "command-r"),
 					occupied: false,
 				},
+				{
+					name:     "LM Studio",
+					provider: NewLMStudio(os.Getenv("LM_STUDIO_API_KEY"), "bartowski/Llama-3.1-8B-Lexi-Uncensored-V2-GGUF"),
+					occupied: false,
+				},
+				{
+					name:     "NVIDIA",
+					provider: NewNVIDIA(os.Getenv("NVIDIA_API_KEY"), "nvidia/llama-3.1-nemotron-70b-instruct"),
+					occupied: false,
+				},
 			},
 
 			selectIndex: 0,
+			initialized: false,
 		}
 	})
 
@@ -79,17 +93,13 @@ func NewBalancedProvider() *BalancedProvider {
 
 func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
 	errnie.Info("generating with balanced provider")
-	resultChan := make(chan Event)
+	out := make(chan Event)
 
 	go func() {
-		defer close(resultChan)
+		defer close(out)
 
 		ps := lb.getAvailableProvider()
 		if ps == nil {
-			resultChan <- Event{
-				Type:    EventError,
-				Content: "no providers available",
-			}
 			return
 		}
 
@@ -100,55 +110,54 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 			errnie.Info("provider released")
 		}()
 
-		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-
-		done := make(chan struct{})
-
-		go func() {
-			defer close(done)
-			for event := range ps.provider.Generate(timeoutCtx, params, messages) {
-				if event.Type == EventError && (strings.Contains(event.Error.Error(), "429") || strings.Contains(event.Error.Error(), "rate_limit")) {
-					// Handle rate limit error
-					ps.mu.Lock()
-					ps.failures++
-					ps.mu.Unlock()
-					errnie.Warn(
-						"rate limit hit, increasing failure count %s %d",
-						ps.provider, ps.failures,
-					)
-				}
-
-				select {
-				case resultChan <- event:
-				case <-timeoutCtx.Done():
-					return
-				}
-			}
-		}()
-
-		select {
-		case <-done:
-			return
-		case <-timeoutCtx.Done():
-			resultChan <- Event{
-				Type:    EventError,
-				Content: "provider timeout",
-			}
-			return
+		for event := range ps.provider.Generate(ctx, params, messages) {
+			out <- event
 		}
 	}()
 
-	return resultChan
+	return out
 }
 
 func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 	errnie.Info("getting available provider")
 	maxAttempts := 10
-	cooldownPeriod := 60 * time.Second // Cooldown after rate limit
+	cooldownPeriod := 60 * time.Second
+	maxFailures := 3
+
+	// Handle first request with random selection
+	lb.initMu.Lock()
+	if !lb.initialized {
+		availableProviders := make([]*ProviderStatus, 0)
+		for _, ps := range lb.providers {
+			ps.mu.Lock()
+			if !ps.occupied {
+				availableProviders = append(availableProviders, ps)
+			}
+			ps.mu.Unlock()
+		}
+
+		if len(availableProviders) > 0 {
+			// Select random provider for first request
+			selectedIdx := rand.Intn(len(availableProviders))
+			selected := availableProviders[selectedIdx]
+
+			selected.mu.Lock()
+			selected.occupied = true
+			selected.lastUsed = time.Now()
+			selected.mu.Unlock()
+
+			lb.initialized = true
+			lb.initMu.Unlock()
+
+			errnie.Info("initial random provider selected: %s", selected.name)
+			return selected
+		}
+		lb.initMu.Unlock()
+	} else {
+		lb.initMu.Unlock()
+	}
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		// Find the provider with the lowest failure count and oldest last use
 		var bestProvider *ProviderStatus
 		oldestUse := time.Now()
 
@@ -161,14 +170,14 @@ func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 				continue
 			}
 
-			// Skip if provider is in cooldown from rate limit
-			if ps.failures > 0 && time.Since(ps.lastUsed) < cooldownPeriod {
+			// Skip if provider has exceeded failure threshold
+			if ps.failures >= maxFailures && time.Since(ps.lastUsed) < cooldownPeriod {
 				ps.mu.Unlock()
 				continue
 			}
 
 			// Reset failures if cooldown period has passed
-			if ps.failures > 0 && time.Since(ps.lastUsed) >= cooldownPeriod {
+			if ps.failures >= maxFailures && time.Since(ps.lastUsed) >= cooldownPeriod {
 				ps.failures = 0
 			}
 

@@ -15,8 +15,8 @@ import (
 )
 
 type Labelling struct {
-	TicketID int   `json:"ticket_id" jsonschema:"required; description:The id of the ticket to label"`
-	LabelIDs []int `json:"label_ids" jsonschema:"required; description:The ids of the labels to apply to the ticket"`
+	TicketID int   `json:"ticket_id" jsonschema:"required,description=The id of the ticket to label"`
+	LabelIDs []int `json:"label_ids" jsonschema:"required,description=The ids of the labels to apply to the ticket"`
 }
 
 func NewLabelling() *Labelling {

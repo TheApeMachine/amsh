@@ -8,16 +8,18 @@ import (
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
 type Team struct {
-	ctx     context.Context
-	key     string
-	name    string
-	Agents  map[string]*Agent
-	Buffer  *Buffer
-	Process process.Process
+	ctx       context.Context
+	key       string
+	name      string
+	Agents    map[string]*Agent
+	Sidekicks map[string]*Agent
+	Buffer    *Buffer
+	Process   process.Process
 }
 
 func NewTeam(ctx context.Context, key string, proc process.Process) *Team {
@@ -40,6 +42,11 @@ func NewTeam(ctx context.Context, key string, proc process.Process) *Team {
 				),
 			),
 		},
+		Sidekicks: map[string]*Agent{
+			"memory":     NewAgent(ctx, key, name, "memory", "", nil),
+			"verifier":   NewAgent(ctx, key, name, "verifier", "", nil),
+			"toolcaller": NewAgent(ctx, key, name, "toolcaller", "", nil),
+		},
 		Buffer: NewBuffer(),
 	}
 
@@ -55,6 +62,8 @@ func (team *Team) Execute(input string) <-chan provider.Event {
 		for event := range team.Agents["teamlead"].Execute(input) {
 			out <- event
 		}
+
+		errnie.Debug("team execution completed")
 	}()
 
 	return out
