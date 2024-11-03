@@ -1,6 +1,10 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/tui"
 )
@@ -13,7 +17,12 @@ var runCmd = &cobra.Command{
 	Short: "Run the service with the ~/.amsh/config.yml config values.",
 	Long:  runtxt,
 	RunE: func(cmd *cobra.Command, _ []string) (err error) {
-		return <-tui.New().Run()
+		if _, err := tea.NewProgram(tui.NewApp(), tea.WithAltScreen()).Run(); err != nil {
+			fmt.Println("Error while running program:", err)
+			os.Exit(1)
+		}
+
+		return nil
 	},
 }
 

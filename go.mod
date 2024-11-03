@@ -89,6 +89,8 @@ require (
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/user v0.3.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
+	github.com/muesli/clusters v0.0.0-20200529215643-2700303c1762 // indirect
+	github.com/muesli/kmeans v0.3.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
@@ -110,6 +112,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/ysmood/fetchup v0.2.3 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect
 	github.com/ysmood/got v0.40.0 // indirect
@@ -146,7 +149,6 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/log v0.4.0
 	github.com/cohere-ai/cohere-go/v2 v2.12.0
-	github.com/containerd/console v1.0.4
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fatih/color v1.18.0 // indirect
@@ -165,7 +167,8 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
-	github.com/muesli/cancelreader v0.2.2
+	github.com/muesli/cancelreader v0.2.2 // indirect
+	github.com/muesli/gamut v0.3.1
 	github.com/muesli/termenv v0.15.2
 	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
 	github.com/ollama/ollama v0.3.14

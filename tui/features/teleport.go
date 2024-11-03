@@ -1,8 +1,8 @@
 package features
 
 import (
+	"log"
 	"sort"
-	"unicode"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/theapemachine/amsh/tui/core"
@@ -59,8 +59,9 @@ func (teleport *Teleport) AddInput(char rune) (matched bool, target Target) {
 		}
 	}
 
-	// If no targets match the input, reset
+	// If no targets match the input, reset and provide feedback
 	if !matching {
+		log.Printf("No targets match the input: %s", teleport.input)
 		teleport.input = ""
 	}
 
@@ -71,54 +72,54 @@ func (teleport *Teleport) AddInput(char rune) (matched bool, target Target) {
 func (teleport *Teleport) Analyze(buffer *core.Buffer, cursorLine, cursorCol int) {
 	teleport.targets = make([]Target, 0)
 
-	// Characters we consider important for navigation
-	important := map[rune]bool{
-		'{': true, '}': true, '(': true, ')': true,
-		'[': true, ']': true, '"': true, '\'': true,
-		'.': true, ',': true, ':': true, ';': true,
-	}
+	// // Characters we consider important for navigation
+	// important := map[rune]bool{
+	// 	'{': true, '}': true, '(': true, ')': true,
+	// 	'[': true, ']': true, '"': true, '\'': true,
+	// 	'.': true, ',': true, ':': true, ';': true,
+	// }
 
-	for lineNum := 0; lineNum < buffer.LineCount(); lineNum++ {
-		line := buffer.GetLine(lineNum)
-		wasSpace := true // Track if previous char was space
+	// // for lineNum := 0; lineNum < buffer.LineCount(); lineNum++ {
+	// // 	line := buffer.GetLine(lineNum)
+	// // 	wasSpace := true // Track if previous char was space
 
-		for col, char := range line {
-			weight := 0
-			isTarget := false
+	// // 	for col, char := range line {
+	// // 		weight := 0
+	// // 		isTarget := false
 
-			// Word start (after space)
-			if wasSpace && unicode.IsLetter(char) {
-				weight = 100
-				isTarget = true
-			}
+	// // 		// Word start (after space)
+	// // 		if wasSpace && unicode.IsLetter(char) {
+	// // 			weight = 100
+	// // 			isTarget = true
+	// // 		}
 
-			// Important symbols
-			if important[char] {
-				weight = 80
-				isTarget = true
-			}
+	// // 		// Important symbols
+	// // 		if important[char] {
+	// // 			weight = 80
+	// // 			isTarget = true
+	// // 		}
 
-			// Capital letters (likely start of important words)
-			if unicode.IsUpper(char) {
-				weight = 90
-				isTarget = true
-			}
+	// // 		// Capital letters (likely start of important words)
+	// // 		if unicode.IsUpper(char) {
+	// // 			weight = 90
+	// // 			isTarget = true
+	// // 		}
 
-			if isTarget {
-				// Adjust weight based on distance from cursor
-				distance := abs(lineNum-cursorLine) + abs(col-cursorCol)
-				weight -= distance / 2
+	// // 		if isTarget {
+	// // 			// Adjust weight based on distance from cursor
+	// // 			distance := abs(lineNum-cursorLine) + abs(col-cursorCol)
+	// // 			weight -= distance / 2
 
-				teleport.targets = append(teleport.targets, Target{
-					Line:   lineNum,
-					Col:    col,
-					Weight: weight,
-				})
-			}
+	// // 			teleport.targets = append(teleport.targets, Target{
+	// // 				Line:   lineNum,
+	// // 				Col:    col,
+	// // 				Weight: weight,
+	// // 			})
+	// // 		}
 
-			wasSpace = unicode.IsSpace(char)
-		}
-	}
+	// // 		wasSpace = unicode.IsSpace(char)
+	// // 	}
+	// // }
 
 	// Sort and assign codes
 	teleport.assignCodes()
