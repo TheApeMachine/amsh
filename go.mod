@@ -41,6 +41,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/alixaxel/pagerank v0.0.0-20160306110729-14bfb4c1d88c // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.21 // indirect
@@ -61,9 +62,9 @@ require (
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -152,7 +153,6 @@ require (
 	github.com/docker/docker v27.2.0+incompatible
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fatih/color v1.18.0 // indirect
-	github.com/gdamore/tcell/v2 v2.7.4
 	github.com/go-rod/rod v0.116.2
 	github.com/go-rod/stealth v0.4.9
 	github.com/gobwas/ws v1.4.0
@@ -180,6 +180,6 @@ require (
 	github.com/valyala/fasthttp v1.56.0
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/term v0.25.0 // indirect
+	golang.org/x/term v0.25.0
 	golang.org/x/text v0.19.0 // indirect
 )

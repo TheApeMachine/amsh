@@ -1,88 +1,161 @@
 package tui
 
 import (
-	"image/color"
-	"os"
-	"strings"
-
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/lucasb-eyer/go-colorful"
-	"github.com/muesli/gamut"
-	"golang.org/x/term"
+	"github.com/theapemachine/amsh/tui/features"
 )
 
 const (
-	// In real life situations we'd adjust the document to fit the width we've
-	// detected. In the case of this example we're hardcoding the width, and
-	// later using the detected width only to truncate in order to avoid jaggy
-	// wrapping.
-	width = 96
-
-	columnWidth = 30
+	width         = 96
+	height        = 24
+	columnWidth   = 30
+	initialInputs = 2
+	maxInputs     = 6
+	minInputs     = 1
+	helpHeight    = 5
 )
 
-var physicalWidth, _, _ = term.GetSize(int(os.Stdout.Fd()))
-var doc = strings.Builder{}
+type keymap = struct {
+	next, prev, add, remove, quit key.Binding
+}
 
-type App struct{}
+type textArea struct {
+	textarea.Model
+}
+
+func (t textArea) Init() tea.Cmd {
+	return textarea.Blink
+}
+
+func (t textArea) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	t.Model, cmd = t.Model.Update(msg)
+	return t, cmd
+}
+
+func makeTextarea() textArea {
+	ta := textarea.New()
+	ta.Prompt = ""
+	ta.Placeholder = "Type here..."
+	ta.ShowLineNumbers = true
+	ta.Cursor.Style = cursorStyle
+	ta.FocusedStyle.Placeholder = focusedPlaceholderStyle
+	ta.BlurredStyle.Placeholder = placeholderStyle
+	ta.FocusedStyle.CursorLine = cursorLineStyle
+	ta.FocusedStyle.Base = focusedBorderStyle
+	ta.BlurredStyle.Base = blurredBorderStyle
+	ta.FocusedStyle.EndOfBuffer = endOfBufferStyle
+	ta.BlurredStyle.EndOfBuffer = endOfBufferStyle
+	ta.KeyMap.DeleteWordBackward.SetEnabled(false)
+	ta.KeyMap.LineNext = key.NewBinding(
+		key.WithKeys("down"),
+	)
+	ta.KeyMap.LinePrevious = key.NewBinding(
+		key.WithKeys("up"),
+	)
+	ta.Blur()
+	return textArea{ta}
+}
+
+type App struct {
+	width   int
+	height  int
+	keymap  keymap
+	help    *help.Model
+	screens map[string][]tea.Model
+	screen  string
+	inputs  []textArea
+	focus   int
+}
 
 func NewApp() *App {
-	return &App{}
+	return &App{
+		screens: map[string][]tea.Model{
+			"splash":  {features.NewSplash(width, height)},
+			"editor":  {makeTextarea()},
+			"browser": {features.NewBrowser()},
+		},
+		screen: "splash",
+	}
 }
 
 func (app *App) Init() tea.Cmd {
-	return nil
+	return textarea.Blink
 }
 
 func (app *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	for _, model := range app.screens[app.screen] {
+		model, _ = model.Update(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return app, tea.Quit
+		case "ctrl+b":
+			app.screen = "browser"
+		case "ctrl+e":
+			app.screen = "editor"
 		}
+	case tea.WindowSizeMsg:
+		app.width, app.height = msg.Width, msg.Height
 	}
 
+	app.updateKeybindings()
 	return app, nil
 }
 
-func (app *App) View() string {
-	question := lipgloss.NewStyle().Width(50).Align(lipgloss.Center).Render(
-		rainbow(lipgloss.NewStyle(), "Are you sure you want to eat marmalade?", blends),
-	)
-	ui := lipgloss.JoinVertical(lipgloss.Center, question)
-
-	dialog := lipgloss.Place(width, 9,
-		lipgloss.Center, lipgloss.Center,
-		dialogBoxStyle.Render(ui),
-		lipgloss.WithWhitespaceChars("猫咪"),
-		lipgloss.WithWhitespaceForeground(subtle),
-	)
-
-	doc.WriteString(dialog + "\n\n")
-	return doc.String()
-}
-
-func rainbow(base lipgloss.Style, s string, colors []color.Color) string {
-	var str string
-	for i, ss := range s {
-		color, _ := colorful.MakeColor(colors[i%len(colors)])
-		str = str + base.Foreground(lipgloss.Color(color.Hex())).Render(string(ss))
+func (app *App) sizeInputs() {
+	for i := range app.inputs {
+		app.inputs[i].SetWidth(app.width / len(app.inputs))
+		app.inputs[i].SetHeight(app.height / helpHeight)
 	}
-	return str
 }
 
-var subtle = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
-var highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-var special = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
-var blends = gamut.Blends(lipgloss.Color("#F25D94"), lipgloss.Color("#EDFF82"), 50)
+func (app *App) updateKeybindings() {
+	app.keymap.add.SetEnabled(len(app.inputs) < maxInputs)
+	app.keymap.remove.SetEnabled(len(app.inputs) > minInputs)
+}
 
-var dialogBoxStyle = lipgloss.NewStyle().
-	Border(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("#874BFD")).
-	Padding(1, 0).
-	BorderTop(true).
-	BorderLeft(true).
-	BorderRight(true).
-	BorderBottom(true)
+func (app *App) View() string {
+	return app.screens[app.screen][0].View()
+}
+
+var (
+	cursorStyle = lipgloss.NewStyle().Foreground(
+		lipgloss.Color("212"),
+	)
+
+	cursorLineStyle = lipgloss.NewStyle().Background(
+		lipgloss.Color("57"),
+	).Foreground(
+		lipgloss.Color("230"),
+	)
+
+	placeholderStyle = lipgloss.NewStyle().Foreground(
+		lipgloss.Color("238"),
+	)
+
+	endOfBufferStyle = lipgloss.NewStyle().Foreground(
+		lipgloss.Color("235"),
+	)
+
+	focusedPlaceholderStyle = lipgloss.NewStyle().Foreground(
+		lipgloss.Color("99"),
+	)
+
+	focusedBorderStyle = lipgloss.NewStyle().Border(
+		lipgloss.RoundedBorder(),
+	).BorderForeground(
+		lipgloss.Color("238"),
+	)
+
+	blurredBorderStyle = lipgloss.NewStyle().Border(
+		lipgloss.HiddenBorder(),
+	)
+)
