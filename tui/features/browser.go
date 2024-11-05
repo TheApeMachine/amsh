@@ -2,6 +2,7 @@ package features
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -26,23 +27,32 @@ type Browser struct {
 }
 
 func NewBrowser() *Browser {
-	fp := filepicker.New()
-	fp.AllowedTypes = []string{} // Empty slice allows all file types
-	fp.ShowHidden = true         // Show hidden files
-	fp.Height = 20               // Set a reasonable height for the picker
+	currentDir := errnie.SafeMust(func() (string, error) {
+		return os.Getwd()
+	})
 
+	fmt.Printf("Current directory: %s\n", currentDir)
+	if files, err := os.ReadDir(currentDir); err == nil {
+		for _, file := range files {
+			fmt.Printf("File: %s\n", file.Name())
+		}
+	}
+
+	fp := filepicker.New()
+	fp.ShowHidden = true
+	fp.Height = 20
+	fp.CurrentDirectory = currentDir
+	
+	// Enable directory listing
+	fp.DirAllowed = true
+	fp.FileAllowed = true
+	
 	return &Browser{
 		model: fp,
 	}
 }
 
 func (browser *Browser) Init() tea.Cmd {
-	// Set the current directory to start from
-	currentDir := errnie.SafeMust(func() (string, error) {
-		return os.Getwd()
-	})
-
-	browser.model.CurrentDirectory = currentDir
 	return browser.model.Init()
 }
 
@@ -53,6 +63,8 @@ func (browser *Browser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q", "esc":
 			return browser, tea.Quit
 		}
+	case tea.WindowSizeMsg:
+		browser.model.Height = msg.Height - 2
 	case clearErrorMsg:
 		browser.err = nil
 	}
@@ -60,6 +72,11 @@ func (browser *Browser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle file picker updates
 	var cmd tea.Cmd
 	browser.model, cmd = browser.model.Update(msg)
+
+	// Did the user select a file?
+	if didSelect, path := browser.model.DidSelectFile(msg); didSelect {
+		browser.selected = path
+	}
 
 	// Did the user select a disabled file?
 	if didSelect, path := browser.model.DidSelectDisabledFile(msg); didSelect {
@@ -83,4 +100,8 @@ func (browser *Browser) View() string {
 	}
 	s.WriteString("\n\n" + browser.model.View() + "\n")
 	return s.String()
+}
+
+func (browser *Browser) Selected() string {
+	return browser.selected
 }

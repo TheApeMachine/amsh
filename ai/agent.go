@@ -39,6 +39,7 @@ type Agent struct {
 	params     provider.GenerationParams
 	toolset    *Toolset
 	iteration  int
+	state      AgentState
 }
 
 // NewAgent creates a new agent with integrated reasoning and learning
@@ -81,11 +82,14 @@ func NewAgent(
 		toolset:    toolset,
 		provider:   provider.NewBalancedProvider(),
 		iteration:  0,
+		state:      StateIdle,
 	}
 }
 
 func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 	errnie.Note("executing agent %s", agent.Name)
+
+	agent.state = StateWorking
 
 	out := make(chan provider.Event)
 	agent.Buffer.AddMessage("user", utils.JoinWith("\n",
@@ -119,6 +123,8 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 		agent.Tweak()
 
 		if strings.Contains(strings.ReplaceAll(strings.ToLower(accumulator), "_", ""), "task complete") {
+			agent.state = StateDone
+			out <- provider.Event{Type: provider.EventDone}
 			return
 		}
 
@@ -128,9 +134,8 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 
 		agent.iteration++
 
-		out <- provider.Event{Type: provider.EventDone}
-
 		errnie.Debug("agent %s iteration %d completed", agent.Name, agent.iteration)
+		agent.state = StateIdle
 	}()
 
 	return out

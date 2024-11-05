@@ -1,11 +1,10 @@
 package tui
 
 import (
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textarea"
+	"log"
+	"os"
+
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/theapemachine/amsh/tui/features"
 )
 
@@ -19,77 +18,47 @@ const (
 	helpHeight    = 5
 )
 
-type keymap = struct {
-	next, prev, add, remove, quit key.Binding
-}
-
-type textArea struct {
-	textarea.Model
-}
-
-func (t textArea) Init() tea.Cmd {
-	return textarea.Blink
-}
-
-func (t textArea) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	t.Model, cmd = t.Model.Update(msg)
-	return t, cmd
-}
-
-func makeTextarea() textArea {
-	ta := textarea.New()
-	ta.Prompt = ""
-	ta.Placeholder = "Type here..."
-	ta.ShowLineNumbers = true
-	ta.Cursor.Style = cursorStyle
-	ta.FocusedStyle.Placeholder = focusedPlaceholderStyle
-	ta.BlurredStyle.Placeholder = placeholderStyle
-	ta.FocusedStyle.CursorLine = cursorLineStyle
-	ta.FocusedStyle.Base = focusedBorderStyle
-	ta.BlurredStyle.Base = blurredBorderStyle
-	ta.FocusedStyle.EndOfBuffer = endOfBufferStyle
-	ta.BlurredStyle.EndOfBuffer = endOfBufferStyle
-	ta.KeyMap.DeleteWordBackward.SetEnabled(false)
-	ta.KeyMap.LineNext = key.NewBinding(
-		key.WithKeys("down"),
-	)
-	ta.KeyMap.LinePrevious = key.NewBinding(
-		key.WithKeys("up"),
-	)
-	ta.Blur()
-	return textArea{ta}
-}
-
 type App struct {
-	width   int
-	height  int
-	keymap  keymap
-	help    *help.Model
-	screens map[string][]tea.Model
-	screen  string
-	inputs  []textArea
-	focus   int
+	width    int
+	height   int
+	screens  map[string][]tea.Model
+	screen   string
+	textarea *features.TextArea // Keep track of the textarea model
 }
 
 func NewApp() *App {
+	textarea := features.NewTextarea()
 	return &App{
 		screens: map[string][]tea.Model{
 			"splash":  {features.NewSplash(width, height)},
-			"editor":  {makeTextarea()},
+			"editor":  {textarea},
 			"browser": {features.NewBrowser()},
 		},
-		screen: "splash",
+		screen:   "splash",
+		textarea: textarea, // Store the textarea model
 	}
 }
 
 func (app *App) Init() tea.Cmd {
-	return textarea.Blink
+	var cmds []tea.Cmd
+
+	for _, model := range app.screens[app.screen] {
+		cmds = append(cmds, model.Init())
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (app *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// Update current screen's models and collect their commands
 	for _, model := range app.screens[app.screen] {
-		model, _ = model.Update(msg)
+		var cmd tea.Cmd
+		_, cmd = model.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	switch msg := msg.(type) {
@@ -99,63 +68,45 @@ func (app *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return app, tea.Quit
 		case "ctrl+b":
 			app.screen = "browser"
+			// Initialize the browser when switching to it
+			cmds = append(cmds, app.screens["browser"][0].Init())
 		case "ctrl+e":
 			app.screen = "editor"
+			// Initialize the editor and set focus when switching to it
+			cmds = append(cmds, app.screens["editor"][0].Init(), app.textarea.Focus())
 		}
 	case tea.WindowSizeMsg:
 		app.width, app.height = msg.Width, msg.Height
+		// Propagate the window size message to the current screen's models
+		for _, models := range app.screens {
+			for _, model := range models {
+				_, cmd := model.Update(msg)
+				if cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+			}
+		}
 	}
 
-	app.updateKeybindings()
-	return app, nil
-}
-
-func (app *App) sizeInputs() {
-	for i := range app.inputs {
-		app.inputs[i].SetWidth(app.width / len(app.inputs))
-		app.inputs[i].SetHeight(app.height / helpHeight)
+	// Check if a file was selected in the browser
+	if app.screen == "browser" {
+		browser := app.screens["browser"][0].(*features.Browser)
+		if browser.Selected() != "" {
+			// Load the file content into the textarea
+			content, err := os.ReadFile(browser.Selected())
+			if err != nil {
+				log.Printf("Error reading file: %v", err)
+			} else {
+				app.textarea.SetValue(string(content))
+				app.screen = "editor"                     // Switch to the editor
+				cmds = append(cmds, app.textarea.Focus()) // Set focus on the textarea
+			}
+		}
 	}
-}
 
-func (app *App) updateKeybindings() {
-	app.keymap.add.SetEnabled(len(app.inputs) < maxInputs)
-	app.keymap.remove.SetEnabled(len(app.inputs) > minInputs)
+	return app, tea.Batch(cmds...)
 }
 
 func (app *App) View() string {
 	return app.screens[app.screen][0].View()
 }
-
-var (
-	cursorStyle = lipgloss.NewStyle().Foreground(
-		lipgloss.Color("212"),
-	)
-
-	cursorLineStyle = lipgloss.NewStyle().Background(
-		lipgloss.Color("57"),
-	).Foreground(
-		lipgloss.Color("230"),
-	)
-
-	placeholderStyle = lipgloss.NewStyle().Foreground(
-		lipgloss.Color("238"),
-	)
-
-	endOfBufferStyle = lipgloss.NewStyle().Foreground(
-		lipgloss.Color("235"),
-	)
-
-	focusedPlaceholderStyle = lipgloss.NewStyle().Foreground(
-		lipgloss.Color("99"),
-	)
-
-	focusedBorderStyle = lipgloss.NewStyle().Border(
-		lipgloss.RoundedBorder(),
-	).BorderForeground(
-		lipgloss.Color("238"),
-	)
-
-	blurredBorderStyle = lipgloss.NewStyle().Border(
-		lipgloss.HiddenBorder(),
-	)
-)

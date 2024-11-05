@@ -43,6 +43,8 @@ ai:
                     <output format>
                         The output format is a JSON object matching a schema, between the ```json and ``` tags.
                         When responding with multiple schemas, each schema should be enclosed in its own ```json and ``` tags.
+                        You should respond only with the JSON object(s), nothing else.
+                        You and your team members can iterate on your current task until you are done, at that point you should respond with "task complete".
                     </output format>
                 guidelines: |
                     <guidelines>
@@ -53,16 +55,35 @@ ai:
             personas:
                 teamlead:
                     tools:
-                        - neo4j
-                        - qdrant
                         - recruit
                         - inspect
                     prompt: |
                         You are a Team Lead in a multi-agent AI team, responsible for coordinating and overseeing the work of your team members.
                         Use the recruit tool to create new team members when needed.
                         Use the inspect tool to inspect the current state of the team.
+                memory:
+                    prompt: |
+                        You are a Memory Manager in a multi-agent AI team, responsible for storing and retrieving memories from the memory stores.
                         Use the qdrant tool to store and retrieve memories from the vector store.
                         Use the neo4j tool to store and retrieve memories from the graph database.
+
+                        {{preorpost}}
+
+                        <output format>
+                            The output format is a JSON object matching the schema, between the ` + "```json" + ` and ` + "```" + ` tags.
+                            You can perform multiple operations, just put each operation in its own ```json and ``` tags.
+                            You should respond only with the JSON object, nothing else.
+                        </output format>
+                    preprompt: |
+                        Observe the current context and search for any relevant information that should be added to the context.
+                    postprompt: |
+                        Observe the current context and extract any relevant information that should be stored in the memory stores.
+                verifier:
+                    prompt: |
+                        You are a Verifier in a multi-agent AI team, responsible for verifying the output of your team members.
+                toolcaller:
+                    prompt: |
+                        You are a Toolcaller in a multi-agent AI team, responsible for calling tools on behalf of your team members.
                 developer:
                     tools:
                         - environment

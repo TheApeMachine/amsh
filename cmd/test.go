@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -23,23 +22,28 @@ var testCmd = &cobra.Command{
 
 func runTest(cmd *cobra.Command, args []string) error {
 	// Start an input loop.
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Print("prompt > ")
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
+	// reader := bufio.NewReader(os.Stdin)
+	// for {
+	// 	fmt.Print("prompt > ")
+	// 	input, _ := reader.ReadString('\n')
+	// 	input = strings.TrimSpace(input)
 
-		if input == "exit" {
-			break
-		}
+	// 	if input == "exit" {
+	// 		break
+	// 	}
 
-		pm := system.NewProcessManager("marvin", "test")
-		for event := range pm.Execute(input) {
-			fmt.Print(event.Content)
-		}
-		fmt.Println("execution complete")
+	// 	pm := system.NewProcessManager("marvin", "test")
+	// 	for event := range pm.Execute(input) {
+	// 		fmt.Print(event.Content)
+	// 	}
+	// 	fmt.Println("execution complete")
+	// }
+
+	pm := system.NewProcessManager("marvin", "test")
+	for event := range pm.Execute("I want to learn more about recent fraud cases in the voluntary carbon market") {
+		fmt.Print(event.Content)
 	}
-
+	fmt.Println("execution complete")
 	return nil
 }
 
