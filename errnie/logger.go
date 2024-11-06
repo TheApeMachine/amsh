@@ -107,7 +107,10 @@ func Log(format string, v ...interface{}) {
 Raw is a full decomposition of the object passed in.
 */
 func Raw(v ...interface{}) {
-	spew.Dump(v...)
+	if os.Getenv("NOCONSOLE") != "true" {
+		spew.Dump(v...)
+	}
+
 	writeToLog(spew.Sprint(v...))
 }
 
@@ -115,7 +118,10 @@ func Raw(v ...interface{}) {
 Trace logs a trace message to the logger.
 */
 func Trace(v ...interface{}) {
-	logger.Debug(v[0], v[1:]...)
+	if os.Getenv("NOCONSOLE") != "true" {
+		logger.Debug(v[0], v[1:]...)
+	}
+
 	writeToLog(fmt.Sprintf("%v", v))
 }
 
@@ -123,7 +129,10 @@ func Trace(v ...interface{}) {
 Debug logs a debug message to the logger.
 */
 func Debug(format string, v ...interface{}) {
-	logger.Debug(fmt.Sprintf(format, v...))
+	if os.Getenv("NOCONSOLE") != "true" {
+		logger.Debug(fmt.Sprintf(format, v...))
+	}
+
 	writeToLog(fmt.Sprintf(format, v...))
 }
 
@@ -131,7 +140,10 @@ func Debug(format string, v ...interface{}) {
 Note is a custom log message with a different style.
 */
 func Note(format string, v ...interface{}) {
-	logger.Info(fmt.Sprintf(format, v...))
+	if os.Getenv("NOCONSOLE") != "true" {
+		logger.Info(fmt.Sprintf(format, v...))
+	}
+
 	writeToLog(fmt.Sprintf(format, v...))
 }
 
@@ -139,7 +151,10 @@ func Note(format string, v ...interface{}) {
 Success is a custom log message with a different style.
 */
 func Success(format string, v ...interface{}) {
-	logger.Info(fmt.Sprintf(format, v...))
+	if os.Getenv("NOCONSOLE") != "true" {
+		logger.Info(fmt.Sprintf(format, v...))
+	}
+
 	writeToLog(fmt.Sprintf(format, v...))
 }
 
@@ -147,7 +162,10 @@ func Success(format string, v ...interface{}) {
 Info logs an info message to the logger.
 */
 func Info(format string, v ...interface{}) {
-	logger.Info(fmt.Sprintf(format, v...))
+	if os.Getenv("NOCONSOLE") != "true" {
+		logger.Info(fmt.Sprintf(format, v...))
+	}
+
 	writeToLog(fmt.Sprintf(format, v...))
 }
 
@@ -155,7 +173,10 @@ func Info(format string, v ...interface{}) {
 Warn logs a warn message to the logger.
 */
 func Warn(format string, v ...interface{}) {
-	logger.Warn(fmt.Sprintf(format, v...))
+	if os.Getenv("NOCONSOLE") != "true" {
+		logger.Warn(fmt.Sprintf(format, v...))
+	}
+
 	writeToLog(fmt.Sprintf(format, v...))
 }
 
@@ -177,7 +198,10 @@ func Error(err error, v ...interface{}) error {
 	message := fmt.Sprintf("%s\n%s", err.Error(), getStackTrace())
 	message += "\n" + getCodeSnippet(err.Error(), 0, 10)
 
-	logger.Error(message, v...)
+	if os.Getenv("NOCONSOLE") != "true" {
+		logger.Error(message, v...)
+	}
+
 	writeToLog(message)
 	return err
 }

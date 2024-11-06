@@ -2,7 +2,6 @@ package features
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -13,6 +12,10 @@ import (
 )
 
 type clearErrorMsg struct{}
+type FocusEditorMsg struct{}
+type FileSelectedMsg struct {
+	Path string
+}
 
 func clearErrorAfter(t time.Duration) tea.Cmd {
 	return tea.Tick(t, func(_ time.Time) tea.Msg {
@@ -21,6 +24,7 @@ func clearErrorAfter(t time.Duration) tea.Cmd {
 }
 
 type Browser struct {
+	width    int
 	model    filepicker.Model
 	selected string
 	err      error
@@ -31,25 +35,30 @@ func NewBrowser() *Browser {
 		return os.Getwd()
 	})
 
-	fmt.Printf("Current directory: %s\n", currentDir)
-	if files, err := os.ReadDir(currentDir); err == nil {
-		for _, file := range files {
-			fmt.Printf("File: %s\n", file.Name())
-		}
-	}
-
 	fp := filepicker.New()
 	fp.ShowHidden = true
-	fp.Height = 20
+	fp.Height = 10
 	fp.CurrentDirectory = currentDir
-	
+
 	// Enable directory listing
 	fp.DirAllowed = true
 	fp.FileAllowed = true
-	
+
 	return &Browser{
 		model: fp,
 	}
+}
+
+func (browser *Browser) Model() tea.Model {
+	return browser
+}
+
+func (browser *Browser) Name() string {
+	return "browser"
+}
+
+func (browser *Browser) Size() (int, int) {
+	return browser.width, browser.model.Height
 }
 
 func (browser *Browser) Init() tea.Cmd {
@@ -64,7 +73,18 @@ func (browser *Browser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return browser, tea.Quit
 		}
 	case tea.WindowSizeMsg:
-		browser.model.Height = msg.Height - 2
+		// Enforce a strict maximum height of 50 lines to ensure we never exceed layout bounds
+		// This leaves room for header, borders, and padding
+		maxHeight := 20
+		desiredHeight := msg.Height - 8 // Even more conservative padding
+
+		if desiredHeight > maxHeight {
+			browser.model.Height = maxHeight
+		} else if desiredHeight < 3 {
+			browser.model.Height = 3 // Minimum viable height
+		} else {
+			browser.model.Height = desiredHeight
+		}
 	case clearErrorMsg:
 		browser.err = nil
 	}
@@ -75,7 +95,16 @@ func (browser *Browser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Did the user select a file?
 	if didSelect, path := browser.model.DidSelectFile(msg); didSelect {
-		browser.selected = path
+		fileInfo, err := os.Stat(path)
+		if err == nil && !fileInfo.IsDir() {
+			browser.selected = path
+			return browser, tea.Batch(cmd, func() tea.Msg {
+				return FileSelectedMsg{Path: path}
+			})
+		} else if fileInfo != nil && fileInfo.IsDir() {
+			browser.err = errors.New("cannot open directories")
+			return browser, tea.Batch(cmd, clearErrorAfter(2*time.Second))
+		}
 	}
 
 	// Did the user select a disabled file?
@@ -90,7 +119,8 @@ func (browser *Browser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (browser *Browser) View() string {
 	var s strings.Builder
-	s.WriteString("\n  ")
+	s.WriteString("\n")
+	s.WriteString("  ")
 	if browser.err != nil {
 		s.WriteString(browser.model.Styles.DisabledFile.Render(browser.err.Error()))
 	} else if browser.selected == "" {
@@ -98,7 +128,7 @@ func (browser *Browser) View() string {
 	} else {
 		s.WriteString("Selected file: " + browser.model.Styles.Selected.Render(browser.selected))
 	}
-	s.WriteString("\n\n" + browser.model.View() + "\n")
+	s.WriteString("\n" + browser.model.View())
 	return s.String()
 }
 

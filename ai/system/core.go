@@ -3,7 +3,6 @@ package system
 import (
 	"context"
 
-	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
@@ -31,7 +30,7 @@ func NewCore(key string, proc process.Process) *Core {
 }
 
 func (core *Core) Run(input string) <-chan provider.Event {
-	log.Info("Starting core", "key", core.key)
+	errnie.Info("Starting core %s", core.key)
 	out := make(chan provider.Event, 1)
 
 	go func() {

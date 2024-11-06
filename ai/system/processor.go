@@ -1,7 +1,6 @@
 package system
 
 import (
-	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/errnie"
@@ -19,7 +18,7 @@ type Processor struct {
 NewProcessor creates a new processor with the given key.
 */
 func NewProcessor(key string, layer *process.Layer) *Processor {
-	log.Info("NewProcessor", "key", key)
+	errnie.Info("NewProcessor %s", key)
 
 	return &Processor{
 		key:   key,
@@ -31,7 +30,7 @@ func NewProcessor(key string, layer *process.Layer) *Processor {
 Process processes the input string and returns a channel of results.
 */
 func (processor *Processor) Process(input string) <-chan provider.Event {
-	log.Info("Processor.Process", "input", input)
+	errnie.Info("Processor.Process %s", input)
 	out := make(chan provider.Event)
 
 	go func() {

@@ -14,6 +14,7 @@ var CompositeProcessMap = map[string]*CompositeProcess{
 	"task_analysis": {Layers: []*Layer{LayerMap["task_analysis"]}},
 	"trengo":        {Layers: []*Layer{LayerMap["trengo"]}},
 	"pull_request":  {Layers: []*Layer{LayerMap["pull_request"]}},
+	"code":          {Layers: []*Layer{LayerMap["code"]}},
 }
 
 /*
@@ -57,6 +58,9 @@ var LayerMap = map[string]*Layer{
 		ProcessMap["catalyst"],
 		ProcessMap["guardian"],
 	}},
+	"code": {Processes: []Process{
+		ProcessMap["code"],
+	}},
 }
 
 /*
@@ -91,4 +95,5 @@ var ProcessMap = map[string]Process{
 	"analogy":    &AnalogyAnalysis{},
 	"practical":  &PracticalAnalysis{},
 	"context":    &ContextAnalysis{},
+	"code":       &Code{},
 }

@@ -27,6 +27,7 @@ var runCmd = &cobra.Command{
 }
 
 func init() {
+	os.Setenv("NOCONSOLE", "true")
 	rootCmd.AddCommand(runCmd)
 }
 

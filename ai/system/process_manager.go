@@ -3,7 +3,6 @@ package system
 import (
 	"sync"
 
-	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/errnie"
@@ -24,7 +23,7 @@ func NewProcessManager(key, origin string) *ProcessManager {
 }
 
 func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
-	log.Info("Execute", "accumulator", accumulator)
+	errnie.Info("Execute accumulator %s", accumulator)
 	out := make(chan provider.Event)
 
 	if pm.compositeProcess == nil || len(pm.compositeProcess.Layers) == 0 {

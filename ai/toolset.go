@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/charmbracelet/log"
 	"github.com/theapemachine/amsh/ai/tools"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -18,7 +17,7 @@ type Toolset struct {
 
 // NewToolset creates a new toolset and loads tools from configuration
 func NewToolset(keys ...string) *Toolset {
-	log.Info("Creating toolset", "keys", keys)
+	errnie.Info("Creating toolset %v", keys)
 
 	var toolMap = map[string]Tool{
 		"boards":      tools.NewBoards(),

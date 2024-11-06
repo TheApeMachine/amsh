@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/log"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/provider"
@@ -25,7 +24,7 @@ type Team struct {
 }
 
 func NewTeam(ctx context.Context, key string, proc process.Process) *Team {
-	log.Info("team created", "key", key)
+	errnie.Info("team created %s", key)
 	name := fmt.Sprintf("%s-%s", key, utils.NewName())
 
 	team := &Team{
