@@ -201,13 +201,10 @@ func (manager *Manager) addScreens(vertical bool, models ...features.Feature) te
 				}
 			}
 
-			// If we have remaining space and more than one component,
-			// distribute it evenly among components
-			if remainingSpace > 0 && len(sizes) > 0 {
-				extraPerComponent := remainingSpace / len(sizes)
-				for i := range sizes {
-					sizes[i] += extraPerComponent
-				}
+			// Adjust the sizes for vertical stacking
+			if vertical && len(sizes) > 1 {
+				// Assign remaining space to the top component
+				sizes[0] += remainingSpace
 			}
 
 			return sizes

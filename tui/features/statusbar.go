@@ -35,10 +35,10 @@ func NewStatusBar() *StatusBar {
 
 	// Initialize with default content
 	sb.model.SetContent(
+		"NORMAL",  // mode
 		"No File", // filename
 		"~",       // directory
 		"1:1",     // position
-		"NORMAL",  // mode
 	)
 
 	return sb
@@ -93,9 +93,9 @@ func (sb *StatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ModeChangeMsg:
 		// Get current content
-		filename := sb.model.FirstColumn
-		directory := sb.model.SecondColumn
-		position := sb.model.ThirdColumn
+		filename := sb.model.SecondColumn
+		directory := sb.model.ThirdColumn
+		position := sb.model.FourthColumn
 
 		// Update the mode display
 		modeStr := "NORMAL"
@@ -124,4 +124,8 @@ func (sb *StatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (sb *StatusBar) View() string {
 	return sb.model.View()
+}
+
+func (sb *StatusBar) SetContent(width, height int) {
+	sb.model.SetSize(width)
 }

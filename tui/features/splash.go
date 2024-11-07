@@ -59,7 +59,7 @@ func (splash *Splash) View() string {
 	doc := strings.Builder{}
 
 	// Ensure we don't exceed maximum width (252 chars)
-	safeWidth := min(splash.width, 252)
+	safeWidth := min(splash.width, 182)
 
 	// Subtract border and padding to prevent overflow
 	contentWidth := safeWidth - 6 // 2 for borders, 4 for padding

@@ -4,32 +4,25 @@ import (
 	"context"
 
 	"github.com/theapemachine/amsh/ai"
-	"github.com/theapemachine/amsh/ai/process"
+	"github.com/theapemachine/amsh/ai/process/layering"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/errnie"
 )
 
 type Core struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	key     string
-	process process.Process
+	ctx context.Context
+	key string
 }
 
-func NewCore(key string, proc process.Process) *Core {
+func NewCore(ctx context.Context, key string) *Core {
 	errnie.Info("new core created %s", key)
-
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &Core{
-		ctx:     ctx,
-		cancel:  cancel,
-		key:     key,
-		process: proc,
+		ctx: ctx,
+		key: key,
 	}
 }
 
-func (core *Core) Run(input string) <-chan provider.Event {
+func (core *Core) Run(workload layering.Workload) <-chan provider.Event {
 	errnie.Info("Starting core %s", core.key)
 	out := make(chan provider.Event, 1)
 
@@ -37,8 +30,8 @@ func (core *Core) Run(input string) <-chan provider.Event {
 		defer close(out)
 
 		for event := range ai.NewTeam(
-			core.ctx, core.key, core.process,
-		).Execute(input) {
+			core.ctx, core.key,
+		).Execute(workload) {
 			out <- event
 		}
 

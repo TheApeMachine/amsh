@@ -1,7 +1,9 @@
 package system
 
 import (
-	"github.com/theapemachine/amsh/ai/process"
+	"context"
+
+	"github.com/theapemachine/amsh/ai/process/layering"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -10,34 +12,34 @@ import (
 Processor is a struct that manages the cores and channels for a distributed AI system.
 */
 type Processor struct {
-	key   string
-	layer *process.Layer
+	ctx context.Context
+	key string
 }
 
 /*
 NewProcessor creates a new processor with the given key.
 */
-func NewProcessor(key string, layer *process.Layer) *Processor {
+func NewProcessor(ctx context.Context, key string) *Processor {
 	errnie.Info("NewProcessor %s", key)
 
 	return &Processor{
-		key:   key,
-		layer: layer,
+		ctx: ctx,
+		key: key,
 	}
 }
 
 /*
 Process processes the input string and returns a channel of results.
 */
-func (processor *Processor) Process(input string) <-chan provider.Event {
-	errnie.Info("Processor.Process %s", input)
+func (processor *Processor) Process(layer layering.Layer) <-chan provider.Event {
+	errnie.Info("Processor.Process %s", layer)
 	out := make(chan provider.Event)
 
 	go func() {
 		defer close(out)
 
-		for _, process := range processor.layer.Processes {
-			for event := range NewCore(processor.key, process).Run(input) {
+		for _, workload := range layer.Workloads {
+			for event := range NewCore(processor.ctx, processor.key).Run(workload) {
 				out <- event
 			}
 		}

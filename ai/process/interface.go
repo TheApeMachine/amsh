@@ -80,7 +80,6 @@ var ProcessMap = map[string]Process{
 	"breakdown":  &Breakdown{},
 	"planning":   &Planning{},
 	"discussion": &Discussion{},
-	"layering":   &Layering{},
 	"moonshot":   &Moonshot{},
 	"sensible":   &Sensible{},
 	"catalyst":   &Catalyst{},

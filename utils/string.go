@@ -42,3 +42,7 @@ func NewName() string {
 func StringPtr(s string) *string {
 	return &s
 }
+
+func StripMarkdown(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "```json", ""), "```", "")
+}

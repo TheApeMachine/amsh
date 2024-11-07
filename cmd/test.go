@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/ai/system"
+	"github.com/theapemachine/amsh/berrt"
 )
 
 var testCmd = &cobra.Command{
@@ -39,11 +40,20 @@ func runTest(cmd *cobra.Command, args []string) error {
 	// 	fmt.Println("execution complete")
 	// }
 
-	pm := system.NewProcessManager("marvin", "test")
-	for event := range pm.Execute("I want to learn more about recent fraud cases in the voluntary carbon market") {
-		fmt.Print(event.Content)
-	}
-	fmt.Println("execution complete")
+	os.Setenv("NOCONSOLE", "false")
+
+	out := make(chan string)
+	go func() {
+		defer close(out)
+		pm := system.NewProcessManager("marvin", "test")
+		for event := range pm.Execute("We need to research what it would take for AI to generalize out of distribution tasks.") {
+			out <- event.Content
+		}
+	}()
+
+	consumer := berrt.NewConsumer()
+	consumer.Print(out)
+
 	return nil
 }
 

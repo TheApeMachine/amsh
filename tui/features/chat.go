@@ -23,6 +23,7 @@ type ChatWindow struct {
 func NewChatWindow(highlightedText string) *ChatWindow {
 	ta := textarea.New()
 	ta.Placeholder = "Enter your prompt..."
+	ta.ShowLineNumbers = false
 	ta.Focus()
 
 	return &ChatWindow{
@@ -76,6 +77,10 @@ func (chat *ChatWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case tea.KeyEnter:
 			chat.handleAI()
+			chat.focused = false
+			return chat, func() tea.Msg {
+				return tea.KeyMsg{Type: tea.KeyEsc}
+			}
 		}
 	}
 

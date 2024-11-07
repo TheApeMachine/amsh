@@ -1,57 +1,81 @@
 package system
 
 import (
+	"context"
+	"encoding/json"
 	"sync"
 
-	"github.com/theapemachine/amsh/ai/process"
+	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/ai/process/layering"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 type ProcessManager struct {
-	key              string
-	compositeProcess *process.CompositeProcess
+	ctx     context.Context
+	cancel  context.CancelFunc
+	key     string
+	manager *ai.Agent
 }
 
 func NewProcessManager(key, origin string) *ProcessManager {
 	errnie.Info("starting process manager %s %s", key, origin)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &ProcessManager{
-		key:              key,
-		compositeProcess: process.CompositeProcessMap[origin],
+		ctx:    ctx,
+		cancel: cancel,
+		key:    key,
+		manager: ai.NewAgent(
+			ctx, key, "layering", "manager", layering.NewProcess().SystemPrompt(key), nil,
+		),
 	}
 }
 
-func (pm *ProcessManager) Execute(accumulator string) <-chan provider.Event {
-	errnie.Info("Execute accumulator %s", accumulator)
+func (pm *ProcessManager) Execute(request string) <-chan provider.Event {
+	errnie.Info("Execute request %s", request)
 	out := make(chan provider.Event)
-
-	if pm.compositeProcess == nil || len(pm.compositeProcess.Layers) == 0 {
-		errnie.Warn("no composite process found, going for task analysis")
-		pm.compositeProcess = process.CompositeProcessMap["task_analysis"]
-	}
 
 	go func() {
 		defer close(out)
 
-		for _, layer := range pm.compositeProcess.Layers {
-			var wg sync.WaitGroup
-			wg.Add(len(layer.Processes))
+		var layerAccumulator string
 
-			for event := range NewProcessor(pm.key, layer).Process(accumulator) {
-				out <- event
+		for event := range pm.manager.Execute(request) {
+			layerAccumulator += event.Content
+			out <- event
+		}
 
-				if event.Type == provider.EventDone {
-					wg.Done()
-					return
+		accumulators := make(map[int]string)
+
+		if process := pm.validate(layerAccumulator); process != nil {
+			for idx, layer := range process.Layers {
+				errnie.Info("executing layer %s", layer.Workloads)
+
+				var wg sync.WaitGroup
+				wg.Add(len(layer.Workloads))
+
+				ctx, cancel := context.WithCancel(pm.ctx)
+				defer cancel()
+
+				for event := range NewProcessor(ctx, pm.key).Process(layer) {
+					accumulators[idx] += event.Content
+					out <- event
 				}
-			}
 
-			wg.Wait()
+				wg.Wait()
+			}
 		}
 
 		errnie.Debug("process manager %s completed", pm.key)
 	}()
 
 	return out
+}
+
+func (pm *ProcessManager) validate(accumulator string) *layering.Process {
+	process := layering.NewProcess()
+	errnie.MustVoid(json.Unmarshal([]byte(utils.StripMarkdown(accumulator)), process))
+	return process
 }

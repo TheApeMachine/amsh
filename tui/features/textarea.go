@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/tui/components/overlay"
 	"github.com/theapemachine/amsh/tui/components/textarea"
 	"github.com/theapemachine/amsh/tui/types"
 )
@@ -156,7 +157,7 @@ func (ta *TextArea) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case types.OpenChatMsg:
-		errnie.Log("OpenChatMsg", msg.Context)
+		errnie.Log("OpenChatMsg %s", msg.Context)
 		// Create and show chat window
 		ta.chatWindow = NewChatWindow(msg.Context)
 		ta.showChat = true
@@ -238,7 +239,13 @@ var (
 func (t *TextArea) View() string {
 	// If chat is active, show the chat window instead of textarea
 	if t.showChat && t.chatWindow != nil {
-		return t.chatWindow.View()
+		return overlay.PlaceOverlay(
+			t.model.LineInfo().CharOffset,
+			t.model.LineInfo().RowOffset,
+			t.chatWindow.View(),
+			t.model.View(),
+			true,
+		)
 	}
 
 	// Only show teleport view when it's active to save vertical space
