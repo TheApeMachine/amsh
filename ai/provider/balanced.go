@@ -46,11 +46,11 @@ func NewBalancedProvider() *BalancedProvider {
 
 		balancedProviderInstance = &BalancedProvider{
 			providers: []*ProviderStatus{
-				{
-					name:     "llama3.2:3b",
-					provider: NewOllama("llama3.2:3b"),
-					occupied: false,
-				},
+				// {
+				// 	name:     "llama3.2:3b",
+				// 	provider: NewOllama("llama3.2:3b"),
+				// 	occupied: false,
+				// },
 				{
 					name:     "gpt-4o-mini",
 					provider: NewOpenAI(os.Getenv("OPENAI_API_KEY"), openai.ChatModelGPT4oMini2024_07_18),
@@ -71,16 +71,16 @@ func NewBalancedProvider() *BalancedProvider {
 					provider: NewCohere(os.Getenv("COHERE_API_KEY"), "command-r"),
 					occupied: false,
 				},
-				{
-					name:     "LM Studio",
-					provider: NewLMStudio(os.Getenv("LM_STUDIO_API_KEY"), "bartowski/Llama-3.1-8B-Lexi-Uncensored-V2-GGUF"),
-					occupied: false,
-				},
-				{
-					name:     "NVIDIA",
-					provider: NewNVIDIA(os.Getenv("NVIDIA_API_KEY"), "nvidia/llama-3.1-nemotron-70b-instruct"),
-					occupied: false,
-				},
+				// {
+				// 	name:     "LM Studio",
+				// 	provider: NewLMStudio(os.Getenv("LM_STUDIO_API_KEY"), "bartowski/Llama-3.1-8B-Lexi-Uncensored-V2-GGUF"),
+				// 	occupied: false,
+				// },
+				// {
+				// 	name:     "NVIDIA",
+				// 	provider: NewNVIDIA(os.Getenv("NVIDIA_API_KEY"), "nvidia/llama-3.1-nemotron-70b-instruct"),
+				// 	occupied: false,
+				// },
 			},
 
 			selectIndex: 0,
