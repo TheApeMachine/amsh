@@ -28,7 +28,12 @@ func NewProcessManager(key, origin string) *ProcessManager {
 		cancel: cancel,
 		key:    key,
 		manager: ai.NewAgent(
-			ctx, key, "layering", "manager", layering.NewProcess().SystemPrompt(key), nil,
+			ctx,
+			key,
+			"layering",
+			"manager",
+			layering.NewProcess().SystemPrompt(key),
+			ai.NewToolset("process"),
 		),
 	}
 }
@@ -50,11 +55,6 @@ func (pm *ProcessManager) Execute(request string) <-chan provider.Event {
 		accumulators := make(map[int]string)
 
 		for idx, process := range pm.validate(layerAccumulator) {
-			if toolcall := pm.checkToolCall(process); toolcall != nil {
-				out <- toolcall
-				continue
-			}
-
 			for _, layer := range process.Layers {
 				errnie.Info("executing layer %s", layer.Workloads)
 
@@ -80,29 +80,38 @@ func (pm *ProcessManager) Execute(request string) <-chan provider.Event {
 }
 
 func (pm *ProcessManager) validate(accumulator string) []layering.Process {
+	errnie.Log("validating process manager %s", accumulator)
 	codeBlocks := utils.ExtractCodeBlocks(accumulator)
+	errnie.Log("code blocks %v", codeBlocks)
 
 	processes := []layering.Process{}
 
-	if code, ok := codeBlocks["json"]; ok {
-		var process layering.Process
-		json.Unmarshal([]byte(code), &process)
-		processes = append(processes, process)
+	if blocks, ok := codeBlocks["json"]; ok {
+		errnie.Log("json blocks %v", blocks)
+		for _, code := range blocks {
+			errnie.Log("code %s", code)
+			if pm.checkToolCall(code) {
+				continue
+			}
+
+			var process layering.Process
+			errnie.MustVoid(json.Unmarshal([]byte(code), &process))
+			processes = append(processes, process)
+		}
 	}
 
 	return processes
 }
 
-func (pm *ProcessManager) checkToolCall(toolcall string) *provider.Event {
+func (pm *ProcessManager) checkToolCall(toolcall string) bool {
 	var data map[string]any
 	errnie.MustVoid(json.Unmarshal([]byte(toolcall), &data))
 
 	if toolValue, ok := data["tool_name"].(string); ok {
-		return &provider.Event{
-			Type:    provider.EventToolCall,
-			Content: pm.manager.Toolset.Use(pm.ctx, toolValue, data),
-		}
+		errnie.Info("executing tool call %s - %v", toolValue, data)
+		pm.manager.Toolset.Use(pm.ctx, toolValue, data)
+		return true
 	}
 
-	return nil
+	return false
 }

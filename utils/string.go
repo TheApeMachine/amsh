@@ -48,13 +48,18 @@ func StringPtr(s string) *string {
 ExtractCodeBlocks extracts Markdown code blocks from a string,
 and returns a map of language to code block.
 */
-func ExtractCodeBlocks(s string) map[string]string {
-	re := regexp.MustCompile("```(.*?)```")
+func ExtractCodeBlocks(s string) map[string][]string {
+	// Match code blocks with language identifiers
+	re := regexp.MustCompile("```([a-zA-Z0-9]+)\n([\\s\\S]*?)```")
 	matches := re.FindAllStringSubmatch(s, -1)
 
-	codeBlocks := make(map[string]string)
+	codeBlocks := make(map[string][]string)
 	for _, match := range matches {
-		codeBlocks[match[1]] = match[2]
+		if len(match) >= 3 {
+			language := match[1]
+			code := strings.TrimSpace(match[2])
+			codeBlocks[language] = append(codeBlocks[language], code)
+		}
 	}
 
 	return codeBlocks
