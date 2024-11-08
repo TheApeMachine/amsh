@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucasb-eyer/go-colorful"
 	"github.com/muesli/gamut"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Splash struct {
@@ -18,14 +19,12 @@ type Splash struct {
 }
 
 func NewSplash(width, height int) *Splash {
-	logo, err := os.ReadFile("tui/logo.ans")
-	if err != nil {
-		return &Splash{width: width, height: height}
-	}
 	return &Splash{
 		width:  width,
 		height: height,
-		logo:   string(logo),
+		logo: string(errnie.SafeMust(func() ([]byte, error) {
+			return os.ReadFile("tui/logo.ans")
+		})),
 	}
 }
 
@@ -51,7 +50,6 @@ func (splash *Splash) Init() tea.Cmd {
 }
 
 func (splash *Splash) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	return splash, nil
 }
 
