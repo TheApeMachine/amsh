@@ -39,7 +39,7 @@ func (g *Google) Generate(ctx context.Context, params GenerationParams, messages
 
 		// Convert messages to Google format
 		var parts []genai.Part
-		for _, msg := range messages {
+		for _, msg := range messages[1:] {
 			content := genai.Content{
 				Parts: []genai.Part{genai.Text(msg.Content)},
 			}
@@ -49,6 +49,10 @@ func (g *Google) Generate(ctx context.Context, params GenerationParams, messages
 		temp := float32(params.Temperature)
 
 		model := g.client.GenerativeModel(g.model)
+		model.SystemInstruction = &genai.Content{
+			Parts: []genai.Part{genai.Text(messages[0].Content)},
+		}
+		model.SystemInstruction.Role = "system"
 		model.Temperature = &temp
 		iter := model.GenerateContentStream(ctx, parts...)
 

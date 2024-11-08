@@ -47,6 +47,7 @@ func NewTeam(ctx context.Context, key string) *Team {
 }
 
 func (team *Team) Execute(workload layering.Workload) <-chan provider.Event {
+	errnie.Info("executing team %s", team.name)
 	out := make(chan provider.Event)
 
 	go func() {
@@ -71,23 +72,30 @@ func (team *Team) Execute(workload layering.Workload) <-chan provider.Event {
 			out <- event
 		}
 
-		response := persona.Teamlead{}
-		errnie.MustVoid(json.Unmarshal([]byte(accumulator), &response))
+		extracted := utils.ExtractCodeBlocks(accumulator)
 
-		agents := []*Agent{}
-		for _, agent := range response.Agents {
-			agents = append(agents, NewAgent(
-				team.ctx,
-				team.key,
-				agent.Name,
-				agent.Role,
-				agent.SystemPrompt,
-				nil,
-			))
-		}
+		for _, blocks := range extracted {
+			for _, block := range blocks {
 
-		for event := range NewCompetition(team.ctx, team.key).Run(agents) {
-			out <- event
+				response := persona.Teamlead{}
+				errnie.MustVoid(json.Unmarshal([]byte(block), &response))
+
+				agents := []*Agent{}
+				for _, agent := range response.Agents {
+					agents = append(agents, NewAgent(
+						team.ctx,
+						team.key,
+						agent.Name,
+						agent.Role,
+						agent.SystemPrompt,
+						nil,
+					).AddSidekick("optimizer").AddWorkloads(agent.Workloads))
+				}
+
+				for event := range NewCompetition(team.ctx, team.key).Run(agents) {
+					out <- event
+				}
+			}
 		}
 	}()
 

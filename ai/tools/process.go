@@ -24,7 +24,7 @@ Use the Process tool to create a new process, which will write a JSON schema to 
 */
 func (process *Process) Use(ctx context.Context, args map[string]any) string {
 	errnie.Log("using process tool %v", args)
-	path := filepath.Join(os.Getenv("HOME"), ".amsh", "processes")
+	path := filepath.Join("~/.amsh", "processes")
 
 	// Create the directory if it doesn't exist
 	os.MkdirAll(path, 0755)

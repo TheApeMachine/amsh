@@ -63,7 +63,7 @@ func (ta *Process) SystemPrompt(key string) string {
 	1. Carefully analyze the incoming request, and always construct a detailed, multi-layered process to address the request.
 	2. Use abstract processes as drivers underneath more concrete workloads, they provide agents with sparks of powerful insights.
 	3. Structure your response as a series of layers, each containing one or more workloads.
-	4. Use pre-loaded processes where applicable, and create new ones if necessary.
+	4. Use pre-loaded processes where applicable, and create new ones if necessary, but only create processes that are generic enough to be used in a wide variety of contexts.
 	5. Ensure that each layer's outputs logically feed into the next layer's inputs.
 	6. Consider using workloads multiple times or across multiple layers if appropriate.
 	7. Typically, end with a layer that integrates previous outputs and provides a concrete realization of the request.
@@ -73,7 +73,7 @@ func (ta *Process) SystemPrompt(key string) string {
 	- Your final response must be a valid JSON object constructed according to the provided schema, but do not use the schema directly.
 	- Wrap each JSON object in a Markdown code block.
 	- If creating new processes, output those JSON objects before the final layering JSON object, and fill out the values in a similar manner as your schemas are filled out.
-	- Each JSON object should be in its own Markdown code block.
+	- Each JSON object should be in its own Markdown code block, and you should output only the JSON objects, nothing else.
 	`
 }
 

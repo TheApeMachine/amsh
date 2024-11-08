@@ -24,11 +24,9 @@ const (
 )
 
 type GenerationParams struct {
-	Temperature            float64
-	TopP                   float64
-	TopK                   int
-	Interestingness        float64
-	InterestingnessHistory []float64
+	Temperature      float64 `json:"temperature" jsonschema:"title=Temperature,description=The temperature of the generation,required"`
+	FrequencyPenalty float64 `json:"frequency_penalty" jsonschema:"title=Frequency Penalty,description=The frequency penalty of the generation,required"`
+	PresencePenalty  float64 `json:"presence_penalty" jsonschema:"title=Presence Penalty,description=The presence penalty of the generation,required"`
 }
 
 // Provider defines the interface for AI providers

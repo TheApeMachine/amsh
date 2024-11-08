@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 /*
@@ -19,6 +20,8 @@ type Competition struct {
 }
 
 func NewCompetition(ctx context.Context, key string) *Competition {
+	errnie.Info("creating competition %s", key)
+
 	return &Competition{
 		ctx: ctx,
 		key: key,
@@ -26,6 +29,8 @@ func NewCompetition(ctx context.Context, key string) *Competition {
 }
 
 func (competition *Competition) Run(agents []*Agent) chan provider.Event {
+	errnie.Info("running competition %s", competition.key)
+
 	output := make(chan provider.Event)
 
 	decider := NewAgent(

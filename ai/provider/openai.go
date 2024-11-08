@@ -37,10 +37,11 @@ func (o *OpenAI) GenerateSync(ctx context.Context, params GenerationParams, mess
 	}
 
 	completion, err := o.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages:    openai.F(openAIMessages),
-		Model:       openai.F(o.model),
-		Temperature: openai.F(params.Temperature),
-		TopP:        openai.F(params.TopP),
+		Messages:         openai.F(openAIMessages),
+		Model:            openai.F(o.model),
+		Temperature:      openai.F(params.Temperature),
+		FrequencyPenalty: openai.F(params.FrequencyPenalty),
+		PresencePenalty:  openai.F(params.PresencePenalty),
 	})
 	if err != nil {
 		return "", err
@@ -71,10 +72,11 @@ func (o *OpenAI) Generate(ctx context.Context, params GenerationParams, messages
 		}
 
 		stream := o.client.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
-			Messages:    openai.F(openAIMessages),
-			Model:       openai.F(o.model),
-			Temperature: openai.F(params.Temperature),
-			TopP:        openai.F(params.TopP),
+			Messages:         openai.F(openAIMessages),
+			Model:            openai.F(o.model),
+			Temperature:      openai.F(params.Temperature),
+			FrequencyPenalty: openai.F(params.FrequencyPenalty),
+			PresencePenalty:  openai.F(params.PresencePenalty),
 		})
 
 		for stream.Next() {

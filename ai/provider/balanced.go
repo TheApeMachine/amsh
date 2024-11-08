@@ -52,8 +52,8 @@ func NewBalancedProvider() *BalancedProvider {
 				// 	occupied: false,
 				// },
 				{
-					name:     "gpt-4o-mini",
-					provider: NewOpenAI(os.Getenv("OPENAI_API_KEY"), openai.ChatModelGPT4oMini2024_07_18),
+					name:     "gpt-4o",
+					provider: NewOpenAI(os.Getenv("OPENAI_API_KEY"), openai.ChatModelGPT4o2024_08_06),
 					occupied: false,
 				},
 				{

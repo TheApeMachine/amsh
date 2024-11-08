@@ -9,10 +9,11 @@ import (
 
 	"github.com/JesusIslam/tldr"
 	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/ai/process"
+	"github.com/theapemachine/amsh/ai/process/persona"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
-	"golang.org/x/exp/rand"
 )
 
 // AgentState represents the current state of an agent
@@ -33,10 +34,11 @@ type Agent struct {
 	TeamName   string            `json:"team_name"`
 	Role       string            `json:"role"`
 	Buffer     *Buffer           `json:"agent_buffer"`
-	Agents     map[string]*Agent `json:"agents"`
+	Sidekicks  map[string]*Agent `json:"sidekicks"`
 	scratchpad []string
 	provider   provider.Provider
 	params     provider.GenerationParams
+	workloads  []string
 	Toolset    *Toolset
 	iteration  int
 	state      AgentState
@@ -51,15 +53,9 @@ func NewAgent(
 	systemPrompt string,
 	toolset *Toolset,
 ) *Agent {
-	systemPrompt = utils.JoinWith("\n",
-		systemPrompt,
-		"",
-		"<your details>",
-		"name: "+fmt.Sprintf("%s-%s", teamName, role),
-		"role: "+role,
-		"team: "+teamName,
-		"</your details>",
-	)
+	errnie.Info("creating agent %s in team %s with role %s", key, teamName, role)
+	errnie.Log(systemPrompt)
+
 	if toolset != nil && len(toolset.tools) > 0 {
 		systemPrompt = utils.JoinWith("\n\n",
 			systemPrompt,
@@ -77,7 +73,7 @@ func NewAgent(
 		TeamName:   teamName,
 		Role:       role,
 		Buffer:     NewBuffer().AddMessage("system", systemPrompt),
-		Agents:     make(map[string]*Agent),
+		Sidekicks:  make(map[string]*Agent),
 		scratchpad: []string{},
 		Toolset:    toolset,
 		provider:   provider.NewBalancedProvider(),
@@ -86,158 +82,135 @@ func NewAgent(
 	}
 }
 
-func (agent *Agent) Execute(prompt string) <-chan provider.Event {
-	errnie.Note("executing agent %s", agent.Name)
+func (agent *Agent) AddSidekick(sidekick string) *Agent {
+	var systemPrompt string
 
-	agent.state = StateWorking
+	switch sidekick {
+	case "optimizer":
+		optimizer := persona.NewOptimizer()
+		systemPrompt = optimizer.SystemPrompt(agent.Buffer.String())
+	}
+
+	agent.Sidekicks[sidekick] = NewAgent(
+		agent.ctx,
+		agent.key,
+		agent.Name,
+		sidekick,
+		systemPrompt,
+		nil,
+	)
+
+	return agent
+}
+
+func (agent *Agent) AddWorkloads(workloads []string) *Agent {
+	errnie.Info("adding workloads to agent %s", agent.Name)
+
+	for _, workload := range workloads {
+		schema := process.ProcessMap[workload]
+		agent.workloads = append(agent.workloads, schema.GenerateSchema())
+		errnie.Info("added workload %s to agent %s", workload, agent.Name)
+	}
+
+	return agent
+}
+
+func (agent *Agent) Execute(prompt string) <-chan provider.Event {
+	errnie.Info("executing agent %s", agent.Name)
+	errnie.Log(prompt)
 
 	out := make(chan provider.Event)
-	agent.Buffer.AddMessage("user", utils.JoinWith("\n",
-		"<user prompt>",
-		prompt,
-		"</user prompt>",
-		viper.GetViper().GetString("ai.setups."+agent.key+".templates.guidelines"),
-	))
 
 	go func() {
 		defer close(out)
 
-		var accumulator string
+		agent.Buffer.AddMessage("user", utils.JoinWith("\n",
+			"<request>",
+			prompt,
+			"</request>",
+		))
 
-		errnie.Log("agent %s iteration %d\n\n%s\n\n", agent.Name, agent.iteration, agent.Buffer.GetMessages())
-
-		for event := range agent.provider.Generate(
-			context.Background(), agent.params, agent.Buffer.GetMessages(),
-		) {
-			if event.Type == provider.EventToken {
-				event.AgentID = agent.Name
-				accumulator += event.Content
-				out <- event
-			}
+		if len(agent.workloads) == 0 {
+			agent.ExecuteAgent(out)
 		}
 
-		// Execute tool calls
-		agent.Buffer.AddMessage("assistant", accumulator)
-		agent.Buffer.AddMessage("assistant", agent.ExecuteToolCalls(accumulator))
-
-		agent.Tweak()
-
-		if strings.Contains(strings.ReplaceAll(strings.ToLower(accumulator), "_", ""), "task complete") {
-			agent.state = StateDone
-			out <- provider.Event{Type: provider.EventDone}
-			return
-		}
-
-		errnie.Log(
-			"agent %s iteration %d\n\n%s\n\n", agent.Name, agent.iteration, agent.Buffer.GetMessages(),
-		)
-
-		agent.iteration++
-
-		errnie.Debug("agent %s iteration %d completed", agent.Name, agent.iteration)
-		agent.state = StateIdle
+		agent.ExecuteWorkloads(agent.workloads, out)
+		agent.PostMortemAnalysis()
 	}()
 
 	return out
 }
 
-func (agent *Agent) ExecuteToolCalls(accumulator string) string {
-	errnie.Success("executing tool calls for agent %s", agent.Name)
-	// Extract all Markdown JSON blocks.
-	pattern := regexp.MustCompile("(?s)```json\\s*([\\s\\S]*?)```")
-	matches := pattern.FindAllStringSubmatch(accumulator, -1)
+func (agent *Agent) ExecuteWorkloads(workloads []string, out chan<- provider.Event) {
+	if len(workloads) == 0 {
+		return
+	}
 
-	// To get the tool that was used, we need to unmarshal the JSON string.
-	for _, match := range matches {
-		var data map[string]any
-		if err := json.Unmarshal([]byte(match[1]), &data); err != nil {
-			return "error unmarshalling tool call: " + err.Error()
-		}
+	for _, workload := range agent.workloads {
+		errnie.Info("executing workload for agent %s", agent.Name)
+		errnie.Log(workload)
 
-		if toolValue, ok := data["tool_name"].(string); ok {
-			errnie.Success("executing tool %s", toolValue)
+		agent.Buffer.AddMessage("assistant", utils.JoinWith("\n\n",
+			"You should use the following schema when completing the current workload:",
+			utils.JoinWith("\n",
+				"<workload>",
+				workload,
+				"</workload>",
+			),
+		))
 
-			switch toolValue {
-			case "recruit":
-				agent.Agents[data["role"].(string)] = NewAgent(
-					agent.ctx,
-					agent.Name,
-					agent.TeamName,
-					data["role"].(string),
-					utils.JoinWith("\n",
-						data["system_prompt"].(string),
-						"{{tools}}",
-					),
-					agent.Toolset,
-				)
+		agent.ExecuteAgent(out)
+	}
+}
 
-				return "new agent created"
-			case "inspect":
-				out := []string{}
-				for _, agnt := range agent.Agents {
-					bag := tldr.New()
-					result, _ := bag.Summarize(agnt.Buffer.String(), 10)
+func (agent *Agent) ExecuteAgent(out chan<- provider.Event) {
+	agent.state = StateWorking
+	var accumulator string
 
-					out = append(out, strings.Join([]string{
-						"NAME: " + agnt.Name,
-						"ROLE: " + agnt.Role,
-						"\nSUMMARY: \n\n" + strings.Join(result, "\n"),
-					}, "\n"))
-				}
-
-				return strings.Join(out, "\n---\n")
-			default:
-				return agent.Toolset.Use(agent.ctx, toolValue, data)
-			}
+	for event := range agent.provider.Generate(
+		context.Background(), agent.params, agent.Buffer.GetMessages(),
+	) {
+		if event.Type == provider.EventToken {
+			event.AgentID = agent.Name
+			accumulator += event.Content
+			out <- event
 		}
 	}
 
-	return "all tool calls executed"
+	// Execute tool calls
+	agent.Buffer.AddMessage("assistant", accumulator)
+	agent.Buffer.AddMessage("assistant", ExecuteToolCalls(agent, accumulator))
+
+	errnie.Debug("agent %s iteration %d completed", agent.Name, agent.iteration)
+	errnie.Log(accumulator)
+	agent.state = StateIdle
 }
 
-func (agent *Agent) Tweak() provider.GenerationParams {
-	agent.params.Interestingness = agent.MeasureInterestingness()
-	if len(agent.params.InterestingnessHistory) > 5 {
-		// If results getting boring, increase temperature
-		if average(agent.params.InterestingnessHistory) < 0.5 {
-			agent.params.Temperature *= 1.1
-			agent.params.TopK += 10
-		}
+type TrainingExample struct {
+	Prompt   string
+	Response string
+	Params   provider.GenerationParams
+}
 
-		// If results too wild, decrease temperature
-		if average(agent.params.InterestingnessHistory) > 0.8 {
-			agent.params.Temperature *= 0.9
-			agent.params.TopK -= 5
-		}
+var trainingSet []TrainingExample
 
-		// Keep a moving window
-		agent.params.InterestingnessHistory = agent.params.InterestingnessHistory[1:]
+// PostMortemAnalysis evaluates and collects outputs as training examples
+func (agent *Agent) PostMortemAnalysis() {
+	for _, sidekick := range agent.Sidekicks {
+		sidekick.Execute(utils.JoinWith("\n\n",
+			utils.JoinWith("\n",
+				"<message buffer>",
+				sidekick.Buffer.String(),
+				"</message buffer>",
+			),
+
+			utils.JoinWith("\n",
+				"<current parameters>",
+				string(errnie.SafeMust(func() ([]byte, error) {
+					return json.Marshal(agent.params)
+				})),
+				"</current parameters>",
+			),
+		))
 	}
-
-	return agent.params
-}
-
-func (agent *Agent) MeasureInterestingness() float64 {
-	interestingness := measureInterestingness()
-	agent.params.InterestingnessHistory = append(
-		agent.params.InterestingnessHistory, interestingness,
-	)
-
-	return interestingness
-}
-
-func measureInterestingness() float64 {
-	return rand.Float64()
-}
-
-func average(values []float64) float64 {
-	return sum(values) / float64(len(values))
-}
-
-func sum(values []float64) float64 {
-	total := 0.0
-	for _, value := range values {
-		total += value
-	}
-	return total
 }
