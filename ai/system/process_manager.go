@@ -49,8 +49,13 @@ func (pm *ProcessManager) Execute(request string) <-chan provider.Event {
 
 		accumulators := make(map[int]string)
 
-		if process := pm.validate(layerAccumulator); process != nil {
-			for idx, layer := range process.Layers {
+		for idx, process := range pm.validate(layerAccumulator) {
+			if toolcall := pm.checkToolCall(process); toolcall != nil {
+				out <- toolcall
+				continue
+			}
+
+			for _, layer := range process.Layers {
 				errnie.Info("executing layer %s", layer.Workloads)
 
 				var wg sync.WaitGroup
@@ -74,8 +79,30 @@ func (pm *ProcessManager) Execute(request string) <-chan provider.Event {
 	return out
 }
 
-func (pm *ProcessManager) validate(accumulator string) *layering.Process {
-	process := layering.NewProcess()
-	errnie.MustVoid(json.Unmarshal([]byte(utils.StripMarkdown(accumulator)), process))
-	return process
+func (pm *ProcessManager) validate(accumulator string) []layering.Process {
+	codeBlocks := utils.ExtractCodeBlocks(accumulator)
+
+	processes := []layering.Process{}
+
+	if code, ok := codeBlocks["json"]; ok {
+		var process layering.Process
+		json.Unmarshal([]byte(code), &process)
+		processes = append(processes, process)
+	}
+
+	return processes
+}
+
+func (pm *ProcessManager) checkToolCall(toolcall string) *provider.Event {
+	var data map[string]any
+	errnie.MustVoid(json.Unmarshal([]byte(toolcall), &data))
+
+	if toolValue, ok := data["tool_name"].(string); ok {
+		return &provider.Event{
+			Type:    provider.EventToolCall,
+			Content: pm.manager.Toolset.Use(pm.ctx, toolValue, data),
+		}
+	}
+
+	return nil
 }

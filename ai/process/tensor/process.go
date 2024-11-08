@@ -1,9 +1,11 @@
-package process
+package tensor
+
+import "github.com/theapemachine/amsh/utils"
 
 /*
-TensorNetwork represents multi-dimensional relationships and patterns.
+Process represents a tensor-based thought or reasoning process.
 */
-type TensorNetwork struct {
+type Process struct {
 	Dimensions   []Dimension   `json:"dimensions" jsonschema:"title=Dimensions,description=Different aspects of relationship space,required"`
 	TensorFields []TensorField `json:"tensor_fields" jsonschema:"title=TensorFields,description=Multi-dimensional relationship patterns,required"`
 	Projections  []Projection  `json:"projections" jsonschema:"title=Projections,description=Lower-dimensional views of the tensor space,required"`
@@ -31,4 +33,8 @@ type Projection struct {
 	TargetDimIDs   []string  `json:"target_dimension_ids" jsonschema:"required,title=TargetDimensionIDs,description=IDs of target dimensions"`
 	ProjectionType string    `json:"projection_type" jsonschema:"required,title=ProjectionType,description=Type of projection"`
 	Matrix         []float64 `json:"matrix" jsonschema:"required,title=Matrix,description=Projection matrix"`
+}
+
+func (ta *Process) GenerateSchema() string {
+	return utils.GenerateSchema[Process]()
 }

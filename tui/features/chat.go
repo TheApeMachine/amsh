@@ -3,11 +3,9 @@ package features
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/ai/system"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/components/textarea"
 	"github.com/theapemachine/amsh/tui/types"
-	"github.com/theapemachine/amsh/utils"
 )
 
 type ChatWindow struct {
@@ -54,33 +52,30 @@ func (chat *ChatWindow) Init() tea.Cmd {
 }
 
 func (chat *ChatWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	errnie.Log("chat.Update %v", msg)
+
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		chat.height = msg.Height
 		chat.width = msg.Width
-
-	case types.AISendMsg:
-		chat.handleAI()
-		chat.focused = false
-		return chat, func() tea.Msg {
-			return tea.KeyMsg{Type: tea.KeyEsc}
-		}
-
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEsc:
 			chat.focused = false
-			return chat, func() tea.Msg {
+			cmds = append(cmds, func() tea.Msg {
 				return tea.KeyMsg{Type: tea.KeyEsc}
-			}
+			})
 		case tea.KeyEnter:
-			chat.handleAI()
 			chat.focused = false
-			return chat, func() tea.Msg {
+			cmds = append(cmds, func() tea.Msg {
+				return types.AIPromptMsg{Prompt: chat.textarea.Value()}
+			})
+
+			cmds = append(cmds, func() tea.Msg {
 				return tea.KeyMsg{Type: tea.KeyEsc}
-			}
+			})
 		}
 	}
 
@@ -102,19 +97,4 @@ func (chat *ChatWindow) View() string {
 		Padding(1)
 
 	return style.Height(chat.height - 2).Render(chat.textarea.View())
-}
-
-func (chat *ChatWindow) handleAI() {
-	go func() {
-		for event := range system.NewProcessManager("marvin", "editor").Execute(
-			utils.JoinWith(
-				"\n\n", chat.context, chat.textarea.Value(),
-			),
-		) {
-			if event.Type == provider.EventToken {
-				chat.response += event.Content
-				chat.Update(types.AIChunkMsg{Chunk: event.Content})
-			}
-		}
-	}()
 }

@@ -7,13 +7,16 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/ai/system"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/components/overlay"
 	"github.com/theapemachine/amsh/tui/components/textarea"
 	"github.com/theapemachine/amsh/tui/types"
+	"github.com/theapemachine/amsh/utils"
 )
 
-type TextArea struct {
+type Editor struct {
 	model          textarea.Model
 	teleport       *Teleport
 	selectionStart int
@@ -24,23 +27,25 @@ type TextArea struct {
 	showChat       bool
 }
 
-func (ta *TextArea) Model() tea.Model {
-	return ta
+func (editor *Editor) Model() tea.Model {
+	return editor
 }
 
-func (ta *TextArea) Name() string {
+func (editor *Editor) Name() string {
 	return "textarea"
 }
 
-func (ta *TextArea) Init() tea.Cmd {
+func (editor *Editor) Init() tea.Cmd {
 	return textarea.Blink
 }
 
-func (ta *TextArea) Size() (int, int) {
-	return ta.model.Width(), ta.model.Height()
+func (editor *Editor) Size() (int, int) {
+	return editor.model.Width(), editor.model.Height()
 }
 
-func (ta *TextArea) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (editor *Editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	errnie.Log("editor.Update %v", msg)
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		// Reserve space for status bar and borders
@@ -49,128 +54,129 @@ func (ta *TextArea) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if safeHeight < 3 {
 			safeHeight = 3
 		}
-		ta.model.SetWidth(msg.Width)
-		ta.model.SetHeight(safeHeight)
-		return ta, nil
+		editor.model.SetWidth(msg.Width)
+		editor.model.SetHeight(safeHeight)
 
 	case LoadFileMsg:
 		for scanner := bufio.NewScanner(errnie.SafeMust(func() (*os.File, error) {
 			return os.Open(msg.Filepath)
 		})); scanner.Scan(); {
-			ta.model.InsertString(scanner.Text() + "\n")
+			editor.model.InsertString(scanner.Text() + "\n")
 		}
-		ta.model.CursorStart()
-		ta.model.Focus()
-		return ta, nil
+		editor.model.CursorStart()
+		editor.model.Focus()
+		return editor, nil
+
+	case types.AIPromptMsg:
+		editor.handleAI(msg.Prompt)
 
 	case types.AIChunkMsg:
-		ta.model.InsertString(msg.Chunk)
-		return ta, nil
+		editor.model.InsertString(msg.Chunk)
 
 	case tea.KeyMsg:
 		// Handle chat window escape first
-		if ta.showChat && msg.Type == tea.KeyEsc {
-			ta.showChat = false
-			ta.chatWindow = nil
-			return ta, nil
+		if editor.showChat && msg.Type == tea.KeyEsc {
+			editor.showChat = false
+			editor.chatWindow = nil
+			return editor, nil
 		}
 
 		// Handle mode switching
 		switch msg.String() {
 		case "i":
-			if ta.mode == types.ModeNormal {
-				ta.mode = types.ModeInsert
-				ta.model.SetBlockInput(false)
-				return ta, func() tea.Msg {
+			if editor.mode == types.ModeNormal {
+				editor.mode = types.ModeInsert
+				editor.model.SetBlockInput(false)
+				return editor, func() tea.Msg {
 					return ModeChangeMsg{Mode: types.ModeInsert}
 				}
 			}
 		case "v":
-			if ta.mode == types.ModeNormal {
-				ta.mode = types.ModeVisual
-				ta.model.StartSelection()
-				return ta, func() tea.Msg {
+			if editor.mode == types.ModeNormal {
+				editor.mode = types.ModeVisual
+				editor.model.StartSelection()
+				return editor, func() tea.Msg {
 					return ModeChangeMsg{Mode: types.ModeVisual}
 				}
 			}
 		case "esc":
-			switch ta.mode {
+			switch editor.mode {
 			case types.ModeInsert:
-				ta.mode = types.ModeNormal
-				ta.model.SetBlockInput(true)
-				return ta, func() tea.Msg {
+				editor.mode = types.ModeNormal
+				editor.model.SetBlockInput(true)
+				return editor, func() tea.Msg {
 					return ModeChangeMsg{Mode: types.ModeNormal}
 				}
 			case types.ModeVisual:
-				ta.mode = types.ModeNormal
-				ta.model.EndSelection()
-				return ta, func() tea.Msg {
+				editor.mode = types.ModeNormal
+				editor.model.EndSelection()
+				return editor, func() tea.Msg {
 					return ModeChangeMsg{Mode: types.ModeNormal}
 				}
 			}
 		}
 
 		// Handle chat window input if active
-		if ta.showChat {
+		if editor.showChat {
 			var cmd tea.Cmd
-			model, cmd := ta.chatWindow.Update(msg)
+			model, cmd := editor.chatWindow.Update(msg)
 
 			// Type assert the returned model back to *ChatWindow
 			if chatWindow, ok := model.(*ChatWindow); ok {
-				ta.chatWindow = chatWindow
-				return ta, cmd
+				editor.chatWindow = chatWindow
+				return editor, cmd
 			}
 
 			// If type assertion fails, something went wrong
-			return ta, nil
+			return editor, nil
 		}
 
 		// Handle teleport mode
-		if ta.teleport.IsActive() {
+		if editor.teleport.IsActive() {
 			var cmds []tea.Cmd
 			keyStr := msg.String()
 			if len(keyStr) > 0 {
-				if cmd := ta.teleport.AddInput(rune(keyStr[0])); cmd != nil {
+				if cmd := editor.teleport.AddInput(rune(keyStr[0])); cmd != nil {
 					cmds = append(cmds, cmd)
 					cmds = append(cmds, func() tea.Msg {
-						ta.teleport.Toggle()
+						editor.teleport.Toggle()
 						return nil
 					})
 				}
 			}
-			return ta, tea.Batch(cmds...)
+			return editor, tea.Batch(cmds...)
 		}
 
 		// Handle navigation and update selection in visual mode
-		if ta.mode == types.ModeVisual {
+		if editor.mode == types.ModeVisual {
 			var cmd tea.Cmd
-			ta.model, cmd = ta.model.Update(msg)
-			ta.model.UpdateSelection()
-			return ta, cmd
+			editor.model, cmd = editor.model.Update(msg)
+			editor.UpdateSelection()
+			return editor, cmd
 		}
 
 		// Handle other modes
-		if ta.mode == types.ModeNormal || ta.mode == types.ModeInsert {
+		if editor.mode == types.ModeNormal || editor.mode == types.ModeInsert {
 			var cmd tea.Cmd
-			ta.model, cmd = ta.model.Update(msg)
-			return ta, cmd
+			editor.model, cmd = editor.model.Update(msg)
+			return editor, cmd
 		}
 
 	case types.OpenChatMsg:
 		errnie.Log("OpenChatMsg %s", msg.Context)
 		// Create and show chat window
-		ta.chatWindow = NewChatWindow(msg.Context)
-		ta.showChat = true
-		return ta, nil
+		editor.chatWindow = NewChatWindow(msg.Context)
+		editor.showChat = true
+		return editor, nil
 	}
 
 	// Handle other message types
 	var cmd tea.Cmd
-	ta.model, cmd = ta.model.Update(msg)
-	return ta, cmd
+	editor.model, cmd = editor.model.Update(msg)
+	return editor, cmd
 }
 
-func NewTextarea() *TextArea {
+func NewTextarea() *Editor {
 	ta := textarea.New()
 	ta.CharLimit = 1000000
 	ta.Prompt = ""
@@ -192,7 +198,7 @@ func NewTextarea() *TextArea {
 		key.WithKeys("up"),
 	)
 	ta.Blur()
-	return &TextArea{
+	return &Editor{
 		model:          ta,
 		teleport:       NewTeleport(),
 		selectionStart: 0,
@@ -236,40 +242,40 @@ var (
 	)
 )
 
-func (t *TextArea) View() string {
+func (editor *Editor) View() string {
 	// If chat is active, show the chat window instead of textarea
-	if t.showChat && t.chatWindow != nil {
+	if editor.showChat && editor.chatWindow != nil {
 		return overlay.PlaceOverlay(
-			t.model.LineInfo().CharOffset,
-			t.model.LineInfo().RowOffset,
-			t.chatWindow.View(),
-			t.model.View(),
+			editor.model.LineInfo().CharOffset,
+			editor.model.LineInfo().RowOffset,
+			editor.chatWindow.View(),
+			editor.model.View(),
 			true,
 		)
 	}
 
 	// Only show teleport view when it's active to save vertical space
-	if t.teleport.IsActive() {
+	if editor.teleport.IsActive() {
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
-			t.model.View(),
-			t.teleport.View(),
+			editor.model.View(),
+			editor.teleport.View(),
 		)
 	}
-	return t.model.View()
+	return editor.model.View()
 }
 
 type LoadFileMsg struct {
 	Filepath string
 }
 
-func (t *TextArea) GetHighlightedText() string {
-	if !t.selecting || t.selectionStart == t.selectionEnd {
+func (editor *Editor) GetHighlightedText() string {
+	if !editor.selecting || editor.selectionStart == editor.selectionEnd {
 		return ""
 	}
 
-	start := t.selectionStart
-	end := t.selectionEnd
+	start := editor.selectionStart
+	end := editor.selectionEnd
 
 	// Ensure start is before end
 	if start > end {
@@ -277,7 +283,7 @@ func (t *TextArea) GetHighlightedText() string {
 	}
 
 	// Get the full text and extract the selection
-	fullText := t.model.Value()
+	fullText := editor.model.Value()
 	if end > len(fullText) {
 		end = len(fullText)
 	}
@@ -285,18 +291,32 @@ func (t *TextArea) GetHighlightedText() string {
 	return fullText[start:end]
 }
 
-func (textarea *TextArea) StartSelection() {
-	textarea.selecting = true
-	textarea.selectionStart = textarea.model.LineInfo().CharOffset
-	textarea.selectionEnd = textarea.selectionStart
+func (editor *Editor) StartSelection() {
+	editor.selecting = true
+	editor.selectionStart = editor.model.LineInfo().CharOffset
+	editor.selectionEnd = editor.selectionStart
 }
 
-func (textarea *TextArea) EndSelection() {
-	textarea.selecting = false
+func (editor *Editor) EndSelection() {
+	editor.selecting = false
 }
 
-func (textarea *TextArea) UpdateSelection() {
-	if textarea.selecting {
-		textarea.selectionEnd = textarea.model.LineInfo().CharOffset
+func (editor *Editor) UpdateSelection() {
+	if editor.selecting {
+		editor.selectionEnd = editor.model.LineInfo().CharOffset
 	}
+}
+
+func (editor *Editor) handleAI(prompt string) {
+	go func() {
+		for event := range system.NewProcessManager("marvin", "editor").Execute(
+			utils.JoinWith(
+				"\n\n", editor.model.Value(), prompt,
+			),
+		) {
+			if event.Type == provider.EventToken {
+				editor.Update(types.AIChunkMsg{Chunk: event.Content})
+			}
+		}
+	}()
 }

@@ -57,23 +57,8 @@ func (manager *Manager) Init() tea.Cmd {
 Update updates the manager.
 */
 func (manager *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	errnie.Log("manager.Update %v", msg)
 	var cmds []tea.Cmd
-
-	// Handle updates for all models, including animation ticks
-	for _, model := range manager.screens.LayoutTree.Children {
-		currentModel := manager.screens.ModelMap[model.GetAddress()]
-		updatedModel, cmd := currentModel.Update(msg)
-
-		// If we got an updated model, store it
-		if updatedModel != nil {
-			manager.screens.ModelMap[model.GetAddress()] = updatedModel
-		}
-
-		// Collect all commands
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -104,7 +89,7 @@ func (manager *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if len(manager.keyBuffer) == 2 && manager.keyBuffer[0] == "c" && manager.keyBuffer[1] == "c" {
 			for _, model := range manager.screens.ModelMap {
-				if textarea, ok := model.(*features.TextArea); ok {
+				if textarea, ok := model.(*features.Editor); ok {
 					highlightedText := textarea.GetHighlightedText()
 					cmds = append(cmds, func() tea.Msg {
 						return types.OpenChatMsg{Context: highlightedText}
@@ -142,6 +127,23 @@ func (manager *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
+
+	// Handle updates for all models, including animation ticks
+	for _, model := range manager.screens.LayoutTree.Children {
+		currentModel := manager.screens.ModelMap[model.GetAddress()]
+		updatedModel, cmd := currentModel.Update(msg)
+
+		// If we got an updated model, store it
+		if updatedModel != nil {
+			manager.screens.ModelMap[model.GetAddress()] = updatedModel
+		}
+
+		// Collect all commands
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
 
 	return manager, tea.Batch(cmds...)
 }

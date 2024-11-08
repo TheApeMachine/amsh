@@ -37,7 +37,7 @@ type Agent struct {
 	scratchpad []string
 	provider   provider.Provider
 	params     provider.GenerationParams
-	toolset    *Toolset
+	Toolset    *Toolset
 	iteration  int
 	state      AgentState
 }
@@ -79,7 +79,7 @@ func NewAgent(
 		Buffer:     NewBuffer().AddMessage("system", systemPrompt),
 		Agents:     make(map[string]*Agent),
 		scratchpad: []string{},
-		toolset:    toolset,
+		Toolset:    toolset,
 		provider:   provider.NewBalancedProvider(),
 		iteration:  0,
 		state:      StateIdle,
@@ -168,7 +168,7 @@ func (agent *Agent) ExecuteToolCalls(accumulator string) string {
 						data["system_prompt"].(string),
 						"{{tools}}",
 					),
-					agent.toolset,
+					agent.Toolset,
 				)
 
 				return "new agent created"
@@ -187,7 +187,7 @@ func (agent *Agent) ExecuteToolCalls(accumulator string) string {
 
 				return strings.Join(out, "\n---\n")
 			default:
-				return agent.toolset.Use(agent.ctx, toolValue, data)
+				return agent.Toolset.Use(agent.ctx, toolValue, data)
 			}
 		}
 	}

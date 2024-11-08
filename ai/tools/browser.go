@@ -25,20 +25,21 @@ type BrowserArgs struct {
 }
 
 type Browser struct {
-	ToolName   string            `json:"tool_name" jsonschema:"title=Tool Name,description=The name of the tool;enum=browser"`
-	Operation  string            `json:"operation" jsonschema:"title=Operation,description=The operation to perform,enum=navigate,enum=click,enum=extract,enum=script,enum=wait,enum=form,enum=screenshot,enum=intercept,enum=cookies,enum=hijack,enum=response,enum=close"`
-	URL        string            `json:"url" jsonschema:"title=URL,description=The URL to navigate to,required"`
-	Selector   string            `json:"selector" jsonschema:"title=Selector,description=CSS selector to find elements"`
-	Javascript string            `json:"javascript" jsonschema:"title=JavaScript,description=JavaScript code to execute in the developer console"`
-	Hijack     string            `json:"hijack" jsonschema:"title=Hijack,description=Hijack a network request"`
-	Response   string            `json:"response" jsonschema:"title=Response,description=Response to return for a network request"`
-	Form       map[string]string `json:"form" jsonschema:"title=Form,description=Form data to fill in"`
-	Intercept  []string          `json:"intercept" jsonschema:"title=Intercept,description=Network intercept patterns"`
-	Cookies    string            `json:"cookies" jsonschema:"title=Cookies,description=Cookie operation,enum=get,enum=set,enum=delete"`
-	instance   *rod.Browser
-	page       *rod.Page
-	history    []BrowseAction
-	proxy      *url.URL
+	ToolName    string            `json:"tool_name" jsonschema:"title=Tool Name,description=The name of the tool;enum=browser"`
+	Operation   string            `json:"operation" jsonschema:"title=Operation,description=The operation to perform,enum=navigate,enum=click,enum=extract,enum=script,enum=wait,enum=form,enum=screenshot,enum=intercept,enum=cookies,enum=hijack,enum=response,enum=close"`
+	URL         string            `json:"url" jsonschema:"title=URL,description=The URL to navigate to,required"`
+	GoogleDorks []string          `json:"google_dorks" jsonschema:"title=Google Dorks,description=Google Dorks to use for research enabling highly specific results"`
+	Selector    string            `json:"selector" jsonschema:"title=Selector,description=CSS selector to find elements"`
+	Javascript  string            `json:"javascript" jsonschema:"title=JavaScript,description=JavaScript code to execute in the developer console"`
+	Hijack      string            `json:"hijack" jsonschema:"title=Hijack,description=Hijack a network request"`
+	Response    string            `json:"response" jsonschema:"title=Response,description=Response to return for a network request"`
+	Form        map[string]string `json:"form" jsonschema:"title=Form,description=Form data to fill in"`
+	Intercept   []string          `json:"intercept" jsonschema:"title=Intercept,description=Network intercept patterns"`
+	Cookies     string            `json:"cookies" jsonschema:"title=Cookies,description=Cookie operation,enum=get,enum=set,enum=delete"`
+	instance    *rod.Browser
+	page        *rod.Page
+	history     []BrowseAction
+	proxy       *url.URL
 }
 
 type BrowseAction struct {

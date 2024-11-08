@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,6 +42,22 @@ func NewName() string {
 
 func StringPtr(s string) *string {
 	return &s
+}
+
+/*
+ExtractCodeBlocks extracts Markdown code blocks from a string,
+and returns a map of language to code block.
+*/
+func ExtractCodeBlocks(s string) map[string]string {
+	re := regexp.MustCompile("```(.*?)```")
+	matches := re.FindAllStringSubmatch(s, -1)
+
+	codeBlocks := make(map[string]string)
+	for _, match := range matches {
+		codeBlocks[match[1]] = match[2]
+	}
+
+	return codeBlocks
 }
 
 func StripMarkdown(s string) string {

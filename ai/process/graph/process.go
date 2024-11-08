@@ -1,9 +1,11 @@
-package process
+package graph
+
+import "github.com/theapemachine/amsh/utils"
 
 /*
-HypergraphLayer represents relationships between multiple nodes simultaneously.
+Process represents a hyper-graph-based thought or reasoning process.
 */
-type HypergraphLayer struct {
+type Process struct {
 	Nodes      []HyperNode   `json:"nodes" jsonschema:"description=Nodes in the hypergraph,required"`
 	HyperEdges []HyperEdge   `json:"hyper_edges" jsonschema:"description=Edges connecting multiple nodes,required"`
 	Clusters   []NodeCluster `json:"clusters" jsonschema:"description=Emergent groupings of nodes,required"`
@@ -32,4 +34,8 @@ type NodeCluster struct {
 	Centroid  []float64 `json:"centroid" jsonschema:"description=Center point of the cluster"`
 	Coherence float64   `json:"coherence" jsonschema:"description=Measure of cluster coherence"`
 	Label     string    `json:"label" jsonschema:"description=Descriptive label for the cluster"`
+}
+
+func (ta *Process) GenerateSchema() string {
+	return utils.GenerateSchema[Process]()
 }

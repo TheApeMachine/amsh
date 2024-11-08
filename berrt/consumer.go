@@ -8,21 +8,24 @@ import (
 )
 
 /*
-Consumer is a specialized logging type which is purposely designed
-to deal with streaming, chunked JSON strings. It strips away the
-structural elements of the JSON, while adhering to the indentation
-levels, leaving only human-readable ouput.
+Consumer is a specialized logging type designed to handle streaming, chunked JSON strings.
+It strips away the structural elements of the JSON while maintaining indentation levels,
+resulting in human-readable output.
 */
 type Consumer struct {
-	indent   int
-	inKey    bool
-	hasKey   bool
-	inValue  bool
-	hasValue bool
+	indent       int
+	inKey        bool
+	hasKey       bool
+	inValue      bool
+	hasValue     bool
+	contextStack []rune // Stack to keep track of nested structures
 }
 
 func NewConsumer() *Consumer {
-	return &Consumer{indent: -1}
+	return &Consumer{
+		indent:       0, // Initialize indentation to 0
+		contextStack: []rune{},
+	}
 }
 
 func (consumer *Consumer) Print(stream <-chan string) {
@@ -30,46 +33,78 @@ func (consumer *Consumer) Print(stream <-chan string) {
 		for _, char := range chunk {
 			switch char {
 			case '{', '[':
-				consumer.handleOpenBracket()
+				consumer.handleOpenBracket(char)
 			case '}', ']':
-				consumer.handleCloseBracket()
+				consumer.handleCloseBracket(char)
 			case '"':
 				consumer.handleQuote()
 			case ',':
-				// noop
+				consumer.handleComma()
+			case ':':
+				consumer.handleColon()
+			case '\n', '\r', '\t':
+				// Ignore whitespace characters within JSON
 			default:
 				if consumer.inValue {
 					fmt.Print(utils.Green(string(char)))
 				} else if consumer.inKey {
 					fmt.Print(utils.Blue(string(char)))
 				} else if consumer.hasValue {
-					consumer.inKey = false
-					consumer.hasKey = false
-					consumer.inValue = false
-					consumer.hasValue = false
+					consumer.resetFlags()
 					fmt.Print(strings.Repeat("\t", consumer.indent))
+				} else {
+					fmt.Print(string(char))
 				}
 			}
 		}
 	}
 }
 
-func (consumer *Consumer) handleOpenBracket() {
+func (consumer *Consumer) handleOpenBracket(char rune) {
+	fmt.Println(string(char))
 	consumer.indent++
+	consumer.contextStack = append(consumer.contextStack, char)
+	fmt.Print(strings.Repeat("\t", consumer.indent))
 }
 
-func (consumer *Consumer) handleCloseBracket() {
+func (consumer *Consumer) handleCloseBracket(char rune) {
 	consumer.indent--
+	if len(consumer.contextStack) > 0 {
+		consumer.contextStack = consumer.contextStack[:len(consumer.contextStack)-1]
+	}
+	fmt.Println()
+	fmt.Print(strings.Repeat("\t", consumer.indent))
+	consumer.resetFlags()
 }
 
 func (consumer *Consumer) handleQuote() {
-	if !consumer.inKey && !consumer.hasKey {
+	if !consumer.inKey && !consumer.hasKey && !consumer.inValue && !consumer.hasValue {
 		consumer.inKey = true
 	} else if consumer.inKey {
 		consumer.hasKey = true
 	} else if consumer.hasKey && !consumer.inValue {
 		consumer.inValue = true
-	} else if consumer.inValue {
-		consumer.hasValue = true
 	}
+}
+
+func (consumer *Consumer) handleComma() {
+	if consumer.hasValue {
+		consumer.resetFlags()
+		fmt.Println(",")
+		fmt.Print(strings.Repeat("\t", consumer.indent))
+	}
+}
+
+func (consumer *Consumer) handleColon() {
+	if consumer.hasKey {
+		fmt.Print(": ")
+		consumer.inValue = true
+	}
+}
+
+func (consumer *Consumer) resetFlags() {
+	consumer.inKey = false
+	consumer.hasKey = false
+	consumer.inValue = false
+	consumer.hasValue = false
 }
