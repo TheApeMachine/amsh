@@ -2,12 +2,11 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"regexp"
+	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/JesusIslam/tldr"
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/process/persona"
@@ -28,20 +27,21 @@ const (
 
 // Agent represents an AI agent that can perform tasks and communicate with other agents
 type Agent struct {
-	ctx        context.Context
-	key        string
-	Name       string            `json:"name"`
-	TeamName   string            `json:"team_name"`
-	Role       string            `json:"role"`
-	Buffer     *Buffer           `json:"agent_buffer"`
-	Sidekicks  map[string]*Agent `json:"sidekicks"`
-	scratchpad []string
-	provider   provider.Provider
-	params     provider.GenerationParams
-	workloads  []string
-	Toolset    *Toolset
-	iteration  int
-	state      AgentState
+	ctx          context.Context
+	key          string
+	Name         string            `json:"name"`
+	TeamName     string            `json:"team_name"`
+	Role         string            `json:"role"`
+	Buffer       *Buffer           `json:"agent_buffer"`
+	Sidekicks    map[string]*Agent `json:"sidekicks"`
+	scratchpad   []string
+	provider     provider.Provider
+	params       provider.GenerationParams
+	workloads    []string
+	Toolset      *Toolset
+	iteration    int
+	state        AgentState
+	trainingPath string
 }
 
 // NewAgent creates a new agent with integrated reasoning and learning
@@ -56,6 +56,9 @@ func NewAgent(
 	errnie.Info("creating agent %s in team %s with role %s", key, teamName, role)
 	errnie.Log(systemPrompt)
 
+	trainPath := filepath.Join(os.Getenv("HOME"), ".amsh", "train")
+	os.MkdirAll(trainPath, 0755)
+
 	if toolset != nil && len(toolset.tools) > 0 {
 		systemPrompt = utils.JoinWith("\n\n",
 			systemPrompt,
@@ -67,18 +70,19 @@ func NewAgent(
 	}
 
 	return &Agent{
-		ctx:        ctx,
-		key:        key,
-		Name:       fmt.Sprintf("%s-%s", teamName, role),
-		TeamName:   teamName,
-		Role:       role,
-		Buffer:     NewBuffer().AddMessage("system", systemPrompt),
-		Sidekicks:  make(map[string]*Agent),
-		scratchpad: []string{},
-		Toolset:    toolset,
-		provider:   provider.NewBalancedProvider(),
-		iteration:  0,
-		state:      StateIdle,
+		ctx:          ctx,
+		key:          key,
+		Name:         fmt.Sprintf("%s-%s", teamName, role),
+		TeamName:     teamName,
+		Role:         role,
+		Buffer:       NewBuffer().AddMessage("system", systemPrompt),
+		Sidekicks:    make(map[string]*Agent),
+		scratchpad:   []string{},
+		Toolset:      toolset,
+		provider:     provider.NewBalancedProvider(),
+		iteration:    0,
+		state:        StateIdle,
+		trainingPath: trainPath,
 	}
 }
 
@@ -87,7 +91,7 @@ func (agent *Agent) AddSidekick(sidekick string) *Agent {
 
 	switch sidekick {
 	case "optimizer":
-		optimizer := persona.NewOptimizer()
+		optimizer := persona.Optimizer{}
 		systemPrompt = optimizer.SystemPrompt(agent.Buffer.String())
 	}
 
@@ -135,7 +139,8 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 		}
 
 		agent.ExecuteWorkloads(agent.workloads, out)
-		agent.PostMortemAnalysis()
+		analyzer := NewAnalyzer()
+		analyzer.PostMortemAnalysis(agent)
 	}()
 
 	return out
@@ -184,33 +189,4 @@ func (agent *Agent) ExecuteAgent(out chan<- provider.Event) {
 	errnie.Debug("agent %s iteration %d completed", agent.Name, agent.iteration)
 	errnie.Log(accumulator)
 	agent.state = StateIdle
-}
-
-type TrainingExample struct {
-	Prompt   string
-	Response string
-	Params   provider.GenerationParams
-}
-
-var trainingSet []TrainingExample
-
-// PostMortemAnalysis evaluates and collects outputs as training examples
-func (agent *Agent) PostMortemAnalysis() {
-	for _, sidekick := range agent.Sidekicks {
-		sidekick.Execute(utils.JoinWith("\n\n",
-			utils.JoinWith("\n",
-				"<message buffer>",
-				sidekick.Buffer.String(),
-				"</message buffer>",
-			),
-
-			utils.JoinWith("\n",
-				"<current parameters>",
-				string(errnie.SafeMust(func() ([]byte, error) {
-					return json.Marshal(agent.params)
-				})),
-				"</current parameters>",
-			),
-		))
-	}
 }
