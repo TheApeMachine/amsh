@@ -173,7 +173,16 @@ func (agent *Agent) ExecuteAgent(out chan<- provider.Event) {
 	var accumulator string
 
 	for event := range agent.provider.Generate(
-		context.Background(), agent.params, agent.Buffer.GetMessages(),
+		context.Background(), agent.params,
+	) {
+		if event.Type == provider.EventToken {
+			event.AgentID = agent.Name
+			accumulator += event.Content
+			out <- event
+		}
+	}
+	for event := range agent.provider.Generate(
+		context.Background(), agent.params,
 	) {
 		if event.Type == provider.EventToken {
 			event.AgentID = agent.Name

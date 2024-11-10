@@ -33,8 +33,8 @@ func (a *Anthropic) Configure(config map[string]interface{}) {
 	}
 }
 
-func (a *Anthropic) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	errnie.Info("generating with anthropic provider")
+func (a *Anthropic) Generate(ctx context.Context, params GenerationParams) <-chan Event {
+	errnie.Info("generating with " + a.model)
 	events := make(chan Event, 64)
 
 	go func() {
@@ -43,7 +43,7 @@ func (a *Anthropic) Generate(ctx context.Context, params GenerationParams, messa
 		// Prepare the request parameters
 		requestParams := anthropic.MessageNewParams{
 			Model:       anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
-			Messages:    anthropic.F(convertToAnthropicMessages(messages)),
+			Messages:    anthropic.F(convertToAnthropicMessages(params.Messages)),
 			MaxTokens:   anthropic.F(a.maxTokens),
 			Temperature: anthropic.F(params.Temperature),
 		}
@@ -88,37 +88,6 @@ func (a *Anthropic) Generate(ctx context.Context, params GenerationParams, messa
 	}()
 
 	return events
-}
-
-func (a *Anthropic) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
-	// Filter out system messages as they're handled separately
-	var filteredMessages []Message
-	for _, msg := range messages {
-		if msg.Role != "system" {
-			filteredMessages = append(filteredMessages, msg)
-		}
-	}
-
-	// Prepare the request parameters
-	requestParams := anthropic.MessageNewParams{
-		Model:    anthropic.F(a.model),
-		Messages: anthropic.F(convertToAnthropicMessages(filteredMessages)),
-	}
-
-	// Only add system message if it's not empty
-	if a.system != "" {
-		requestParams.System = anthropic.F([]anthropic.TextBlockParam{{
-			Text: anthropic.F(a.system),
-			Type: anthropic.F(anthropic.TextBlockParamTypeText),
-		}})
-	}
-
-	message, err := a.client.Messages.New(ctx, requestParams)
-	if err != nil {
-		return "", err
-	}
-
-	return message.Content[0].Text, nil
 }
 
 // Helper function to convert our messages to Anthropic format

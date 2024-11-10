@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/mergestat/timediff"
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/errnie"
 )
@@ -42,8 +41,6 @@ so multiple calls to NewBalancedProvider will return the same instance.
 */
 func NewBalancedProvider() *BalancedProvider {
 	onceBalancedProvider.Do(func() {
-		errnie.Info("new balanced provider")
-
 		balancedProviderInstance = &BalancedProvider{
 			providers: []*ProviderStatus{
 				// {
@@ -91,8 +88,7 @@ func NewBalancedProvider() *BalancedProvider {
 	return balancedProviderInstance
 }
 
-func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	errnie.Info("generating with balanced provider")
+func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParams) <-chan Event {
 	out := make(chan Event)
 
 	go func() {
@@ -110,16 +106,16 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 			errnie.Info("provider released")
 		}()
 
-		for event := range ps.provider.Generate(ctx, params, messages) {
-			out <- event
-		}
+		errnie.Log("%v", params.String())
+		accumulator := NewAccumulator()
+		accumulator.Stream(ps.provider.Generate(ctx, params), out)
+		errnie.Log("%s", accumulator.String())
 	}()
 
 	return out
 }
 
 func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
-	errnie.Info("getting available provider")
 	maxAttempts := 10
 	cooldownPeriod := 60 * time.Second
 	maxFailures := 3
@@ -149,7 +145,6 @@ func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 			lb.initialized = true
 			lb.initMu.Unlock()
 
-			errnie.Info("initial random provider selected: %s", selected.name)
 			return selected
 		}
 		lb.initMu.Unlock()
@@ -197,12 +192,6 @@ func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 			bestProvider.occupied = true
 			bestProvider.lastUsed = time.Now()
 			bestProvider.mu.Unlock()
-
-			errnie.Info(
-				"found available provider %s %d %s",
-				bestProvider.name, bestProvider.failures, timediff.TimeDiff(bestProvider.lastUsed),
-			)
-
 			return bestProvider
 		}
 
@@ -213,22 +202,6 @@ func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 
 	errnie.Error(errors.New("no providers available after maximum attempts"))
 	return nil
-}
-
-func (lb *BalancedProvider) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
-	errnie.Info("generating with balanced provider")
-
-	events := lb.Generate(ctx, params, messages)
-	var result string
-
-	for event := range events {
-		if event.Type == EventError {
-			return "", errors.New(event.Content)
-		}
-		result += event.Content
-	}
-
-	return result, nil
 }
 
 func (lb *BalancedProvider) Configure(config map[string]interface{}) {

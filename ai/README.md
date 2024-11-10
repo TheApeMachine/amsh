@@ -2,375 +2,54 @@
 
 Ape Machine Shell, it's ehm, complicated...
 
-## 📋 System Overview
+## Agents Speak in Code
 
-This is a sophisticated multi-agent AI system designed for complex, long-running tasks with advanced learning, planning, and code generation capabilities. The system combines adaptive learning, hierarchical planning, and automated development features to handle enterprise-scale projects.
+```boogie
+; Define a pipeline that processes input data and handles errors.
+; Error handling is done by means of the || and since everything is logged, we already have built-in traces.
+; We can just store every message, every generation inside an S3 bucket.
+; With this mindset, we can think of the | operator as error handling, as it defines the order of prefered potential outcomes.
+; Think of cancel as canceling the context as you would do in Go.
+out <= (
+    ; The arrow direction shows that this "closure" outputs the state of its internal processing.
+    ; Having pre-processing and finalize seems like an arbitrary division, or I can not see the benefits.
+    ; The switch in this case dictates how the internal process is directed.
+    ; switch: from one step to the next.
+    ; select: choose freely between any of the internal steps, repeat as needed
+    ; working only with single word statements forces us to keep the language minimalistic, which is better
+    ; for the user, and for the LLMs.
+    switch <= (
+        clean    => next | cancel
+        validate => next | cancel
+        enrich   => send | cancel
+    ) <= switch[step2] <= (
+        analyze  => next | cancel | timeout
+        model    => next | back | cancel
+        optimize => send | back | cancel
+    ) <= join <= (
+        ; concurrent processing.
+        out <= select <= (
+            reason<5>                   => next | cancel        ; reason is limited to 5 iterations, or selects, after that it is consumed.
+            [plan <= step2.analyze.out] => next | back | cancel ; the second switch has been labeled, so we can refer to it.
+        )
 
-### System Architecture
-
-```mermaid
-graph TD
-A[AI Agent System] --> B[Agent System]
-A --> C[Memory System]
-A --> D[Learning System]
-A --> E[Planning System]
-A --> F[Code Generation]
-A --> G[Project Management]
-A --> H[System Management]
-B --> B1[Individual Agents]
-B --> B2[State Management]
-C --> C1[Vector Store]
-C --> C2[Graph Store]
-D --> D1[Experience Bank]
-D --> D2[Learning Adapter]
-E --> E1[Hierarchical Planning]
-E --> E2[Plan Components]
-F --> F1[Container Generation]
-F --> F2[Code Specifications]
-G --> G1[Azure DevOps]
-G --> G2[Slack Integration]
-H --> H1[Workload Manager]
-H --> H2[Monitor]
-H --> H3[Architecture]
+        ; concurrent processing.
+        out <= switch <= (
+            format => next | back | cancel
+            save   => send
+        )
+    ) <= match <= (
+        success => send
+        default => [step2.analyze.jump]
+    ) <= switch[mylabel] <= (
+        clean    => next | cancel
+        validate => next | cancel
+        enrich   => next | cancel
+        
+        out <= match <= (
+            <5>     => send           ; on the 5th iteration, we send the output.
+            default => [mylabel.jump] ; otherwise, we jump back to the beginning of the switch.
+        )
+    )
+) <= in
 ```
-
-### 🔧 Core Components
-
-#### 🤖 Agent System
-
--   **Agent**: Individual AI workers with defined roles and responsibilities
-    -   🔄 Maintains its own state (idle, thinking, working, etc.)
-    -   ⚙️ Handles synchronous task execution
-    -   💬 Manages its own conversation buffer
-    -   🔌 Integrates directly with AI providers
-    -   🛠️ Uses role-specific toolsets
-
-#### 🧠 Memory System
-
-```mermaid
-graph LR
-A[Memory Proxy] --> B[Vector Store]
-A --> C[Graph Store]
-B --> D[Semantic Search]
-B --> E[Document Storage]
-C --> F[Relationships]
-C --> G[Complex Queries]
-```
-
--   **Dual Storage Architecture**
-    -   📊 Vector Store (Qdrant)
-        -   Semantic search capabilities
-        -   Document embedding storage
-        -   Similarity-based retrieval
-        -   Configurable dimension size
-    -   🕸️ Graph Store (Neo4j)
-        -   Relationship-based data storage
-        -   Complex query support
-        -   Transactional operations
-        -   Rich data modeling
--   **Memory Proxy**
-    -   Unified interface for both storage types
-    -   Operation abstraction (add, search, update)
-    -   Automatic store selection
-    -   Error handling and result formatting
-
-#### Learning System
-
--   **Experience Bank**
-    -   Pattern recognition and storage
-    -   Success rate tracking
-    -   Performance metrics
-    -   Reliability scoring
--   **Learning Adapter**
-    -   Strategy adaptation
-    -   Pattern matching
-    -   Performance monitoring
-    -   Success rate analysis
-
-#### Planning System
-
--   **Hierarchical Planning**
-    -   Goals and objectives management
-    -   Task decomposition
-    -   Resource allocation
-    -   Timeline management
--   **Plan Components**
-    -   Milestones tracking
-    -   Dependency management
-    -   Critical path analysis
-    -   Buffer period handling
-
-#### Code Generation System
-
--   **Container-based Generation**
-    -   Isolated development environments
-    -   Tool integration
-    -   PR automation
--   **Code Specifications**
-    -   Interface generation
-    -   Struct creation
-    -   Function implementation
-    -   Test generation
-
-#### Project Management Integration
-
--   **Azure DevOps Integration**
-    -   Work item management
-    -   Project organization
-    -   Progress tracking
-    -   Resource allocation
--   **Communication (Slack)**
-    -   Real-time notifications
-    -   Stakeholder communication
-    -   Event handling
-    -   Message management
-
-#### System Management
-
--   **Workload Manager**
-    -   Handles incoming workloads and routes them to appropriate teams and processes
--   **Monitor**
-    -   Tracks and reports metrics such as process duration, agent response, and tool usage
--   **Architecture**
-    -   Configurable multi-agent system that coordinates processes and integrations
-    -   Supports state persistence and restoration
-
-## ⭐ Key Features
-
-### 1. 🎯 Adaptive Learning
-
--   Pattern recognition from experiences
--   Strategy optimization
--   Performance metrics tracking
--   Confidence-based adaptation
-
-## 📈 Areas for Improvement
-
-### 1. 🧮 Advanced Reasoning System
-
-| Status | Feature              | Details                                  |
-| ------ | -------------------- | ---------------------------------------- |
-| ✅     | Multi-step reasoning | Implemented with validation              |
-| ✅     | Meta-reasoning       | Strategy selection & resource allocation |
-| 🚧     | Formal logic         | Planned improvements in theorem proving  |
-| 🚧     | Uncertainty handling | Future Bayesian network implementation   |
-
-### 2. Strategic Planning
-
--   Multi-level goal decomposition
--   Resource management
--   Timeline optimization
--   Progress tracking
-
-### 3. Code Generation
-
--   Container-based development
--   PR automation
--   Multiple language support
--   Test generation
-
-### 4. Project Management
-
--   Work item tracking
--   Team coordination
--   Stakeholder communication
--   Progress monitoring
-
-### 5. Memory Management
-
--   Dual storage system
--   Semantic search
--   Relationship mapping
--   Knowledge preservation
-
-## Areas for Improvement
-
-### 1. Advanced Reasoning System
-
--   **Current**: ✅ Multi-step reasoning with validation
--   **Implemented**:
-    -   Multi-step reasoning framework
-        -   ✅ Premise validation
-        -   ✅ Logic verification
-        -   ✅ Confidence scoring
-    -   Meta-reasoning
-        -   ✅ Strategy selection
-        -   ✅ Resource allocation
-        -   ✅ Priority adjustment
--   **Potential Improvements**:
-    -   Formal logic implementation
-        -   Extended theorem proving system with validation chains
-        -   Causal relationship mapping and inference
-        -   Temporal logic for sequence validation
-        -   Cross-domain reasoning bridges
-    -   Uncertainty handling
-        -   Bayesian probability networks for decision confidence
-        -   Multi-model uncertainty quantification
-        -   Dynamic confidence thresholds
-        -   Alternative scenario generation and evaluation
-    -   Advanced Meta-reasoning
-        -   Strategy evolution based on success patterns
-        -   Cross-project learning transfer
-        -   Auto-tuning of reasoning parameters
-        -   Context-aware strategy adaptation
-
-### 2. Long-Term Planning
-
--   **Current**: ✅ Hierarchical planning system
--   **Implemented**:
-    -   Hierarchical planning
-        -   ✅ Strategic goals
-        -   ✅ Tactical objectives
-        -   ✅ Operational tasks
-        -   ✅ Timeline management
-    -   Dynamic plan adjustment
-        -   ✅ Progress monitoring
-        -   ✅ Goal reformation
-        -   ✅ Priority shifting
-        -   ✅ Resource reallocation
-    -   Milestone management
-        -   ✅ Checkpoint definition
-        -   ✅ Progress validation
-        -   ✅ Success criteria
-        -   ✅ Outcome measurement
--   **Potential Improvements**:
-    -   Risk management
-        -   AI-driven risk identification and assessment
-        -   Predictive modeling for potential failures
-        -   Automatic contingency plan generation
-        -   Dynamic resource buffer calculation
-    -   Advanced Timeline Management
-        -   ML-based duration prediction
-        -   Dependency chain optimization
-        -   Critical path auto-adjustment
-        -   Resource contention prediction
-
-### 3. Project Management Integration
-
--   **Current**: ✅ Azure DevOps integration with Slack communication
--   **Implemented**:
-    -   ✅ Work item management
-    -   ✅ Multi-project support
-    -   ✅ Real-time notifications
-    -   ✅ Stakeholder communication
--   **Potential Improvements**:
-    -   Intelligent Work Item Management
-        -   AI-driven work item creation and classification
-        -   Automatic dependency detection
-        -   Smart assignment based on expertise and workload
-        -   Priority optimization using historical data
-    -   Advanced Project Analytics
-        -   Predictive progress modeling
-        -   Resource utilization optimization
-        -   Team performance analytics
-        -   Bottleneck prediction and mitigation
-    -   Stakeholder Engagement
-        -   Personalized communication strategies
-        -   Automated progress summaries
-        -   Impact analysis and reporting
-        -   Meeting facilitation and documentation
-
-### 4. Strategic Analysis
-
--   **Current**: Basic strategic evaluation
--   **Potential Improvements**:
-    -   Market Intelligence
-        -   Automated market research and analysis
-        -   Competitor tracking and analysis
-        -   Trend prediction using ML models
-        -   Opportunity scoring and prioritization
-    -   Technology Strategy
-        -   Technology stack analysis and recommendations
-        -   Architecture evaluation and optimization
-        -   Scalability modeling and prediction
-        -   Integration opportunity identification
-    -   Resource Planning
-        -   AI-driven resource allocation
-        -   Cost optimization modeling
-        -   ROI prediction and tracking
-        -   Capacity planning and forecasting
-    -   Decision Support
-        -   Multi-criteria decision analysis
-        -   Scenario modeling and simulation
-        -   Risk-adjusted recommendation engine
-        -   Strategy impact prediction
-
-### 5. Code Generation and Management
-
--   **Current**: Container-based generation with PR automation
--   **Implemented**:
-    -   ✅ Container isolation
-    -   ✅ PR automation
-    -   ✅ Code structure generation
--   **Potential Improvements**:
-    -   Intelligent Architecture
-        -   Pattern-based architecture generation
-        -   Best practice enforcement
-        -   Cross-service compatibility analysis
-        -   Performance optimization suggestions
-    -   Code Quality
-        -   AI-driven code review
-        -   Security vulnerability detection
-        -   Performance anti-pattern detection
-        -   Style consistency enforcement
-    -   Testing Intelligence
-        -   Test scenario generation
-        -   Edge case identification
-        -   Integration test path generation
-        -   Performance test suite generation
-    -   Development Automation
-        -   Dependency management
-        -   Version compatibility checking
-        -   Breaking change detection
-        -   Documentation generation
-
-### 6. Learning and Adaptation
-
--   **Current**: ✅ Dynamic learning system
--   **Implemented**:
-    -   Experience capture
-        -   ✅ Success pattern recognition
-        -   ✅ Performance optimization
-        -   ✅ Strategy refinement
-    -   Adaptive strategies
-        -   ✅ Context awareness
-        -   ✅ Dynamic adjustment
-        -   ✅ Performance tuning
-        -   ✅ Resource allocation
--   **Potential Improvements**:
-    -   Advanced Pattern Recognition
-        -   Cross-domain pattern matching
-        -   Temporal pattern analysis
-        -   Anomaly detection and adaptation
-        -   Success factor identification
-    -   Knowledge Synthesis
-        -   Cross-project knowledge transfer
-        -   Experience-based optimization
-        -   Failure pattern avoidance
-        -   Best practice evolution
-
-### 7. Quality Control and Metrics
-
--   **Current**: ✅ Enhanced validation with metrics
--   **Implemented**:
-    -   Quality metrics
-        -   ✅ Performance indicators
-        -   ✅ Success criteria
-        -   ✅ Error rates
-        -   ✅ Improvement tracking
--   **Potential Improvements**:
-    -   Advanced Metrics
-        -   Predictive quality indicators
-        -   Cross-system performance correlation
-        -   Resource efficiency metrics
-        -   Impact assessment metrics
-    -   Quality Automation
-        -   Automated quality gates
-        -   Dynamic threshold adjustment
-        -   Continuous validation pipelines
-        -   Quality trend analysis
-    -   Process Optimization
-        -   Workflow efficiency analysis
-        -   Resource utilization optimization
-        -   Cost-quality balance optimization
-        -   Performance bottleneck identification

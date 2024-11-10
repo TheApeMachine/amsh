@@ -33,7 +33,7 @@ func NewToolset(keys ...string) *Toolset {
 		"slack":       tools.NewSlack(),
 		"wiki":        tools.NewWiki(),
 		"inspect":     tools.NewInspect(),
-		"process":     tools.NewProcess(),
+		"workload":    tools.NewWorkload(),
 	}
 
 	tools := make(map[string]Tool)
