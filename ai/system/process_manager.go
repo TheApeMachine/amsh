@@ -90,12 +90,17 @@ func (pm *ProcessManager) validate(accumulator string) []layering.Process {
 		errnie.Log("json blocks %v", blocks)
 		for _, code := range blocks {
 			errnie.Log("code %s", code)
+
 			if pm.checkToolCall(code) {
 				continue
 			}
 
 			var process layering.Process
-			errnie.MustVoid(json.Unmarshal([]byte(code), &process))
+
+			errnie.SafeMustVoid(func() error {
+				return json.Unmarshal([]byte(code), &process)
+			})
+
 			processes = append(processes, process)
 		}
 	}

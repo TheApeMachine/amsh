@@ -18,8 +18,8 @@ func NewOllama(model string) *Ollama {
 	return &Ollama{Model: model}
 }
 
-func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	errnie.Info("generating with ollama provider %s", ollama.Model)
+func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams) <-chan Event {
+	errnie.Info("generating with " + ollama.Model)
 	eventChan := make(chan Event)
 
 	go func() {
@@ -31,7 +31,7 @@ func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams, mes
 		)
 
 		// Convert messages into a prompt
-		prompt := messages[len(messages)-1].Content
+		prompt := params.Messages[len(params.Messages)-1].Content
 
 		req := &api.GenerateRequest{
 			Model:  ollama.Model,
@@ -60,21 +60,6 @@ func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams, mes
 	}()
 
 	return eventChan
-}
-
-func (ollama *Ollama) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
-	var result string
-
-	for event := range ollama.Generate(ctx, params, messages) {
-		switch event.Type {
-		case EventToken:
-			result += event.Content
-		case EventError:
-			return "", event.Error
-		}
-	}
-
-	return result, nil
 }
 
 func (ollama *Ollama) Configure(config map[string]interface{}) {

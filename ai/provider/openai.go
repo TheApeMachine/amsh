@@ -21,43 +21,15 @@ func NewOpenAI(apiKey string, model string) *OpenAI {
 	}
 }
 
-func (o *OpenAI) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
-	openAIMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
-	for i, msg := range messages {
-		switch msg.Role {
-		case "user":
-			openAIMessages[i] = openai.UserMessage(msg.Content)
-		case "assistant":
-			openAIMessages[i] = openai.AssistantMessage(msg.Content)
-		case "system":
-			openAIMessages[i] = openai.SystemMessage(msg.Content)
-		case "tool":
-			openAIMessages[i] = openai.ToolMessage(msg.Name, msg.Content)
-		}
-	}
-
-	completion, err := o.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages:    openai.F(openAIMessages),
-		Model:       openai.F(o.model),
-		Temperature: openai.F(params.Temperature),
-		TopP:        openai.F(params.TopP),
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return completion.Choices[0].Message.Content, nil
-}
-
-func (o *OpenAI) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	errnie.Info("generating with openai provider %s", o.model)
+func (o *OpenAI) Generate(ctx context.Context, params GenerationParams) <-chan Event {
+	errnie.Info("generating with " + o.model)
 	events := make(chan Event, 64)
 
 	go func() {
 		defer close(events)
 
-		openAIMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
-		for i, msg := range messages {
+		openAIMessages := make([]openai.ChatCompletionMessageParamUnion, len(params.Messages))
+		for i, msg := range params.Messages {
 			switch msg.Role {
 			case "user":
 				openAIMessages[i] = openai.UserMessage(msg.Content)

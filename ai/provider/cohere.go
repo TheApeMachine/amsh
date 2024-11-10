@@ -37,8 +37,8 @@ func NewCohere(apiKey string, model string) *Cohere {
 	}
 }
 
-func (c *Cohere) Generate(ctx context.Context, params GenerationParams, messages []Message) <-chan Event {
-	errnie.Info("generating with cohere provider")
+func (c *Cohere) Generate(ctx context.Context, params GenerationParams) <-chan Event {
+	errnie.Info("generating with " + c.model)
 	events := make(chan Event, 64)
 
 	go func() {
@@ -50,7 +50,7 @@ func (c *Cohere) Generate(ctx context.Context, params GenerationParams, messages
 			return
 		}
 
-		prompt := convertMessagesToCoherePrompt(messages)
+		prompt := convertMessagesToCoherePrompt(params.Messages)
 		temp := params.Temperature
 
 		stream, err := c.client.ChatStream(ctx, &cohere.ChatStreamRequest{
@@ -83,21 +83,6 @@ func (c *Cohere) Generate(ctx context.Context, params GenerationParams, messages
 	}()
 
 	return events
-}
-
-func (c *Cohere) GenerateSync(ctx context.Context, params GenerationParams, messages []Message) (string, error) {
-	prompt := convertMessagesToCoherePrompt(messages)
-
-	resp, err := c.client.Chat(ctx, &cohere.ChatRequest{
-		Message:     prompt,
-		Model:       &c.model,
-		Temperature: &params.Temperature,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return resp.Text, nil
 }
 
 // convertMessagesToCoherePrompt converts the message array into a string prompt

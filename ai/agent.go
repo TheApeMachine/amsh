@@ -107,7 +107,7 @@ func (agent *Agent) Execute(prompt string) <-chan provider.Event {
 		errnie.Log("agent %s iteration %d\n\n%s\n\n", agent.Name, agent.iteration, agent.Buffer.GetMessages())
 
 		for event := range agent.provider.Generate(
-			context.Background(), agent.params, agent.Buffer.GetMessages(),
+			context.Background(), agent.params,
 		) {
 			if event.Type == provider.EventToken {
 				event.AgentID = agent.Name

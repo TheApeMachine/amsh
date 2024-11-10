@@ -10,7 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/spf13/cobra"
-	"github.com/theapemachine/amsh/ai/system"
+	"github.com/theapemachine/amsh/ai/mastercomputer"
 )
 
 var testCmd = &cobra.Command{
@@ -41,8 +41,8 @@ func runTest(cmd *cobra.Command, args []string) error {
 
 	os.Setenv("NOCONSOLE", "false")
 
-	pm := system.NewProcessManager("marvin", "test")
-	for event := range pm.Execute("We need to research what it would take for AI to generalize out of distribution tasks.") {
+	pm := mastercomputer.NewSystem()
+	for event := range pm.Input("We need to research what it would take for AI to generalize out of distribution tasks.") {
 		fmt.Print(event.Content)
 	}
 
