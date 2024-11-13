@@ -3,7 +3,6 @@ package mastercomputer
 import (
 	"context"
 
-	"github.com/theapemachine/amsh/ai/boogie"
 	"github.com/theapemachine/amsh/ai/provider"
 )
 
@@ -22,9 +21,7 @@ func (bootsector *BootSector) Startup(ctx context.Context, input string) <-chan 
 		defer close(out)
 
 		accumulator := provider.NewAccumulator()
-		accumulator.Stream(bootsector.agent.Execute(ctx, boogie.Operation{
-			Name: "bootsector",
-		}, boogie.State{}), out)
+		accumulator.Stream(bootsector.agent.Generate(ctx, input), out)
 	}()
 
 	return out

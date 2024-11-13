@@ -7,10 +7,11 @@ import (
 )
 
 type System struct {
+	key string
 }
 
-func NewSystem() *System {
-	return &System{}
+func NewSystem(key string) *System {
+	return &System{key: key}
 }
 
 func (system *System) Input(input string) <-chan provider.Event {
@@ -23,7 +24,7 @@ func (system *System) Input(input string) <-chan provider.Event {
 		defer cancel()
 
 		provider.NewAccumulator().Stream(NewBootSector(
-			NewAgent("bootsector"),
+			NewAgent(system.key, "bootsector"),
 		).Startup(ctx, input), out)
 	}()
 

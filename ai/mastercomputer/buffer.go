@@ -21,16 +21,18 @@ func NewBuffer() *Buffer {
 	}
 }
 
-func (buffer *Buffer) Poke(message provider.Message) {
+func (buffer *Buffer) Poke(message provider.Message) *Buffer {
 	buffer.messages = append(buffer.messages, message)
+	return buffer
 }
 
 func (buffer *Buffer) Peek() []provider.Message {
 	return buffer.messages
 }
 
-func (buffer *Buffer) Clear() {
+func (buffer *Buffer) Clear() *Buffer {
 	buffer.messages = buffer.messages[:0]
+	return buffer
 }
 
 func (buffer *Buffer) String() string {

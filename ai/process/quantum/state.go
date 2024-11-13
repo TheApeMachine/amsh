@@ -1,11 +1,7 @@
 package quantum
 
 import (
-	"encoding/json"
-	"strings"
 	"time"
-
-	"github.com/theapemachine/amsh/ai/boogie"
 )
 
 type State struct {
@@ -30,43 +26,43 @@ func NewState() *State {
 	}
 }
 
-func (state *State) NextState(
-	op boogie.Operation, result string, current boogie.State,
-) boogie.State {
-	newState := boogie.State{
-		Context: current.Context,
-	}
+// func (state *State) NextState(
+// 	op boogie.Operation, result string, current boogie.State,
+// ) boogie.State {
+// 	newState := boogie.State{
+// 		Context: current.Context,
+// 	}
 
-	// Process based on operation type
-	switch {
-	case strings.HasPrefix(op.Name, "quantum"):
-		var quantumUpdate State
-		if err := json.Unmarshal([]byte(result), &quantumUpdate); err != nil {
-			return boogie.State{
-				Context: current.Context,
-				Error:   err,
-				Outcome: "cancel",
-			}
-		}
+// 	// Process based on operation type
+// 	switch {
+// 	case strings.HasPrefix(op.Name, "quantum"):
+// 		var quantumUpdate State
+// 		if err := json.Unmarshal([]byte(result), &quantumUpdate); err != nil {
+// 			return boogie.State{
+// 				Context: current.Context,
+// 				Error:   err,
+// 				Outcome: "cancel",
+// 			}
+// 		}
 
-		// Update quantum state
-		newState.Context["quantum_state"] = quantumUpdate
+// 		// Update quantum state
+// 		newState.Context["quantum_state"] = quantumUpdate
 
-		// Determine outcome based on state
-		switch quantumUpdate.Phase {
-		case "completed":
-			newState.Outcome = "send"
-		case "needs_revision":
-			newState.Outcome = "back"
-		case "error":
-			newState.Outcome = "cancel"
-		default:
-			newState.Outcome = "next"
-		}
+// 		// Determine outcome based on state
+// 		switch quantumUpdate.Phase {
+// 		case "completed":
+// 			newState.Outcome = "send"
+// 		case "needs_revision":
+// 			newState.Outcome = "back"
+// 		case "error":
+// 			newState.Outcome = "cancel"
+// 		default:
+// 			newState.Outcome = "next"
+// 		}
 
-		// Add more process types here
-	}
+// 		// Add more process types here
+// 	}
 
-	newState.CurrentStep = op.Name
-	return newState
-}
+// 	newState.CurrentStep = op.Name
+// 	return newState
+// }

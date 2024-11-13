@@ -3,23 +3,23 @@ package mastercomputer
 import (
 	"context"
 
-	"github.com/theapemachine/amsh/ai/boogie"
 	"github.com/theapemachine/amsh/ai/provider"
 )
 
 type Core struct {
+	key   string
 	agent *Agent
 }
 
-func NewCore(role string) *Core {
+func NewCore(key, role string) *Core {
 	return &Core{
-		agent: NewAgent(role),
+		key:   key,
+		agent: NewAgent(key, role),
 	}
 }
 
 func (core *Core) Execute(
-	ctx context.Context, op boogie.Operation, state boogie.State,
+	ctx context.Context, prompt string,
 ) <-chan provider.Event {
-	// Delegate execution to agent
-	return core.agent.Execute(ctx, op, state)
+	return core.agent.Generate(ctx, prompt)
 }
