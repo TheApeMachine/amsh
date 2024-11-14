@@ -8,6 +8,7 @@ import (
 
 type System struct {
 	key string
+	vm 
 }
 
 func NewSystem(key string) *System {
