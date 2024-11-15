@@ -38,7 +38,7 @@ func NewCohere(apiKey string, model string) *Cohere {
 }
 
 func (c *Cohere) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with " + c.model)
+	errnie.Info("generating with %s", c.model)
 	events := make(chan Event, 64)
 
 	go func() {
@@ -51,12 +51,13 @@ func (c *Cohere) Generate(ctx context.Context, params GenerationParams) <-chan E
 		}
 
 		prompt := convertMessagesToCoherePrompt(params.Messages)
-		temp := params.Temperature
 
 		stream, err := c.client.ChatStream(ctx, &cohere.ChatStreamRequest{
-			Message:     prompt,
-			Model:       &c.model,
-			Temperature: &temp,
+			Message:          prompt,
+			Model:            &c.model,
+			Temperature:      &params.Temperature,
+			FrequencyPenalty: &params.FrequencyPenalty,
+			PresencePenalty:  &params.PresencePenalty,
 		})
 		if err != nil {
 			events <- Event{Type: EventError, Error: err}

@@ -69,10 +69,8 @@ func defaultRecover(c *WebsocketConn) {
 	}
 }
 
-// NewWebsocket returns a new `handler func(*Conn)` that upgrades a client to the
-// websocket protocol, you can pass an optional config.
-func NewWebsocket(handler func(*WebsocketConn), config ...Config) fiber.Handler {
-	// Init config
+// initConfig initializes and returns a websocket configuration with default values
+func initConfig(config ...Config) Config {
 	var cfg Config
 	if len(config) > 0 {
 		cfg = config[0]
@@ -89,6 +87,39 @@ func NewWebsocket(handler func(*WebsocketConn), config ...Config) fiber.Handler 
 	if cfg.RecoverHandler == nil {
 		cfg.RecoverHandler = defaultRecover
 	}
+	return cfg
+}
+
+// populateConnFields copies context data into the websocket connection
+func populateConnFields(c fiber.Ctx, conn *WebsocketConn) {
+	// locals
+	c.Context().VisitUserValues(func(key []byte, value interface{}) {
+		conn.locals[string(key)] = value
+	})
+
+	// params
+	params := c.Route().Params
+	for i := 0; i < len(params); i++ {
+		conn.params[utils.CopyString(params[i])] = utils.CopyString(c.Params(params[i]))
+	}
+
+	// queries, cookies, headers
+	c.Context().QueryArgs().VisitAll(func(key, value []byte) {
+		conn.queries[string(key)] = string(value)
+	})
+	c.Context().Request.Header.VisitAllCookie(func(key, value []byte) {
+		conn.cookies[string(key)] = string(value)
+	})
+	c.Context().Request.Header.VisitAll(func(key, value []byte) {
+		conn.headers[string(key)] = string(value)
+	})
+
+	conn.ip = c.IP()
+}
+
+func NewWebsocket(handler func(*WebsocketConn), config ...Config) fiber.Handler {
+	cfg := initConfig(config...)
+
 	var upgrader = websocket.FastHTTPUpgrader{
 		HandshakeTimeout:  cfg.HandshakeTimeout,
 		Subprotocols:      cfg.Subprotocols,
@@ -109,47 +140,21 @@ func NewWebsocket(handler func(*WebsocketConn), config ...Config) fiber.Handler 
 			return false
 		},
 	}
+
 	return func(c fiber.Ctx) error {
 		if cfg.Filter != nil && !cfg.Filter(c) {
 			return c.Next()
 		}
 
 		conn := acquireConn()
-		// locals
-		c.Context().VisitUserValues(func(key []byte, value interface{}) {
-			conn.locals[string(key)] = value
-		})
-
-		// params
-		params := c.Route().Params
-		for i := 0; i < len(params); i++ {
-			conn.params[utils.CopyString(params[i])] = utils.CopyString(c.Params(params[i]))
-		}
-
-		// queries
-		c.Context().QueryArgs().VisitAll(func(key, value []byte) {
-			conn.queries[string(key)] = string(value)
-		})
-
-		// cookies
-		c.Context().Request.Header.VisitAllCookie(func(key, value []byte) {
-			conn.cookies[string(key)] = string(value)
-		})
-
-		// headers
-		c.Context().Request.Header.VisitAll(func(key, value []byte) {
-			conn.headers[string(key)] = string(value)
-		})
-
-		// ip address
-		conn.ip = c.IP()
+		populateConnFields(c, conn)
 
 		if err := upgrader.Upgrade(c.Context(), func(fconn *websocket.Conn) {
 			conn.Conn = fconn
 			defer releaseConn(conn)
 			defer cfg.RecoverHandler(conn)
 			handler(conn)
-		}); err != nil { // Upgrading required
+		}); err != nil {
 			return fiber.ErrUpgradeRequired
 		}
 

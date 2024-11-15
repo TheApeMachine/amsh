@@ -15,6 +15,10 @@ type Process struct {
 	EvolutionRules []EvolutionRule `json:"evolution_rules" jsonschema:"title=EvolutionRules,description=Patterns of state change; required"`
 }
 
+func NewProcess() *Process {
+	return &Process{}
+}
+
 type CausalChain struct {
 	ID       string     `json:"id" jsonschema:"required,title=ID,description=Unique identifier for causal chain"`
 	EventIDs []string   `json:"event_ids" jsonschema:"required,title=EventIDs,description=IDs of events in chain"`

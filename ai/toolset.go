@@ -3,6 +3,8 @@ package ai
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"regexp"
 
 	"github.com/theapemachine/amsh/ai/tools"
 	"github.com/theapemachine/amsh/errnie"
@@ -76,4 +78,24 @@ func (toolset *Toolset) Schemas() string {
 	}
 
 	return buf.String()
+}
+
+func ExecuteToolCalls(agent *Agent, accumulator string) string {
+	errnie.Success("executing tool calls for agent %s", agent.Name)
+	// Extract all Markdown JSON blocks.
+	pattern := regexp.MustCompile("(?s)```json\\s*([\\s\\S]*?)```")
+	matches := pattern.FindAllStringSubmatch(accumulator, -1)
+
+	// To get the tool that was used, we need to unmarshal the JSON string.
+	for _, match := range matches {
+		var data map[string]any
+		errnie.MustVoid(json.Unmarshal([]byte(match[1]), &data))
+
+		if toolValue, ok := data["tool_name"].(string); ok {
+			errnie.Success("executing tool %s", toolValue)
+			return agent.Toolset.Use(agent.ctx, toolValue, data)
+		}
+	}
+
+	return "all tool calls executed"
 }

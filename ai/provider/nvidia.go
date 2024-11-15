@@ -26,7 +26,7 @@ func NewNVIDIA(apiKey string, model string) *NVIDIA {
 }
 
 func (o *NVIDIA) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with " + o.model)
+	errnie.Info("generating with %s", o.model)
 	events := make(chan Event, 64)
 
 	go func() {
@@ -47,10 +47,11 @@ func (o *NVIDIA) Generate(ctx context.Context, params GenerationParams) <-chan E
 		}
 
 		stream := o.client.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
-			Messages:    openai.F(openAIMessages),
-			Model:       openai.F(o.model),
-			Temperature: openai.F(params.Temperature),
-			TopP:        openai.F(params.TopP),
+			Messages:         openai.F(openAIMessages),
+			Model:            openai.F(o.model),
+			Temperature:      openai.F(params.Temperature),
+			FrequencyPenalty: openai.F(params.FrequencyPenalty),
+			PresencePenalty:  openai.F(params.PresencePenalty),
 		})
 
 		for stream.Next() {

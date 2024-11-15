@@ -34,60 +34,57 @@ func (a *Anthropic) Configure(config map[string]interface{}) {
 }
 
 func (a *Anthropic) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with " + a.model)
+	errnie.Info("generating with %s", a.model)
 	events := make(chan Event, 64)
 
 	go func() {
 		defer close(events)
-
-		// Prepare the request parameters
-		requestParams := anthropic.MessageNewParams{
-			Model:       anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
-			Messages:    anthropic.F(convertToAnthropicMessages(params.Messages)),
-			MaxTokens:   anthropic.F(a.maxTokens),
-			Temperature: anthropic.F(params.Temperature),
-		}
-
-		// Only add system message if it's not empty
-		if a.system != "" {
-			requestParams.System = anthropic.F([]anthropic.TextBlockParam{{
-				Text: anthropic.F(a.system),
-				Type: anthropic.F(anthropic.TextBlockParamTypeText),
-			}})
-		}
-
-		stream := a.client.Messages.NewStreaming(ctx, requestParams)
-		message := anthropic.Message{}
-
-		for stream.Next() {
-			event := stream.Current()
-
-			err := message.Accumulate(event)
-			if err != nil {
-				errnie.Error(err)
-				events <- Event{Type: EventError, Error: err}
-				return
-			}
-
-			switch event := event.AsUnion().(type) {
-			case anthropic.ContentBlockDeltaEvent:
-				if event.Delta.Text != "" {
-					events <- Event{Type: EventToken, Content: event.Delta.Text}
-				}
-			case anthropic.MessageStopEvent:
-				events <- Event{Type: EventDone}
-				return
-			}
-		}
-
-		if err := stream.Err(); err != nil {
-			errnie.Error(err)
-			events <- Event{Type: EventError, Error: err}
-			return
-		}
+		a.handleMessageStream(ctx, params, events)
 	}()
 
 	return events
+}
+
+func (a *Anthropic) handleMessageStream(ctx context.Context, params GenerationParams, events chan<- Event) {
+	requestParams := a.buildRequestParams(params)
+	stream := a.client.Messages.NewStreaming(ctx, requestParams)
+
+	for stream.Next() {
+		event := stream.Current()
+
+		switch event := event.AsUnion().(type) {
+		case anthropic.ContentBlockDeltaEvent:
+			if event.Delta.Text != "" {
+				events <- Event{Type: EventToken, Content: event.Delta.Text}
+			}
+		case anthropic.MessageStopEvent:
+			events <- Event{Type: EventDone}
+			return
+		}
+	}
+
+	if err := stream.Err(); err != nil {
+		errnie.Error(err)
+		events <- Event{Type: EventError, Error: err}
+	}
+}
+
+func (a *Anthropic) buildRequestParams(params GenerationParams) anthropic.MessageNewParams {
+	requestParams := anthropic.MessageNewParams{
+		Model:       anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
+		Messages:    anthropic.F(convertToAnthropicMessages(params.Messages)),
+		MaxTokens:   anthropic.F(a.maxTokens),
+		Temperature: anthropic.F(params.Temperature),
+	}
+
+	if a.system != "" {
+		requestParams.System = anthropic.F([]anthropic.TextBlockParam{{
+			Text: anthropic.F(a.system),
+			Type: anthropic.F(anthropic.TextBlockParamTypeText),
+		}})
+	}
+
+	return requestParams
 }
 
 // Helper function to convert our messages to Anthropic format

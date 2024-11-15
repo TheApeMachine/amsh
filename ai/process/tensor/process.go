@@ -11,6 +11,10 @@ type Process struct {
 	Projections  []Projection  `json:"projections" jsonschema:"title=Projections,description=Lower-dimensional views of the tensor space,required"`
 }
 
+func NewProcess() *Process {
+	return &Process{}
+}
+
 type Dimension struct {
 	ID         string    `json:"id" jsonschema:"required,title=ID,description=Unique identifier for the dimension"`
 	Name       string    `json:"name" jsonschema:"required,title=Name,description=Name of the dimension"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/process/layering"
@@ -14,14 +15,11 @@ import (
 )
 
 type Team struct {
-	ctx       context.Context
-	key       string
-	name      string
-	TeamLead  *Agent
-	Agents    map[string]*Agent
-	Sidekicks map[string]*Agent
-	Buffer    *Buffer
-	Process   process.Process
+	ctx      context.Context
+	key      string
+	name     string
+	TeamLead *Agent
+	Process  process.Process
 }
 
 func NewTeam(ctx context.Context, key string) *Team {
@@ -40,13 +38,13 @@ func NewTeam(ctx context.Context, key string) *Team {
 			persona.SystemPrompt("teamlead"),
 			nil,
 		),
-		Buffer: NewBuffer(),
 	}
 
 	return team
 }
 
 func (team *Team) Execute(workload layering.Workload) <-chan provider.Event {
+	errnie.Info("executing team %s", team.name)
 	out := make(chan provider.Event)
 
 	go func() {
@@ -71,25 +69,77 @@ func (team *Team) Execute(workload layering.Workload) <-chan provider.Event {
 			out <- event
 		}
 
-		response := persona.Teamlead{}
-		errnie.MustVoid(json.Unmarshal([]byte(accumulator), &response))
+		extracted := utils.ExtractCodeBlocks(accumulator)
 
-		agents := []*Agent{}
-		for _, agent := range response.Agents {
-			agents = append(agents, NewAgent(
-				team.ctx,
-				team.key,
-				agent.Name,
-				agent.Role,
-				agent.SystemPrompt,
-				nil,
-			))
-		}
+		for _, blocks := range extracted {
+			for _, block := range blocks {
 
-		for event := range NewCompetition(team.ctx, team.key).Run(agents) {
-			out <- event
+				response := persona.Teamlead{}
+				errnie.MustVoid(json.Unmarshal([]byte(block), &response))
+
+				agents := map[string]*Agent{}
+				for _, agent := range response.Agents {
+					agents[agent.Name] = NewAgent(
+						team.ctx,
+						team.key,
+						agent.Name,
+						agent.Role,
+						agent.SystemPrompt,
+						nil,
+					).AddSidekick("optimizer").AddWorkloads(agent.Workloads)
+				}
+
+				for _, interaction := range response.Interactions {
+					if interaction.ProcessInParallel {
+						team.parallelInteraction(interaction, agents, out)
+					} else {
+						team.sequentialInteraction(interaction, agents, out)
+					}
+				}
+			}
 		}
 	}()
 
 	return out
+}
+
+func (team *Team) parallelInteraction(
+	interaction persona.Interaction,
+	agents map[string]*Agent,
+	out chan<- provider.Event,
+) map[string]string {
+	var wg sync.WaitGroup
+	wg.Add(len(interaction.Agents))
+	accumulator := map[string]string{}
+
+	for _, agent := range interaction.Agents {
+		go func(agent string, wg *sync.WaitGroup) {
+			defer wg.Done()
+
+			for event := range agents[agent].Execute(interaction.Prompt) {
+				accumulator[event.AgentID] += event.Content
+				out <- event
+			}
+		}(agent, &wg)
+	}
+
+	wg.Wait()
+	return accumulator
+}
+
+func (team *Team) sequentialInteraction(
+	interaction persona.Interaction,
+	agents map[string]*Agent,
+	out chan<- provider.Event,
+) map[string]string {
+	accumulator := map[string]string{}
+
+	for _, agent := range interaction.Agents {
+		for event := range agents[agent].Execute(interaction.Prompt) {
+			accumulator[event.AgentID] += event.Content
+			out <- event
+		}
+	}
+
+	return accumulator
 }

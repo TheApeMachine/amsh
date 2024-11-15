@@ -49,8 +49,8 @@ func NewBalancedProvider() *BalancedProvider {
 				// 	occupied: false,
 				// },
 				{
-					name:     "gpt-4o-mini",
-					provider: NewOpenAI(os.Getenv("OPENAI_API_KEY"), openai.ChatModelGPT4oMini2024_07_18),
+					name:     "gpt-4o",
+					provider: NewOpenAI(os.Getenv("OPENAI_API_KEY"), openai.ChatModelGPT4o2024_08_06),
 					occupied: false,
 				},
 				{
@@ -106,9 +106,10 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 			errnie.Info("provider released")
 		}()
 
-		for event := range ps.provider.Generate(ctx, params) {
-			out <- event
-		}
+		errnie.Log("%v", params.String())
+		accumulator := NewAccumulator()
+		accumulator.Stream(ps.provider.Generate(ctx, params), out)
+		errnie.Log("%s", accumulator.String())
 	}()
 
 	return out

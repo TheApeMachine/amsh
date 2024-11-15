@@ -11,6 +11,145 @@ neo4j:
   user: "neo4j"
   password: "securepassword"
 
+lexer:
+  delimiters:
+    - "(,)"     # closures
+    - "<,>"     # behaviors
+    - "<=,=>"   # arrows
+    - "{,}"     # optional
+
+  types:
+    operation-types:
+      - analyze
+      - reason
+      - generate
+      - call
+    
+    behavior-types:
+      - temporal
+      - quantum
+      - surface
+      - moonshot
+      # ... other behaviors
+
+    outcome-types:
+      - next
+      - back
+      - cancel
+      - send
+
+    flow-types:
+      - join
+      - out
+      - in
+
+boogie:
+  description: |
+    The "boogie" language is specifically designed for LLM agents to interact with systems in a highly flexible and dynamic way.
+    It combines the best parts of structure and autonomy, allowing agents to design their own workflows and processes on-the-fly.
+  constructs:
+    closure:
+      syntax: ()
+      description: |
+        A closure is a self-contained block of code that takes in the current context and returns the mutated context.
+        It is the basic building block of boogie, and is used to create all other constructs. The simplest closure is:
+
+        ```boogie
+        out <= () <= in ; in (the current context) is sent into the empty closure, and then sent into out.
+        ```
+
+        To show the way the context is transported through the program, a slightly more practical example is:
+
+        ```boogie
+        out <= (                          ; inner scope travels top-to-bottom, left-to-right.
+          analyze => next | cancel        ; analyze in (the current context) and either continue, or cancel on error.
+          verify  => send | back | cancel ; verify in + analysis, and either send (promote the context upwards), go back, or cancel on error.
+        ) <= in                           ; outer scope travels bottom-to-top, right-to-left.
+        ```
+
+        Takeaways:
+        - from closure to closure, the context travels bottom-to-top, in the right-to-left direction.
+        - within a closure, the context travels top-to-bottom, in the left-to-right direction.
+        - the current context (in) is always present, and thus implicit.
+        - each operation is executed by a short-lived worker agent, which will mutate the context and return it, or an error.
+        - Each closure is concurrent, but to make use of this, you need to nest them, otherwise it runs a single concurrent process.
+
+        ## Concurrency Example
+
+        ```boogie
+        out <= join <= (
+          (analyze<surface>  => send | cancel)        ; wrapped in its own closure, so it runs concurrently.
+          ([
+            search, "query"
+          ] => call<browser> => send | back | cancel) ; wrapped in its own closure, so it runs concurrently.
+        ) <= in
+        ```
+
+        Takeaways:
+        - concurrency produces multiple mutations of the context, join merges them back into a single context.
+        - 
+        - <= means in goes into something, => also means in goes into something, because in is always in.
+    behavior:
+      syntax: <>
+      description: |
+        A behavior is a modifier that influences the scope of an operation. It will drive the worker agent to be more focused
+        towards a certain goal and response.
+
+        ## Behavior Example
+
+        ```boogie
+        out <= (analyze<surface> => send) <= in ; analyze tells the worker to use their own judgement, the behavior tells the worker to do a surface-level analysis.
+        ```
+      legend: |
+        ### analyze
+        - <surface>          ; use surface-level analysis
+        - <temporal>         ; use temporal analysis
+        - <pattern>          ; use pattern-matching analysis
+        - <quantum>          ; use quantum-layer analysis
+        - <fractal>          ; use fractal analysis
+        - <holographic>      ; use holographic analysis
+        - <tensor>           ; use tensor analysis
+        - <narrative>        ; use narrative analysis
+        - <analogy>          ; use analogy analysis
+        - <practical>        ; use practical analysis
+        - <contextual>       ; use contextual analysis
+
+        ### reason
+        - <chainofthought>   ; use a chain-of-thought approach to reasoning
+        - <treeofthought>    ; use a tree-of-thought approach to reasoning
+        - <selfcritique>     ; use a self-critique approach to reasoning
+        - <selfassessment>   ; use a self-assessment approach to reasoning
+        - <roleplay>         ; use a roleplay approach to reasoning
+        - <metacognition>    ; use a metacognition approach to reasoning
+        - <hypothesis>       ; use a hypothesis approach to reasoning
+        - <validation>       ; use a validation approach to reasoning
+        - <devideandconquer> ; use a divide and conquer approach to reasoning
+        - <analogical>       ; use an analogical approach to reasoning
+        - <probabilistic>    ; use a probabilistic approach to reasoning
+        - <deductive>        ; use a deductive approach to reasoning
+        - <inductive>        ; use an inductive approach to reasoning
+        - <abductive>        ; use an abductive approach to reasoning
+
+        ### generate
+        - <moonshot>         ; generate moonshot ideas
+        - <sensible>         ; generate sensible ideas
+        - <catalyst>         ; generate catalyst ideas
+        - <guardian>         ; generate guardian ideas
+        - <metrics>          ; generate metrics
+        - <code>             ; generate code
+        - <plan>             ; generate a plan
+        
+        ### call
+        - <browser>          ; use the browser to operate a fully functional chrome browser
+        - <github>           ; use github for coding tasks, and as an information source
+        - <environment>      ; use a linux environment to operate a fully functional debian system
+        - <memory>           ; use the vector, or graph stores as a long-term memory
+        - <helpdesk>         ; use the helpdesk to perform the labelling task, ans as an information source
+        - <slack>            ; use slack to communicate with external parties and as an information source
+        - <wiki>             ; use the wiki to search for information
+        - <boards>           ; use the boards to manage projects
+        - <recruit>          ; use the recruit tool to form a team
+
 ai:
   setups:
     allied_mastercomputer:
@@ -24,11 +163,68 @@ ai:
           Your task is to analyze input text and create a pipeline program that can process it.
 
           You should generate pipelines using this syntax:
-          out <= type <= (
-              step1 => next | cancel
-              step2 => next | back
-              step3 => send | cancel
-          ) <= in
+          ```boogie
+          ; in wraps the input, out is the output after execution of the code.
+          out <= () <= in
+
+          ; state is implicit, it is the current state of in, potentially wrapped in processing
+          ; artifacts. Another way to think of it is that whatever happens, when something goes
+          ; into something, it is always in, and when something comes out of something, it is still in.
+          ; As soon as in turns into out, the state is finalized.
+          out <= (                                   ; code-flow: step 4.
+            analyze<surface> => next | cancel        ; code-flow: step 2. you never enter where you need to be, always on the opposite side.
+            verify           => send | back | cancel ; code-flow: step 3. send lifts the state up, so we go: in, up, down, up, out.
+          ) <= in                                    ; code-flow: step 1. entrypoint, every program starts here.
+
+          ; <= and => show the direction of the flow, or the direction which in is transported. Together they are recursion-driven iterators.
+          ; <= means in goes into something, => also means in goes into something, because in is always in. 
+
+          ; out <= ( nop => send ) <= in           ; in goes into nop, in goes into send, which sends in into out.
+          ; out <= ( reason <= <3> => send ) <= in ; send expects an exhausted in, in has a bound iteration of maximum 3, in is not exhausted.
+                                                   ; send will send it back, which sends in into reason, closing the recursion loop.
+
+          ; <...> is a behavior, it sits between the process and the input, and shapes the output.
+          ; Think of the | operator as error handling, it defines the order of prefered potential outcomes.
+          ; Think of cancel as canceling the context.
+
+          ; An example pipeline.
+          out <= (
+              ; The switch dictates how the internal process is directed.
+              ; switch: from one step to the next.
+              ; select: choose freely between any of the internal steps, repeat as needed
+              switch <= (
+                  clean    => next | cancel
+                  validate => next | cancel
+                  enrich   => send | cancel
+              ) <= switch[step2] <= (                              ; labels are for jumping.
+                  analyze<temporal>  => next | cancel              ; use analysis, with temporal behavior, or, perform temporal analysis.
+                  model              => next | back | cancel
+                  optimize           => send | back | cancel
+              ) <= join <= (                                       ; join the two concurrent processes into an output.
+                  out <= select <= (
+                      reason               <= <5> => next | cancel ; iteration, maximum of 5 recursions.
+                      [plan <= step2.analyze.out] => next | cancel ; the second switch has been labeled, so we can refer to it.
+                  )                                                ; concurrent processing.
+                                                                   ; every closure is concurrent, you notice it when there are multiple under the same parent.
+                  out <= switch <= (
+                      format => next | back | cancel
+                      save   => send
+                  )                                                ; concurrent processing.
+              ) <= match <= (
+                  success => send
+                  default => [step2.analyze.jump]                  ; nested labels chain together.
+              ) <= switch[mylabel] <= (
+                  clean    => next | cancel
+                  validate => next | cancel
+                  enrich   => next | cancel
+                  
+                  out <= match <= (
+                      <5>     => send                              ; on the 5th iteration, we send the output.
+                      default => [mylabel.jump]                    ; otherwise, we jump back to the beginning of the switch.
+                  )
+              )
+          ) <= in                                                  ; entrypoint, upon entry we jump to the top of the closure.
+          ```
 
           Consider carefully what steps would be needed to process the input.
           Use appropriate control structures (switch, select, join) based on the task.

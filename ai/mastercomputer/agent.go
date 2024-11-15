@@ -3,21 +3,27 @@ package mastercomputer
 import (
 	"context"
 
-	"github.com/theapemachine/amsh/ai/boogie"
+	"github.com/google/uuid"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 /*
 Agent is a type that can communicate with an AI provider and execute operations.
 */
 type Agent struct {
+	ID        string
+	ctx       context.Context
 	buffer    *Buffer
 	processes map[string]Process
 	prompt    *Prompt
 }
 
-func NewAgent(role string) *Agent {
+func NewAgent(ctx context.Context, role string) *Agent {
 	return &Agent{
+		ID:        uuid.New().String(),
+		ctx:       ctx,
 		buffer:    NewBuffer(),
 		processes: make(map[string]Process),
 		prompt:    NewPrompt(role),
@@ -27,54 +33,28 @@ func NewAgent(role string) *Agent {
 /*
 Generate uses a simple string as the input and returns a channel of events.
 */
-func (agent *Agent) Generate(ctx context.Context, input string) <-chan provider.Event {
+func (agent *Agent) Generate(input string) <-chan provider.Event {
+	errnie.Log("%s", input)
 	out := make(chan provider.Event)
+
+	agent.buffer.Clear().Poke(provider.Message{
+		Role:    "system",
+		Content: utils.JoinWith("\n", agent.prompt.systemPrompt, agent.prompt.rolePrompt),
+	}).Poke(provider.Message{
+		Role:    "user",
+		Content: input,
+	})
 
 	go func() {
 		defer close(out)
 
 		prvdr := provider.NewBalancedProvider()
-		accumulator := NewAccumulator()
-		accumulator.Stream(
-			prvdr.Generate(ctx, provider.GenerationParams{
-				Messages: agent.buffer.Truncate(),
-			}),
-			out,
-		)
-	}()
+		accumulator := provider.NewAccumulator()
+		accumulator.Stream(prvdr.Generate(agent.ctx, provider.GenerationParams{
+			Messages: agent.buffer.Truncate(),
+		}), out)
 
-	return out
-}
-
-/*
-Execute the agent for a given operation and state.
-*/
-func (agent *Agent) Execute(
-	ctx context.Context, op boogie.Operation, state boogie.State,
-) <-chan provider.Event {
-	out := make(chan provider.Event)
-
-	go func() {
-		// Prepare the prompt based on operation and context
-		agent.buffer.Poke(provider.Message{
-			Role:    "user",
-			Content: agent.prompt.Build(op, state),
-		})
-
-		// Generate using the balanced provider
-		prvdr := provider.NewBalancedProvider()
-		accumulator := NewAccumulator()
-		accumulator.Stream(
-			prvdr.Generate(ctx, provider.GenerationParams{
-				Messages: agent.buffer.Truncate(),
-			}),
-			out,
-		)
-
-		// Process the result based on operation type
-		agent.processes[op.Name].NextState(
-			op, accumulator.String(), state,
-		)
+		errnie.Log("%s", accumulator.String())
 	}()
 
 	return out
