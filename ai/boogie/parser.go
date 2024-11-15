@@ -2,7 +2,6 @@ package boogie
 
 import (
 	"fmt"
-	"strings"
 )
 
 // AST structures
@@ -15,11 +14,11 @@ type Program struct {
 
 type Operation struct {
 	Type       string
-	Behavior   string
 	Parameters []string
+	Behavior   string
+	Label      string // For switch/select labels like [flow]
 	Outcomes   []string
 	Children   []*Operation
-	Label      string
 }
 
 // Parser struct
@@ -32,6 +31,18 @@ type Parser struct {
 func NewParser(tokens []Token) *Parser {
 	return &Parser{
 		tokens: tokens,
+	}
+}
+
+// NewOperation creates a new operation node
+func NewOperation(opType string) *Operation {
+	return &Operation{
+		Type:       opType,
+		Parameters: make([]string, 0),
+		Behavior:   "",
+		Label:      "",
+		Outcomes:   make([]string, 0),
+		Children:   make([]*Operation, 0),
 	}
 }
 
@@ -48,12 +59,29 @@ func (p *Parser) Parse() (*Program, error) {
 		return nil, err
 	}
 
-	// Parse the root operation
-	rootOp, err := p.parseOperation()
-	if err != nil {
+	// Expect opening delimiter '('
+	if err := p.expect(DELIMITER, "("); err != nil {
 		return nil, err
 	}
+
+	// Parse the root operations within the group
+	rootOp := &Operation{
+		Type:     "group",
+		Children: []*Operation{},
+	}
+	for !p.check(DELIMITER, ")") && !p.isAtEnd() {
+		childOp, err := p.parseOperation()
+		if err != nil {
+			return nil, err
+		}
+		rootOp.Children = append(rootOp.Children, childOp)
+	}
 	program.Root = rootOp
+
+	// Expect closing delimiter ')'
+	if err := p.expect(DELIMITER, ")"); err != nil {
+		return nil, err
+	}
 
 	// Parse ' <= in'
 	if err := p.expect(ARROW, "<="); err != nil {
@@ -70,15 +98,30 @@ func (p *Parser) Parse() (*Program, error) {
 
 func (p *Parser) parseOperation() (*Operation, error) {
 	// Debugging: Print current token
-	fmt.Printf("Parsing operation at position %d: %v\n", p.current, p.currentToken())
+	fmt.Printf("Parsing operation at position %d: {%s %s}\n", p.current, p.currentToken().Type.String(), p.currentToken().Value)
+
+	// Handle groups
+	if p.check(DELIMITER, "(") {
+		p.advance() // consume '('
+		groupOp := NewOperation("group")
+		for !p.check(DELIMITER, ")") && !p.isAtEnd() {
+			childOp, err := p.parseOperation()
+			if err != nil {
+				return nil, err
+			}
+			groupOp.Children = append(groupOp.Children, childOp)
+		}
+		if err := p.expect(DELIMITER, ")"); err != nil {
+			return nil, err
+		}
+		return groupOp, nil
+	}
 
 	// Handle control flow structures
 	if p.check(SWITCH, "") || p.check(SELECT, "") ||
 		p.check(MATCH, "") || p.check(JOIN, "") {
-		op := &Operation{
-			Type:     p.currentToken().Value,
-			Children: []*Operation{},
-		}
+
+		op := NewOperation(p.currentToken().Value)
 		p.advance()
 
 		// Handle labels for switch and select
@@ -87,41 +130,40 @@ func (p *Parser) parseOperation() (*Operation, error) {
 			p.advance()
 		}
 
-		// Expect arrow
+		// Expect arrow '<='
 		if err := p.expect(ARROW, "<="); err != nil {
 			return nil, err
 		}
 
-		// Expect opening delimiter
+		// Expect opening delimiter '('
 		if err := p.expect(DELIMITER, "("); err != nil {
 			return nil, err
 		}
 
-		// Parse children
+		// Parse children operations
 		for !p.check(DELIMITER, ")") && !p.isAtEnd() {
 			childOp, err := p.parseOperation()
 			if err != nil {
 				return nil, err
 			}
-
 			op.Children = append(op.Children, childOp)
 		}
 
-		// Expect closing delimiter
+		// Expect closing delimiter ')'
 		if err := p.expect(DELIMITER, ")"); err != nil {
 			return nil, err
 		}
 
 		// Validate control structure
 		if len(op.Children) == 0 {
-			return nil, fmt.Errorf("Expected at least one operation in %s block", op.Type)
+			return nil, fmt.Errorf("expected at least one operation in %s block", op.Type)
 		}
 
 		return op, nil
 	}
 
 	// Handle regular operations
-	op := &Operation{}
+	op := NewOperation("")
 
 	// Check for parameters
 	if p.check(PARAMETER, "") {
@@ -134,7 +176,7 @@ func (p *Parser) parseOperation() (*Operation, error) {
 		op.Type = p.currentToken().Value
 		p.advance()
 	} else {
-		return nil, fmt.Errorf("Expected operation type at position %d", p.current)
+		return nil, fmt.Errorf("expected operation type at position %d, got '%s'", p.current, p.currentToken().Value)
 	}
 
 	// Behavior
@@ -143,14 +185,14 @@ func (p *Parser) parseOperation() (*Operation, error) {
 		p.advance()
 	}
 
-	// Arrow
+	// Arrow '=>'
 	if err := p.expect(ARROW, "=>"); err != nil {
 		return nil, err
 	}
 
-	// Handle nested operations
+	// Handle nested operations if delimiter '(' follows
 	if p.check(DELIMITER, "(") {
-		p.advance()
+		p.advance() // consume '('
 		for !p.check(DELIMITER, ")") && !p.isAtEnd() {
 			childOp, err := p.parseOperation()
 			if err != nil {
@@ -181,7 +223,7 @@ func (p *Parser) parseOutcomes() ([]string, error) {
 		outcomes = append(outcomes, p.currentToken().Value)
 		p.advance()
 	} else {
-		return nil, fmt.Errorf("Expected outcome at position %d", p.current)
+		return nil, fmt.Errorf("expected outcome at position %d", p.current)
 	}
 
 	for p.check(OPERATOR, "|") {
@@ -190,46 +232,20 @@ func (p *Parser) parseOutcomes() ([]string, error) {
 			outcomes = append(outcomes, p.currentToken().Value)
 			p.advance()
 		} else {
-			return nil, fmt.Errorf("Expected outcome after '|' at position %d", p.current)
+			return nil, fmt.Errorf("expected outcome after '|' at position %d", p.current)
 		}
 	}
 
 	return outcomes, nil
 }
 
-func parseParameters(paramStr string) []string {
-	raw := paramStr[1 : len(paramStr)-1] // Remove '[' and ']'
-	parts := strings.Split(raw, ",")
-	params := []string{}
-	for _, part := range parts {
-		params = append(params, strings.TrimSpace(part))
-	}
-	return params
-}
-
 // Utility methods
-
-func (p *Parser) expect(tokenType TokenType, value string) error {
-	if p.check(tokenType, value) {
-		p.advance()
-		return nil
-	}
-	return fmt.Errorf("Expected %s '%s' at position %d", tokenType.String(), value, p.current)
-}
-
-func (p *Parser) match(tokenType TokenType, value string) bool {
-	if p.check(tokenType, value) {
-		p.advance()
-		return true
-	}
-	return false
-}
 
 func (p *Parser) check(tokenType TokenType, value string) bool {
 	if p.isAtEnd() {
 		return false
 	}
-	token := p.tokens[p.current]
+	token := p.currentToken()
 	if token.Type != tokenType {
 		return false
 	}
@@ -239,14 +255,12 @@ func (p *Parser) check(tokenType TokenType, value string) bool {
 	return true
 }
 
-func (p *Parser) advance() {
-	if !p.isAtEnd() {
-		p.current++
+func (p *Parser) expect(tokenType TokenType, value string) error {
+	if p.check(tokenType, value) {
+		p.advance()
+		return nil
 	}
-}
-
-func (p *Parser) previous() Token {
-	return p.tokens[p.current-1]
+	return fmt.Errorf("expected %s '%s' at position %d", tokenType.String(), value, p.current)
 }
 
 func (p *Parser) currentToken() Token {
@@ -254,6 +268,12 @@ func (p *Parser) currentToken() Token {
 		return Token{Type: EOF, Value: ""}
 	}
 	return p.tokens[p.current]
+}
+
+func (p *Parser) advance() {
+	if !p.isAtEnd() {
+		p.current++
+	}
 }
 
 func (p *Parser) isAtEnd() bool {

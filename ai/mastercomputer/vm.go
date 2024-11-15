@@ -12,7 +12,30 @@ import (
 	"github.com/theapemachine/qpool"
 )
 
-// VMState represents the current state of the virtual machine
+// Opcode represents VM instructions
+type Opcode int
+
+const (
+	OpNop Opcode = iota
+	OpSend
+	OpReceive
+	OpStore
+	OpLoad
+	OpCall
+	OpReturn
+	OpJump
+	OpBranch
+)
+
+// Instruction represents a single VM instruction
+type Instruction struct {
+	Op       Opcode
+	Operands []interface{}
+}
+
+/*
+VMState represents the current state of the virtual machine
+*/
 type VMState struct {
 	PC          int                    // Program counter
 	Stack       []interface{}          // Data stack
@@ -20,8 +43,11 @@ type VMState struct {
 	Accumulator interface{}            // Current working value
 }
 
-// AgentVM represents a virtual machine instance for an agent
-type AgentVM struct {
+/*
+VM is a construct that executes boogie code, which is an Agent driven language.
+This means that each instruction is executed by an Agent.
+*/
+type VM struct {
 	id           string
 	state        *VMState
 	instructions []Instruction
@@ -30,9 +56,11 @@ type AgentVM struct {
 	mu           sync.RWMutex
 }
 
-// NewAgentVM creates a new virtual machine instance
-func NewAgentVM(pool *qpool.Q, comm *AgentCommunication) *AgentVM {
-	return &AgentVM{
+/*
+NewVM creates a new Virtual Machine instance.
+*/
+func NewVM(pool *qpool.Q, comm *AgentCommunication) *VM {
+	return &VM{
 		id: fmt.Sprintf("vm-%s", uuid.New().String()),
 		state: &VMState{
 			Memory: make(map[string]interface{}),
@@ -43,8 +71,12 @@ func NewAgentVM(pool *qpool.Q, comm *AgentCommunication) *AgentVM {
 	}
 }
 
-// Execute runs a sequence of instructions
-func (vm *AgentVM) Execute(ctx context.Context, instructions []Instruction) error {
+/*
+Execute the VM with a given set of instructions. These instructions are ultimately
+created by an Agent, and represent a series of intentions to be carried out.
+A short-lived Agent is created for the VM to "perform" the instructions.
+*/
+func (vm *VM) Execute(ctx context.Context, instructions []Instruction) error {
 	vm.mu.Lock()
 	vm.instructions = instructions
 	vm.state.PC = 0
@@ -60,8 +92,7 @@ func (vm *AgentVM) Execute(ctx context.Context, instructions []Instruction) erro
 	)
 
 	// Wait for result
-	value := <-result
-	if value.Error != nil {
+	if value := <-result; value.Error != nil {
 		return value.Error
 	}
 
@@ -69,7 +100,7 @@ func (vm *AgentVM) Execute(ctx context.Context, instructions []Instruction) erro
 }
 
 // runLoop executes instructions until completion or error
-func (vm *AgentVM) runLoop(ctx context.Context) (interface{}, error) {
+func (vm *VM) runLoop(ctx context.Context) (interface{}, error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -85,7 +116,7 @@ func (vm *AgentVM) runLoop(ctx context.Context) (interface{}, error) {
 }
 
 // executeNext executes the next instruction
-func (vm *AgentVM) executeNext() (bool, error) {
+func (vm *VM) executeNext() (bool, error) {
 	vm.mu.Lock()
 	defer vm.mu.Unlock()
 
@@ -121,7 +152,7 @@ func (vm *AgentVM) executeNext() (bool, error) {
 }
 
 // Instruction execution methods
-func (vm *AgentVM) executeSend(inst Instruction) error {
+func (vm *VM) executeSend(inst Instruction) error {
 	if len(inst.Operands) < 2 {
 		return errnie.Error(fmt.Errorf("send requires target and value operands"))
 	}
@@ -145,7 +176,7 @@ func (vm *AgentVM) executeSend(inst Instruction) error {
 	return nil
 }
 
-func (vm *AgentVM) executeReceive(inst Instruction) error {
+func (vm *VM) executeReceive(inst Instruction) error {
 	if len(inst.Operands) < 1 {
 		return errnie.Error(fmt.Errorf("receive requires source operand"))
 	}
@@ -176,7 +207,7 @@ func (vm *AgentVM) executeReceive(inst Instruction) error {
 	return nil
 }
 
-func (vm *AgentVM) executeStore(inst Instruction) error {
+func (vm *VM) executeStore(inst Instruction) error {
 	if len(inst.Operands) < 2 {
 		return errnie.Error(fmt.Errorf("store requires key and value operands"))
 	}
@@ -187,7 +218,7 @@ func (vm *AgentVM) executeStore(inst Instruction) error {
 	return nil
 }
 
-func (vm *AgentVM) executeLoad(inst Instruction) error {
+func (vm *VM) executeLoad(inst Instruction) error {
 	if len(inst.Operands) < 1 {
 		return errnie.Error(fmt.Errorf("load requires key operand"))
 	}
@@ -200,7 +231,7 @@ func (vm *AgentVM) executeLoad(inst Instruction) error {
 	return errnie.Error(fmt.Errorf("key not found: %s", key))
 }
 
-func (vm *AgentVM) executeCall(inst Instruction) error {
+func (vm *VM) executeCall(inst Instruction) error {
 	if len(inst.Operands) < 1 {
 		return errnie.Error(fmt.Errorf("call requires function name operand"))
 	}
@@ -225,7 +256,7 @@ func (vm *AgentVM) executeCall(inst Instruction) error {
 	return nil
 }
 
-func (vm *AgentVM) executeJump(inst Instruction) error {
+func (vm *VM) executeJump(inst Instruction) error {
 	if len(inst.Operands) < 1 {
 		return errnie.Error(fmt.Errorf("jump requires target operand"))
 	}
@@ -239,7 +270,7 @@ func (vm *AgentVM) executeJump(inst Instruction) error {
 	return nil
 }
 
-func (vm *AgentVM) executeBranch(inst Instruction) error {
+func (vm *VM) executeBranch(inst Instruction) error {
 	if len(inst.Operands) < 2 {
 		return errnie.Error(fmt.Errorf("branch requires condition and target operands"))
 	}
