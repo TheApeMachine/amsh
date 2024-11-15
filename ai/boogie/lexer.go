@@ -132,7 +132,7 @@ func (lexer *Lexer) readArrow() Token {
 		if lexer.input[lexer.position:lexer.position+2] == "<=" ||
 			lexer.input[lexer.position:lexer.position+2] == "=>" {
 			lexer.position += 2
-			return Token{Type: ARROW, Value: possibleArrow}
+			return Token{Type: ARROW, Value: lexer.input[lexer.position-2 : lexer.position]}
 		}
 	}
 	lexer.position++
@@ -181,7 +181,7 @@ func (lexer *Lexer) readIdentifier() Token {
 	startPos := lexer.position
 	// Read until whitespace or delimiter
 	for lexer.position < len(lexer.input) &&
-		!lexer.isDelimiter(rune(lexer.input[lexer.position])) &&
+		!isDelimiter(rune(lexer.input[lexer.position])) &&
 		!unicode.IsSpace(rune(lexer.input[lexer.position])) {
 		lexer.position++
 	}

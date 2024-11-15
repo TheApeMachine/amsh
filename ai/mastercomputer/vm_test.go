@@ -17,7 +17,7 @@ func TestAgentVM(t *testing.T) {
 	Convey("Given an agent virtual machine", t, func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		comm := NewAgentCommunication(ctx)
-		vm := NewAgentVM(comm.pool, comm)
+		vm := NewVM(comm.pool, comm)
 
 		Reset(func() {
 			cancel()
