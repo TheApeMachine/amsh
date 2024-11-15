@@ -19,7 +19,7 @@ func NewOllama(model string) *Ollama {
 }
 
 func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with " + ollama.Model)
+	errnie.Info("generating with %s", ollama.Model)
 	eventChan := make(chan Event)
 
 	go func() {

@@ -21,8 +21,8 @@ func TestAgentCommunication(t *testing.T) {
 		})
 
 		Convey("When setting up test agents", func() {
-			agent1 := NewAgent("agent1", "developer")
-			agent2 := NewAgent("agent2", "analyst")
+			agent1 := NewAgent(ctx, "developer")
+			agent2 := NewAgent(ctx, "analyst")
 
 			comm.RegisterAgent(agent1)
 			comm.RegisterAgent(agent2)
@@ -191,7 +191,7 @@ func TestCommunicationPatterns(t *testing.T) {
 
 					Convey("It should handle timeouts", func() {
 						timeoutChan := time.After(time.Second * 2)
-						
+
 						select {
 						case response := <-channel.Messages:
 							// Verify we got a response, even if it's a timeout error

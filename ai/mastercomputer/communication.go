@@ -77,7 +77,7 @@ func NewAgentCommunication(ctx context.Context) *AgentCommunication {
 func (ac *AgentCommunication) RegisterAgent(agent *Agent) {
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
-	ac.agents[agent.key] = agent
+	ac.agents[agent.ID] = agent
 }
 
 // StartDiscussion initiates a new discussion between agents
@@ -174,7 +174,6 @@ func (ac *AgentCommunication) SendInstruction(from, to string, content interface
 
 			// Process instruction using agent's Execute method
 			events := targetAgent.Generate(
-				context.Background(),
 				msg.Content.(string),
 			)
 

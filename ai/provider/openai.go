@@ -22,7 +22,7 @@ func NewOpenAI(apiKey string, model string) *OpenAI {
 }
 
 func (o *OpenAI) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with " + o.model)
+	errnie.Info("generating with %s", o.model)
 	events := make(chan Event, 64)
 
 	go func() {

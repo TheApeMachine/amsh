@@ -64,10 +64,10 @@ func (tokenType TokenType) String() string {
 // Lexer represents a state machine for lexing boogie code.
 type Lexer struct {
 	input     string
-	position  int        // Current position in the input
+	position  int // Current position in the input
 	buffer    strings.Builder
 	state     TokenType
-	lastToken Token      // Last token processed
+	lastToken Token // Last token processed
 }
 
 // NewLexer creates a new lexer instance
@@ -257,7 +257,7 @@ func (lexer *Lexer) readArrow() Token {
 	// Read either <= or =>
 	if lexer.position+1 < len(lexer.input) {
 		if lexer.input[lexer.position:lexer.position+2] == "<=" ||
-		   lexer.input[lexer.position:lexer.position+2] == "=>" {
+			lexer.input[lexer.position:lexer.position+2] == "=>" {
 			lexer.position += 2
 			return Token{Type: ARROW, Value: string(lexer.input[startPos:lexer.position])}
 		}
@@ -288,19 +288,19 @@ func (lexer *Lexer) readBracket() Token {
 	if lexer.position < len(lexer.input) {
 		lexer.position++ // include the closing ]
 	}
-	
+
 	value := string(lexer.input[startPos:lexer.position])
 	// Determine if this is a jump, label, or parameter
 	if strings.Contains(value, ".jump") {
 		lexer.lastToken = Token{Type: JUMP, Value: value}
 		return lexer.lastToken
-	} 
-	
+	}
+
 	if lexer.lastToken.Type == SWITCH || lexer.lastToken.Type == SELECT {
 		lexer.lastToken = Token{Type: LABEL, Value: value}
 		return lexer.lastToken
 	}
-	
+
 	lexer.lastToken = Token{Type: PARAMETER, Value: value}
 	return lexer.lastToken
 }
@@ -308,12 +308,12 @@ func (lexer *Lexer) readBracket() Token {
 func (lexer *Lexer) readIdentifier() Token {
 	startPos := lexer.position
 	// Read until whitespace or delimiter
-	for lexer.position < len(lexer.input) && 
-		!lexer.isDelimiter(rune(lexer.input[lexer.position])) && 
+	for lexer.position < len(lexer.input) &&
+		!lexer.isDelimiter(rune(lexer.input[lexer.position])) &&
 		!unicode.IsSpace(rune(lexer.input[lexer.position])) {
 		lexer.position++
 	}
-	
+
 	value := string(lexer.input[startPos:lexer.position])
 	// Check for keywords
 	switch value {
@@ -333,7 +333,7 @@ func (lexer *Lexer) readIdentifier() Token {
 }
 
 func (lexer *Lexer) skipWhitespace() {
-	for lexer.position < len(lexer.input) && 
+	for lexer.position < len(lexer.input) &&
 		unicode.IsSpace(rune(lexer.input[lexer.position])) {
 		lexer.position++
 	}
@@ -344,5 +344,5 @@ func (lexer *Lexer) isArrow() bool {
 		return false
 	}
 	return lexer.input[lexer.position:lexer.position+2] == "<=" ||
-		   lexer.input[lexer.position:lexer.position+2] == "=>"
+		lexer.input[lexer.position:lexer.position+2] == "=>"
 }

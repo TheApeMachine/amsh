@@ -26,7 +26,7 @@ func NewLMStudio(apiKey string, model string) *LMStudio {
 }
 
 func (o *LMStudio) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with " + o.model)
+	errnie.Info("generating with %s", o.model)
 	events := make(chan Event, 64)
 
 	go func() {

@@ -30,50 +30,58 @@ func NewGoogle(apiKey string, model string) *Google {
 	}
 }
 
-func (g *Google) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with " + g.model)
+// Helper function to convert messages to Google format
+func (google *Google) convertMessages(messages []Message) []genai.Part {
+	var parts []genai.Part
+	for _, msg := range messages {
+		content := genai.Content{
+			Parts: []genai.Part{genai.Text(msg.Content)},
+		}
+		parts = append(parts, content.Parts...)
+	}
+	return parts
+}
+
+// Helper function to process stream responses
+func (google *Google) processStream(iter *genai.GenerateContentResponseIterator, events chan<- Event) {
+	for {
+		resp, err := iter.Next()
+		if err != nil {
+			if err.Error() == "iterator done" {
+				events <- Event{Type: EventDone}
+				return
+			}
+			events <- Event{Type: EventError, Error: err}
+			return
+		}
+
+		for _, part := range resp.Candidates[0].Content.Parts {
+			if text, ok := part.(genai.Text); ok {
+				events <- Event{Type: EventToken, Content: string(text)}
+			}
+		}
+	}
+}
+
+func (google *Google) Generate(ctx context.Context, params GenerationParams) <-chan Event {
+	errnie.Info("generating with %s", google.model)
 	events := make(chan Event, 64)
 
 	go func() {
 		defer close(events)
 
-		// Convert messages to Google format
-		var parts []genai.Part
-		for _, msg := range params.Messages {
-			content := genai.Content{
-				Parts: []genai.Part{genai.Text(msg.Content)},
-			}
-			parts = append(parts, content.Parts...) // Append the Parts from the Content
-		}
-
+		parts := google.convertMessages(params.Messages)
 		temp := float32(params.Temperature)
 
-		model := g.client.GenerativeModel(g.model)
+		model := google.client.GenerativeModel(google.model)
 		model.SystemInstruction = &genai.Content{
 			Parts: []genai.Part{genai.Text(params.Messages[0].Content)},
 		}
 		model.SystemInstruction.Role = "system"
 		model.Temperature = &temp
+
 		iter := model.GenerateContentStream(ctx, parts...)
-
-		for {
-			resp, err := iter.Next()
-			if err != nil {
-				if err.Error() == "iterator done" {
-					events <- Event{Type: EventDone}
-					return
-				}
-				events <- Event{Type: EventError, Error: err}
-				return
-			}
-
-			// Process response parts
-			for _, part := range resp.Candidates[0].Content.Parts {
-				if text, ok := part.(genai.Text); ok {
-					events <- Event{Type: EventToken, Content: string(text)}
-				}
-			}
-		}
+		google.processStream(iter, events)
 	}()
 
 	return events

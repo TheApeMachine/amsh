@@ -38,7 +38,7 @@ func NewCohere(apiKey string, model string) *Cohere {
 }
 
 func (c *Cohere) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with " + c.model)
+	errnie.Info("generating with %s", c.model)
 	events := make(chan Event, 64)
 
 	go func() {

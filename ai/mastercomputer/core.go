@@ -7,19 +7,17 @@ import (
 )
 
 type Core struct {
-	key   string
+	ctx   context.Context
 	agent *Agent
 }
 
-func NewCore(key, role string) *Core {
+func NewCore(ctx context.Context, role string) *Core {
 	return &Core{
-		key:   key,
-		agent: NewAgent(key, role),
+		ctx:   ctx,
+		agent: NewAgent(ctx, role),
 	}
 }
 
-func (core *Core) Execute(
-	ctx context.Context, prompt string,
-) <-chan provider.Event {
-	return core.agent.Generate(ctx, prompt)
+func (core *Core) Execute(prompt string) <-chan provider.Event {
+	return core.agent.Generate(prompt)
 }

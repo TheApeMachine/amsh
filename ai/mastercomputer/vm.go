@@ -12,27 +12,6 @@ import (
 	"github.com/theapemachine/qpool"
 )
 
-// Opcode represents VM instructions
-type Opcode int
-
-const (
-	OpNop Opcode = iota
-	OpSend
-	OpReceive
-	OpStore
-	OpLoad
-	OpCall
-	OpReturn
-	OpJump
-	OpBranch
-)
-
-// Instruction represents a single VM instruction
-type Instruction struct {
-	Op       Opcode
-	Operands []interface{}
-}
-
 // VMState represents the current state of the virtual machine
 type VMState struct {
 	PC          int                    // Program counter

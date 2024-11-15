@@ -202,6 +202,7 @@ type ProgramContext struct {
 }
 
 func (is *IntrospectionSystem) getValidNextSteps(ctx ProgramContext) []string {
+	_ = ctx
 	// Implementation would consider:
 	// - Current process type
 	// - Previous steps
@@ -210,6 +211,7 @@ func (is *IntrospectionSystem) getValidNextSteps(ctx ProgramContext) []string {
 }
 
 func (is *IntrospectionSystem) getValidBehaviors(ctx ProgramContext) []string {
+	_ = ctx
 	// Implementation would consider:
 	// - Current process capabilities
 	// - Context requirements
