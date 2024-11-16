@@ -50,7 +50,7 @@ Compile transforms a boogie Program into a sequence of VM instructions.
 The compilation process follows these steps:
 1. Set up input/output channels
 2. Compile the root operation
-3. Add final return instruction
+3. Add final send to output
 */
 func (compiler *Compiler) Compile(program *boogie.Program) []Instruction {
 	// Set up input channel
@@ -59,9 +59,8 @@ func (compiler *Compiler) Compile(program *boogie.Program) []Instruction {
 	// Compile the main operation tree
 	compiler.compileOperation(program.Root)
 
-	// Add final send to output and return
+	// Add final send to output
 	compiler.emit(OpSend, program.Output)
-	compiler.emit(OpReturn, nil)
 
 	return compiler.instructions
 }
