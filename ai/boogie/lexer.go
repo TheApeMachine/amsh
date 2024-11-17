@@ -1,157 +1,228 @@
 package boogie
 
 import (
+	"regexp"
 	"strings"
-	"unicode"
 )
 
-// TokenType represents the type of token.
-type TokenType int
-
-const (
-	NONE TokenType = iota
-	OUT
-	IN
-	OUTFLOW
-	INFLOW
-	DELIMITER
-	IDENTIFIER
-	KEYWORD
-	LITERAL
-	COMMENT
+var (
+	labelPattern    = regexp.MustCompile(`^\[[a-zA-Z][a-zA-Z0-9]*\]$`)
+	jumpPattern     = regexp.MustCompile(`^\[[a-zA-Z][a-zA-Z0-9]*\]\.jump$`)
+	behaviorPattern = regexp.MustCompile(`^<[^>]+>$`)
+	identPattern    = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 )
 
-var keywords = []string{
-	"in",
-	"out",
-	"analyze",
-	"reason",
-	"call",
-	"next",
-	"cancel",
-	"send",
-	"back",
-	"join",
-	"verify",
-	"match",
-	"ok",
-	"default",
-}
+/*
+Tokenize splits the input program into tokens.
+*/
+func Tokenize(program string) []string {
+	var tokens []string
+	var current string
+	var inBehavior bool
+	var inString bool
+	var behaviorDepth int
 
-// Lexeme represents a lexical token.
-type Lexeme struct {
-	Type  TokenType
-	Value string
-}
+	for i := 0; i < len(program); i++ {
+		char := program[i]
 
-// Lexer represents a state machine for lexing boogie code.
-type Lexer struct {
-	input  string
-	buffer strings.Builder
-	state  TokenType
-}
-
-func NewLexer(input string) *Lexer {
-	return &Lexer{
-		input:  input,
-		buffer: strings.Builder{},
-		state:  NONE,
-	}
-}
-
-func (lexer *Lexer) Generate() chan Lexeme {
-	out := make(chan Lexeme)
-
-	go func() {
-		defer close(out)
-		var lexeme *Lexeme
-
-		for _, char := range lexer.input {
-			lexeme = nil
-
-			if lexeme = lexer.checkBuffer(); lexeme != nil {
-				out <- *lexeme
+		// Handle string literals
+		if char == '"' {
+			if !inString {
+				if current != "" {
+					if token := validateToken(current); token != "" {
+						tokens = append(tokens, token)
+					}
+					current = ""
+				}
+				inString = true
+				current = string(char)
+			} else {
+				current += string(char)
+				tokens = append(tokens, current)
+				current = ""
+				inString = false
+				continue
 			}
+			continue
+		}
 
-			switch {
-			case unicode.IsSpace(char):
-				if lexeme = lexer.checkBuffer(); lexeme != nil {
-					out <- *lexeme
-				}
-			case char == '(' || char == ')' || char == '|':
-				if lexeme = lexer.checkBuffer(); lexeme != nil {
-					out <- *lexeme
-				}
+		if inString {
+			current += string(char)
+			continue
+		}
 
-				out <- Lexeme{Type: DELIMITER, Value: string(char)}
-			case char == '<':
-				if lexeme = lexer.checkBuffer(); lexeme != nil {
-					out <- *lexeme
+		// Skip whitespace when not in a behavior or string
+		if isWhitespace(char) {
+			if current != "" {
+				if token := validateToken(current); token != "" {
+					tokens = append(tokens, token)
 				}
-
-				lexer.state = OUTFLOW
-			case char == '=':
-				if lexeme = lexer.checkFlow(OUTFLOW); lexeme != nil {
-					out <- *lexeme
-				}
-
-				lexer.state = INFLOW
-			case char == '>':
-				if lexeme = lexer.checkFlow(INFLOW); lexeme != nil {
-					out <- *lexeme
-				}
-			case char == '"':
-				if lexer.state == LITERAL {
-					out <- *lexer.makeLexeme()
-					break
-				}
-
-				lexer.state = LITERAL
+				current = ""
 			}
+			continue
+		}
 
-			if !unicode.IsSpace(char) {
-				lexer.buffer.WriteRune(char)
+		// Handle behavior start
+		if char == '<' && i+1 < len(program) && program[i+1] == '{' {
+			if current != "" {
+				if token := validateToken(current); token != "" {
+					tokens = append(tokens, token)
+				}
+				current = ""
+			}
+			tokens = append(tokens, "<{")
+			i++ // Skip the next character
+			inBehavior = true
+			behaviorDepth++
+			continue
+		}
+
+		// Handle behavior parameters
+		if inBehavior {
+			if char == ',' {
+				if current != "" {
+					if token := validateToken(current); token != "" {
+						tokens = append(tokens, token)
+					}
+					current = ""
+				}
+				tokens = append(tokens, ",")
+				continue
+			}
+			if char == '}' && i+1 < len(program) && program[i+1] == '>' {
+				if current != "" {
+					if token := validateToken(current); token != "" {
+						tokens = append(tokens, token)
+					}
+					current = ""
+				}
+				tokens = append(tokens, "}")
+				i++ // Skip the next character
+				behaviorDepth--
+				if behaviorDepth == 0 {
+					inBehavior = false
+				}
+				continue
+			}
+			if char == '}' {
+				if current != "" {
+					if token := validateToken(current); token != "" {
+						tokens = append(tokens, token)
+					}
+					current = ""
+				}
+				tokens = append(tokens, "}")
+				continue
+			}
+			if char == '=' && i+1 < len(program) && program[i+1] == '>' {
+				if current != "" {
+					if token := validateToken(current); token != "" {
+						tokens = append(tokens, token)
+					}
+					current = ""
+				}
+				tokens = append(tokens, "=>")
+				i++
+				continue
 			}
 		}
-	}()
 
-	return out
-}
+		// Handle single-character symbols
+		if !inBehavior && (char == '(' || char == ')' || char == '|') {
+			if current != "" {
+				if token := validateToken(current); token != "" {
+					tokens = append(tokens, token)
+				}
+				current = ""
+			}
+			tokens = append(tokens, string(char))
+			continue
+		}
 
-func (lexer *Lexer) makeLexeme() *Lexeme {
-	out := Lexeme{Type: lexer.state, Value: lexer.buffer.String()}
-	lexer.buffer.Reset()
-	lexer.state = NONE
-	return &out
-}
+		// Handle two-character operators (<= and =>)
+		if !inBehavior && i+1 < len(program) {
+			nextChar := program[i+1]
+			if (char == '<' && nextChar == '=') || (char == '=' && nextChar == '>') {
+				if current != "" {
+					if token := validateToken(current); token != "" {
+						tokens = append(tokens, token)
+					}
+					current = ""
+				}
+				tokens = append(tokens, string(char)+string(nextChar))
+				i++ // Skip the next character since we've consumed it
+				continue
+			}
+		}
 
-func (lexer *Lexer) checkBuffer() *Lexeme {
-	if lexer.buffer.Len() == 0 || lexer.state == NONE {
-		return nil
+		// Handle regular behavior start
+		if !inBehavior && char == '<' && current != "" {
+			if token := validateToken(current); token != "" {
+				tokens = append(tokens, token)
+			}
+			current = string(char)
+			continue
+		}
+
+		// Handle behavior end
+		if !inBehavior && char == '>' && strings.HasPrefix(current, "<") {
+			current += string(char)
+			if token := validateToken(current); token != "" {
+				tokens = append(tokens, token)
+			}
+			current = ""
+			continue
+		}
+
+		// Build up current token
+		current += string(char)
 	}
 
-	// Check for keywords
-	for _, keyword := range keywords {
-		if lexer.buffer.String() == keyword {
-			return lexer.makeLexeme()
+	// Add any remaining token
+	if current != "" {
+		if token := validateToken(current); token != "" {
+			tokens = append(tokens, token)
 		}
 	}
 
-	return lexer.makeLexeme()
+	return tokens
 }
 
-func (lexer *Lexer) checkFlow(flowType TokenType) *Lexeme {
-	if lexer.state != flowType {
-		return nil
+func validateToken(token string) string {
+	// Valid operators (already handled in main loop, but could appear in current)
+	if token == "<=" || token == "=>" {
+		return token
 	}
 
-	return lexer.makeLexeme()
+	// Valid keywords
+	if token == "match" || token == "join" {
+		return token
+	}
+
+	// Valid label declaration
+	if labelPattern.MatchString(token) {
+		return token
+	}
+
+	// Valid label jump
+	if jumpPattern.MatchString(token) {
+		return token
+	}
+
+	// Valid behavior
+	if behaviorPattern.MatchString(token) {
+		return token
+	}
+
+	// Valid identifier
+	if identPattern.MatchString(token) {
+		return token
+	}
+
+	// Invalid token
+	return ""
 }
 
-func (lexer *Lexer) checkDelimiter() *Lexeme {
-	if lexer.state != DELIMITER {
-		return nil
-	}
-
-	return lexer.makeLexeme()
+func isWhitespace(char byte) bool {
+	return char == ' ' || char == '\t' || char == '\n' || char == '\r'
 }

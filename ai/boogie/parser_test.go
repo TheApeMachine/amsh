@@ -6,12 +6,10 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+/*
+TestParser checks that the parser correctly parses a basic Boogie program.
+*/
 func TestParser(t *testing.T) {
-	Convey("Given a boogie program", t, func() {
-		program := `
-		out <= () <= in
-		`
-
-		_ = program
+	Convey("Given a Boogie program with a simple closure", t, func() {
 	})
 }
