@@ -8,7 +8,6 @@ import (
 
 type VM struct {
 	ctx          context.Context
-	in           string
 	lexer        *boogie.Lexer
 	parser       *boogie.Parser
 	compiler     *boogie.Compiler
@@ -17,10 +16,9 @@ type VM struct {
 	buffer       *Buffer
 }
 
-func NewVM(ctx context.Context, in string) *VM {
+func NewVM(ctx context.Context) *VM {
 	return &VM{
 		ctx:        ctx,
-		in:         in,
 		lexer:      boogie.NewLexer(),
 		parser:     boogie.NewParser(),
 		compiler:   boogie.NewCompiler(),

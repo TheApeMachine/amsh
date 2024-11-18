@@ -12,13 +12,14 @@ It is responsible for kicking off workflows when a workload is received.
 */
 type System struct {
 	ctx context.Context
+	vm  *VM
 }
 
 /*
 NewSystem creates a new system with a unique key.
 */
 func NewSystem(ctx context.Context) *System {
-	return &System{ctx: ctx}
+	return &System{ctx: ctx, vm: NewVM(ctx)}
 }
 
 /*
