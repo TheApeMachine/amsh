@@ -68,3 +68,13 @@ func ExtractCodeBlocks(s string) map[string][]string {
 func StripMarkdown(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, "```json", ""), "```", "")
 }
+
+func ContainsAny(strs []string, str string) bool {
+	for _, s := range strs {
+		if strings.Contains(s, str) {
+			return true
+		}
+	}
+
+	return false
+}

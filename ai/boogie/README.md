@@ -2,65 +2,57 @@
 
 > Boogie is a domain-specific language designed for LLM agents to interact with systems in a highly flexible and dynamic way. It combines structured programming with autonomous decision-making, enabling agents to design their own workflows and processes on-the-fly.
 
----
+## Formal Language Definition 📝
+
+### Grammar Rules
+
+```ebnf
+program     ::= context '<=' closure '<=' context
+closure     ::= '(' statement* ')'
+statement   ::= operation flow_chain comment?
+flow_chain  ::= '=>' target ('|' target)*
+operation   ::= identifier behavior? params?
+behavior    ::= '<' identifier '>'
+params      ::= '{' value (',' value)* '}'
+target      ::= identifier | label | closure
+label       ::= '[' identifier ']'
+comment     ::= ';' [^\n]*
+```
 
 ## Core Concepts 🧠
 
-To understand Boogie, you have to understand that it is meant to be both programmed by agents, as well as executed by agents.
+### Dual-Agent Architecture
 
-This means there are two types of agents needed:
+Boogie operates with two types of agents:
 
-- **Programmer Agents**: Agents that write Boogie code. This provides a highly flexible, yet still structured schema.
-- **Worker Agents**: Agents that execute Boogie code. Each instruction is executed by a short-lived worker agent that mutates the context.
+- **Programmer Agents**: Write Boogie code to design workflows
+- **Worker Agents**: Execute individual instructions, each as a short-lived agent that mutates context
 
-> The benefit we gain from this is the lack of need for massive jsonschema definitions. Even though most LLM models have the context window to support
-> that, the models struggle with understanding, or effective use of such schemas.
-> By having a simple language, we can map instructions to single jsonschema definitions, which we can give to a worker agent.
+The key benefit is simplification of schema handling - instead of requiring agents to understand massive JSON schemas, each worker agent only needs to understand the schema for its specific behavior.
 
----
+### Context and Flow
 
-### Context
+Context is the fundamental concept in Boogie:
 
-The context starts with some input, either from a user request, for instance in a chat setup, or it could come from a webhook, etc.
-
-Boogie instructions always operate on the context, it is what goes in, and what comes out, in most cases mutating along the way.
-
----
-
-### Context Flow
-
-- **Outer Scope**: Context flows bottom-to-top, right-to-left between closures
-- **Inner Scope**: Context flows top-to-bottom, left-to-right within closures
-- **Implicit Context**: The current context (`in`) is always present and implicit
-- **Worker Agents**: Each operation is executed by a short-lived worker agent that mutates the context
-
----
+- Always implicitly present as `in`
+- Flows through operations that mutate it
+- Follows consistent flow patterns:
+  - Between closures: Bottom-to-top, right-to-left
+  - Within closures: Top-to-bottom, left-to-right
 
 ## Language Constructs 🔨
 
-### Comments `;`
+### Basic Structure
 
-Comments start with a semicolon `;` and extend to the end of the line.
-
-```boogie
-; This is a comment
-; This makes it a multi-line comment
-out <= () <= in ; This is a comment on the same line as code
-```
-
-### Closure `()`
-
-The fundamental building block of Boogie. Closures are self-contained code blocks that process and mutate the current context.
-
-> A Boogie program always has at least one closure, the outermost one.
+The simplest valid Boogie program:
 
 ```boogie
-out <= () <= in ; The simplest possible valid Boogie program, which sends in to out, without mutation
+out <= () <= in ; Empty closure, no mutation
 ```
 
-> The value of `in` is always the current context, and `in` is always present, even if it is not explicitly mentioned.
-> The way to visualize the program below would be:
-> in -> analyze -{in}-> verify -{in}-> out
+### Closures `()`
+
+Closures are self-contained blocks that process context:
 
 ```boogie
 out <= (
@@ -69,11 +61,16 @@ out <= (
 ) <= in
 ```
 
-### Flow `<=` & `=>`
+### Flow Operations
 
-The flow operators `<=` and `=>` are used to define the flow of context between closures and operations.
+Context can flow to:
 
-> In a Boogie program, context between closures flows bottom-to-top, right-to-left, and within closures, it flows top-to-bottom, left-to-right.
+- `next`: Continue to next operation
+- `send`: Send context upward
+- `back`: Return to previous operation
+- `cancel`: Terminate the flow
+
+Basic flow example:
 
 ```boogie
 out <= (
@@ -82,8 +79,9 @@ out <= (
 ) <= in
 ```
 
-> The above example shows the most simple method to flow the context through the program, where analyze sends the mutated context to verify, no matter what, and verify sends the context to out, no matter what.
-> A more realistic example makes use of Boogie's fallback chaining feature.
+### Fallback Chaining `|`
+
+Provides error handling and retry logic:
 
 ```boogie
 out <= (
@@ -92,27 +90,7 @@ out <= (
 ) <= in
 ```
 
-> Above is likely the most common version of using fallback chaining. The way to read this is:
-> analyze tries to send the context to verify, unless there is an problem, in which case the context is sent back to analyze once, or if it was already sent back once, the operation is canceled.
-> verify tries to send the context to out, unless there is an problem, in which case the context is sent back to verify once, or if it was already sent back once, the operation is canceled.
-
-### Iteration `<= =>`
-
-```boogie
-out <= (
-    analyze <= => next | back | cancel ; Analysis with error handling, and infinite iteration
-    verify     => send | back | cancel ; Verification, and send up the chain
-) <= in
-```
-
-> The above example shows the use of iteration, which is a special case of flow.
-> The `<= =>` operator is used to define an iteration, which will repeat the operation until the stop condition is met.
-> In the case of this example, which is technically infinite iterations, the worker agent would signal stop by saying it is done.
-> In most cases you would add a behavior to this to limit the amount of iterations.
-
-### Fallback Chaining `|`
-
-Fallback chaining is used to define a sequence of operations that are tried in order, until one of them succeeds.
+With retry count:
 
 ```boogie
 out <= (
@@ -121,9 +99,9 @@ out <= (
 ) <= in
 ```
 
-> The above example adds a `behavior` to the back statement, which essentially says, try 3 times, before canceling.
+### Match Blocks
 
-### Conditionals `match`
+Conditional flow control based on context state:
 
 ```boogie
 out <= (
@@ -139,20 +117,20 @@ out <= (
 
 ### Labels `[]`
 
-Label are primarily used for referencing. The most common use-cases would be referencing data from another closure, or referencing a jump target.
+Reference points for context state or flow:
 
 ```boogie
 out <= (
     analyze[myLabel] => next ; Analysis without any behavior
     verify           => next ; Verification, and send up the chain
     match <= [myLabel] (
-        ok    => send           ; If ok, send up the chain
-        error => cancel         ; If error, cancel
+        ok    => send   ; If ok, send up the chain
+        error => cancel ; If error, cancel
     )
 ) <= in
 ```
 
-> The example above references the state as it was after analyze, in the match statement.
+With jump targets:
 
 ```boogie
 out <= (
@@ -162,23 +140,35 @@ out <= (
         match (
             ok    => send           ; If ok, send up the chain
             error => cancel         ; If error, cancel
-            _     => [myLabel].jump ; In any other case, jump to the beginning of the closure
+            _     => [myLabel].jump ; In any other case, jump to the beginning
         )
     )
 ) <= in
 ```
 
-> The example above shows how to perform a jump in a Boogie program.
+### Iteration `<= =>`
 
----
+Repeating operations:
 
-## Concurrency 🔄
+```boogie
+out <= (
+    analyze <= => next | back | cancel ; Analysis with error handling and (infinite) iteration
+    verify     => send | back | cancel ; Verification, and send up the chain
+) <= in
+```
 
-In the Boogie language, each closure is always running concurrently, next to other closures in the same parent scope.
+With iteration limit:
 
-You will only notice this if there are multiple closures in the same parent scope, otherwise there is only one concurrent closure being executed.
+```boogie
+out <= (
+    analyze <= <3> => next ; Analysis with 3 iterations maximum
+    verify         => send ; Verification, and send up the chain
+) <= in
+```
 
-Operations inside a closure always run sequenctially.
+### Concurrency
+
+Parallel execution with join:
 
 ```boogie
 out <= (
@@ -192,44 +182,32 @@ out <= (
 ) <= in
 ```
 
-> The above simple example of concurrency will run the two closures concurrently, and provide a join channel which streams the results of both closures up the chain.
+### System Integration
 
-### Parameters `[,]`
-
-Especially used when controlling system integrations or tools.
+Tool operations with parameters:
 
 ```boogie
 out <= (
     call<{
         search, 
         "some query"
-    } => browser> => send ; Use a web browser to perform a search
+    } => browser> => send ; Browser search operation
 ) <= in
 ```
 
-> In the above example we see how to pass paramters to a call operation.
-> Essentially this says: perform the call operation, behaving like a browser instruction, using the paramters `search` and `"some query"`, and send the result up the chain.
+### Behaviors `<>`
 
----
-
-### Behavior `<>`
-
-A behavior is a modifier that alters the way an operation or statement "behaves".
-
-```boogie
-out <= (analyze<surface> => send) <= in
-```
-
-> A very simple example which would guide the worker agent executing the analyze operation using a `surface` (level) schema definition.
+Operation modifiers:
 
 ```boogie
 out <= (
-    analyze <= <3> => next ; Analysis without any behavior, but with an iteration instruction that behaves such that it limits iterations to 3
-    verify         => next ; Verification, and send up the chain
+    analyze<surface> => send
 ) <= in
 ```
 
 ## Available Behaviors 🛠️
+
+These are not hard-coded into the language and always subject to change, so they do not have a true representation as part of the language. However, they are documented here for reference.
 
 ### 🔍 Analysis Behaviors
 
@@ -291,3 +269,54 @@ out <= (
 | `<wiki>`        | Wiki information access      |
 | `<boards>`      | Project management           |
 | `<recruit>`     | Team formation               |
+
+## Complex Examples 🌟
+
+### Multi-Stage Analysis
+
+```boogie
+out <= (
+    call<{search, "topic"} => browser> => next                 ; Initial research
+    analyze<pattern>                   => next | back | cancel ; Pattern analysis
+    analyze<temporal>                  => next | back | cancel ; Timeline analysis
+    match (
+        ok     => send   ; Send if analysis complete
+        error  => cancel ; Cancel on errors
+        _      => back   ; Otherwise retry analysis
+    )
+) <= in
+```
+
+### Iterative Refinement
+
+```boogie
+out <= (
+    [refine] => (
+        analyze<surface>   => next ; Initial analysis
+        analyze<practical> => next ; Practical check
+        verify<validation> => next ; Validation
+        match (
+            ok    => send          ; Accept if valid
+            error => [refine].jump ; Jump back if needs work
+        )
+    )
+) <= in
+```
+
+### Parallel Processing
+
+```boogie
+out <= (
+    match (
+        complete => send   ; Send combined results
+        error    => cancel ; Cancel on error
+        _        => back   ; Retry if incomplete
+    ) <= join <= (
+        analyze<pattern> => next ; Pattern analysis path
+        verify           => send
+    ) (
+        call<{query} => wiki> => next ; Wiki lookup path
+        analyze<practical>    => send
+    )
+) <= in
+```
