@@ -1,213 +1,143 @@
 package boogie
 
 import (
-	"errors"
-	"strings"
+	"fmt"
 )
 
-/*
-AST represents the abstract syntax tree of a Boogie program.
-*/
-type AST struct {
-	Operations []Operation
+type NodeType int
+
+const (
+	NODE_PROGRAM NodeType = iota
+	NODE_OPERATION
+	NODE_BEHAVIOR
+	NODE_FLOW
+	NODE_MATCH
+	NODE_CLOSURE
+	NODE_JOIN
+)
+
+type Node struct {
+	Type     NodeType
+	Value    string
+	Behavior *Node
+	Next     []*Node
+	Parent   *Node
 }
 
-/*
-Operation represents a single operation in a Boogie program.
-*/
-type Operation struct {
-	Source      string
-	Destination string
-	Action      string
+type Parser struct {
+	tokens    chan Lexeme
+	current   *Node   // Current node we're building
+	program   *Node   // Root of our AST
+	openNodes []*Node // Stack of open nodes for nested structures
+	lastFlow  string  // Tracks the last flow operator encountered
 }
 
-/*
-Parse converts a sequence of tokens into an abstract syntax tree (AST).
-*/
-func Parse(tokens []string) (*AST, error) {
-	p := &parser{tokens: tokens, position: 0}
-	return p.parseProgram()
-}
-
-type parser struct {
-	tokens   []string
-	position int
-}
-
-func (p *parser) parseProgram() (*AST, error) {
-	if !p.match("out", "<=", "(") {
-		return nil, errors.New("expected program to start with 'out <= ('")
+func NewParser(tokens chan Lexeme) *Parser {
+	program := &Node{
+		Type: NODE_PROGRAM,
+		Next: make([]*Node, 0),
 	}
 
-	operations, err := p.parseOperations()
-	if err != nil {
-		return nil, err
+	return &Parser{
+		tokens:    tokens,
+		program:   program,
+		current:   program,
+		openNodes: []*Node{program},
+		lastFlow:  "",
 	}
-
-	if !p.match(")", "<=", "in") {
-		return nil, errors.New("expected program to end with ') <= in'")
-	}
-
-	if operations == nil {
-		operations = []Operation{}
-	}
-
-	return &AST{Operations: operations}, nil
 }
 
-func (p *parser) parseOperations() ([]Operation, error) {
-	var operations []Operation
-
-	for !p.check(")") && !p.isAtEnd() {
-		source, err := p.consume()
-		if err != nil {
-			return nil, err
-		}
-
-		// Handle label declarations
-		if strings.HasPrefix(source, "[") && strings.HasSuffix(source, "]") {
-			if !p.match("=>") {
-				return nil, errors.New("expected '=>' after label declaration")
-			}
-
-			if !p.check("(") {
-				return nil, errors.New("expected '(' after label declaration and '=>'")
-			}
-			p.advance() // Consume the '('
-			
-			nestedOps, err := p.parseOperations()
-			if err != nil {
-				return nil, err
-			}
-
-			// Add the label operation
-			operations = append(operations, Operation{
-				Source:      source,
-				Action:      "=>",
-				Destination: "analyze", // Connect label to first operation
-			})
-			
-			// Add all nested operations
-			operations = append(operations, nestedOps...)
-			
-			if !p.match(")") {
-				return nil, errors.New("expected closing ')' after labeled block")
-			}
+func (parser *Parser) Generate() *Node {
+	for token := range parser.tokens {
+		fmt.Printf("Token: %s\n", token.Text)
+		switch token.ID {
+		case DELIMITER:
+			parser.handleDelimiter(token)
+		case OPERATION:
+			parser.handleOperation(token)
+		case FLOW:
+			// Skip flow tokens as they don't need to create nodes
 			continue
-		}
-
-		// Handle match construct
-		if source == "match" {
-			operations = append(operations, Operation{
-				Source:      "match",
-				Destination: "ok",
-				Action:      "=>",
-			})
-			if !p.match("(") {
-				return nil, errors.New("expected '(' after 'match'")
-			}
-			for !p.check(")") && !p.isAtEnd() {
-				condition, err := p.consume()
-				if err != nil {
-					return nil, err
-				}
-				action, err := p.consume()
-				if err != nil {
-					return nil, err
-				}
-				destination, err := p.consume()
-				if err != nil {
-					return nil, err
-				}
-				operations = append(operations, Operation{
-					Source:      condition,
-					Destination: destination,
-					Action:      action,
-				})
-			}
-			if !p.match(")") {
-				return nil, errors.New("expected closing ')' for match construct")
-			}
+		case VALUE:
+			// Skip value tokens (in/out) as they don't need to create nodes
 			continue
+		default:
+			fmt.Printf("Unhandled token: %s\n", token.Text)
+		}
+	}
+	return parser.program
+}
+
+func (parser *Parser) handleDelimiter(token Lexeme) {
+	switch token.Text {
+	case "(":
+		closure := &Node{
+			Type:   NODE_CLOSURE,
+			Next:   make([]*Node, 0),
+			Parent: parser.current,
 		}
 
-		action, err := p.consume()
-		if err != nil {
-			return nil, err
-		}
-
-		if p.check("(") {
-			p.advance() // Consume the '('
-			nestedOps, err := p.parseOperations()
-			if err != nil {
-				return nil, err
-			}
-			operations = append(operations, nestedOps...)
-			if !p.match(")") {
-				return nil, errors.New("expected closing ')' for nested closure")
-			}
+		// If parent is a join node, add to its Next slice
+		if parser.current.Type == NODE_JOIN {
+			parser.current.Next = append(parser.current.Next, closure)
 		} else {
-			destination, err := p.consume()
-			if err != nil {
-				return nil, err
+			parser.current.Next = append(parser.current.Next, closure)
+		}
+
+		parser.openNodes = append(parser.openNodes, closure)
+		parser.current = closure
+	case ")":
+		if len(parser.openNodes) > 0 {
+			lastIndex := len(parser.openNodes) - 1
+			parser.openNodes = parser.openNodes[:lastIndex] // Pop from stack
+
+			if lastIndex > 0 {
+				// If parent is a join node, stay at the join node level
+				parent := parser.openNodes[lastIndex-1]
+				if parent.Type == NODE_JOIN {
+					parser.current = parent
+				} else if parent.Parent != nil && parent.Parent.Type == NODE_JOIN {
+					parser.current = parent.Parent
+				} else {
+					parser.current = parent
+				}
+			} else {
+				parser.current = parser.program
 			}
-
-			operations = append(operations, Operation{
-				Source:      source,
-				Destination: destination,
-				Action:      action,
-			})
-		}
-
-		if p.check("|") {
-			p.advance()
-			destination, err := p.consume()
-			if err != nil {
-				return nil, err
-			}
-			operations = append(operations, Operation{
-				Source:      source,
-				Destination: destination,
-				Action:      "|",
-			})
 		}
 	}
-
-	return operations, nil
 }
 
-func (p *parser) match(expected ...string) bool {
-	for _, exp := range expected {
-		if !p.check(exp) {
-			return false
+func (parser *Parser) handleOperation(token Lexeme) {
+	// Handle join operation specially
+	if token.Text == "join" {
+		joinNode := &Node{
+			Type:   NODE_JOIN,
+			Value:  token.Text,
+			Next:   make([]*Node, 0),
+			Parent: parser.current,
 		}
-		p.advance()
+		parser.current.Next = append(parser.current.Next, joinNode)
+		parser.current = joinNode
+		return
 	}
-	return true
+
+	operation := &Node{
+		Type:   NODE_OPERATION,
+		Value:  token.Text,
+		Next:   make([]*Node, 0),
+		Parent: parser.current,
+	}
+	parser.current.Next = append(parser.current.Next, operation)
 }
 
-func (p *parser) check(expected string) bool {
-	if p.isAtEnd() {
-		return false
+func (parser *Parser) PrintAST(node *Node, depth int) {
+	indent := ""
+	for i := 0; i < depth; i++ {
+		indent += "  "
 	}
-	return p.tokens[p.position] == expected
-}
-
-func (p *parser) advance() {
-	if !p.isAtEnd() {
-		p.position++
+	fmt.Printf("%s- Type: %v, Value: %s\n", indent, node.Type, node.Value)
+	for _, child := range node.Next {
+		parser.PrintAST(child, depth+1)
 	}
-}
-
-func (p *parser) isAtEnd() bool {
-	return p.position >= len(p.tokens)
-}
-
-func (p *parser) consume() (string, error) {
-	if p.isAtEnd() {
-		return "", errors.New("unexpected end of input")
-	}
-	token := p.tokens[p.position]
-	p.advance()
-	return token, nil
 }

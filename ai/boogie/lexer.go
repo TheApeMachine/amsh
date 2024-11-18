@@ -1,7 +1,6 @@
 package boogie
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 
@@ -19,11 +18,15 @@ var operations = []string{
 	"back",
 	"cancel",
 	"halt",
+	"match",
+	"join",
 }
 
 var values = []string{
 	"out",
 	"in",
+	"ok",
+	"error",
 }
 
 var flows = []string{
@@ -40,17 +43,16 @@ var delimiters = []string{
 	"}",
 	",",
 	"|",
-	"\n",
 }
 
 type TokenType uint
 
 const (
 	UNKNOWN TokenType = iota
+	COMMENT
 	DELIMITER
 	OPERATION
 	VALUE
-	BEHAVIOR
 	FLOW
 	PARAMETER
 )
@@ -61,11 +63,11 @@ type Lexeme struct {
 }
 
 type Lexer struct {
-	source string
-	buffer strings.Builder
-	lexeme bool
-	state  TokenType
-	memory *Lexeme
+	source     string
+	buffer     strings.Builder
+	inBehavior bool
+	lexeme     bool
+	state      TokenType
 }
 
 func NewLexer(source string) *Lexer {
@@ -79,8 +81,6 @@ func (lexer *Lexer) Generate() chan Lexeme {
 		defer close(out)
 
 		for _, char := range lexer.source + " " {
-			fmt.Println(lexer.state, lexer.buffer.String())
-
 			lexer.processChar(char)
 
 			if lexer.lexeme && lexer.buffer.Len() > 0 {
@@ -90,7 +90,7 @@ func (lexer *Lexer) Generate() chan Lexeme {
 				lexer.state = UNKNOWN
 			}
 
-			if !unicode.IsSpace(char) {
+			if !unicode.IsSpace(char) && lexer.state != COMMENT {
 				lexer.buffer.WriteRune(char)
 			}
 		}
@@ -100,6 +100,39 @@ func (lexer *Lexer) Generate() chan Lexeme {
 }
 
 func (lexer *Lexer) processChar(char rune) {
+	if lexer.state == COMMENT && char != '\n' {
+		return
+	}
+
+	if lexer.state == COMMENT && char == '\n' {
+		lexer.state = UNKNOWN
+		return
+	}
+
+	if char == '<' {
+		lexer.lexeme, lexer.state = lexer.check(operations, OPERATION)
+		return
+	}
+
+	if lexer.buffer.String() == "<" && char != '=' {
+		lexer.inBehavior = true
+		lexer.lexeme, lexer.state = true, DELIMITER
+		return
+	}
+
+	if lexer.inBehavior {
+		if char == '>' {
+			lexer.inBehavior = false
+			lexer.lexeme, lexer.state = true, VALUE
+		}
+		return
+	}
+
+	if char == ';' {
+		lexer.lexeme, lexer.state = false, COMMENT
+		return
+	}
+
 	// Check if current character is a delimiter
 	if utils.ContainsAny(delimiters, string(char)) {
 		// If we have content in buffer, process it before handling the delimiter

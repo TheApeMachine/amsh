@@ -71,7 +71,7 @@ func StripMarkdown(s string) string {
 
 func ContainsAny(strs []string, str string) bool {
 	for _, s := range strs {
-		if strings.Contains(s, str) {
+		if s == str {
 			return true
 		}
 	}

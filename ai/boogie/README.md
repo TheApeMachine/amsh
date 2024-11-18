@@ -1,6 +1,9 @@
 # Boogie 🎯
 
-> Boogie is a domain-specific language designed for LLM agents to interact with systems in a highly flexible and dynamic way. It combines structured programming with autonomous decision-making, enabling agents to design their own workflows and processes on-the-fly.
+Boogie is a domain-specific language designed for LLM agents to interact with systems in a highly flexible and dynamic way. It combines structured programming with autonomous decision-making, enabling agents to design their own workflows and processes on-the-fly, without the need for many huge and complex schemas.
+
+> This is in response to having tried the structured response approach using JSON schemas, but it turns out that the models will just start ignoring a lot of the options, because they cannot manage the complexity.
+> Using Boogie, we combine the benefits of structured responses, with the flexibility of "building blocks" that can be reused and composed in a limitless way.
 
 ## Formal Language Definition 📝
 
@@ -25,8 +28,8 @@ comment     ::= ';' [^\n]*
 
 Boogie operates with two types of agents:
 
-- **Programmer Agents**: Write Boogie code to design workflows
-- **Worker Agents**: Execute individual instructions, each as a short-lived agent that mutates context
+-   **Programmer Agents**: Write Boogie code to design workflows
+-   **Worker Agents**: Execute individual instructions, each as a short-lived agent that mutates context
 
 The key benefit is simplification of schema handling - instead of requiring agents to understand massive JSON schemas, each worker agent only needs to understand the schema for its specific behavior.
 
@@ -34,11 +37,11 @@ The key benefit is simplification of schema handling - instead of requiring agen
 
 Context is the fundamental concept in Boogie:
 
-- Always implicitly present as `in`
-- Flows through operations that mutate it
-- Follows consistent flow patterns:
-  - Between closures: Bottom-to-top, right-to-left
-  - Within closures: Top-to-bottom, left-to-right
+-   Always implicitly present as `in`
+-   Flows through operations that mutate it
+-   Follows consistent flow patterns:
+    -   Between closures: Bottom-to-top, right-to-left
+    -   Within closures: Top-to-bottom, left-to-right
 
 ## Language Constructs 🔨
 
@@ -49,6 +52,11 @@ The simplest valid Boogie program:
 ```boogie
 out <= () <= in ; Empty closure, no mutation
 ```
+
+> The above program does nothing, it also does not pass `in` to `out` as that would require a `send` operation.
+> `in` is the incoming context, which could be a user request, or some other ingress channel, or it could be the output of another agent, tool, etc.
+> The program reads as: `in` is passed into an empty `closure`, then the program ends.
+> This program, while technically valid, is not very useful, but included here to get familiar with the way data flows through Boogie programs.
 
 ### Closures `()`
 
@@ -61,14 +69,18 @@ out <= (
 ) <= in
 ```
 
+> It is important to note that `in` (the current context) is implicitly present throughout the program and the entire point of Boogie programs is context mutation.
+> We could read this as: `in` -> `analyze` -(in)-> `next` -(in)-> `verify` -(in)-> `send` -(in)-> `out`.
+> `in` would be a mutating context, in most cases an append-only buffer from intial request, all the way to the final output.
+
 ### Flow Operations
 
 Context can flow to:
 
-- `next`: Continue to next operation
-- `send`: Send context upward
-- `back`: Return to previous operation
-- `cancel`: Terminate the flow
+-   `next`: Continue to next operation
+-   `send`: Send context upward
+-   `back`: Return to previous operation
+-   `cancel`: Terminate the flow
 
 Basic flow example:
 
@@ -189,7 +201,7 @@ Tool operations with parameters:
 ```boogie
 out <= (
     call<{
-        search, 
+        search,
         "some query"
     } => browser> => send ; Browser search operation
 ) <= in
@@ -212,7 +224,7 @@ These are not hard-coded into the language and always subject to change, so they
 ### 🔍 Analysis Behaviors
 
 | Behavior        | Description               |
-|-----------------|---------------------------|
+| --------------- | ------------------------- |
 | `<surface>`     | Surface-level analysis    |
 | `<temporal>`    | Temporal analysis         |
 | `<pattern>`     | Pattern-matching analysis |
@@ -228,7 +240,7 @@ These are not hard-coded into the language and always subject to change, so they
 ### 🤔 Reasoning Behaviors
 
 | Behavior             | Description                  |
-|----------------------|------------------------------|
+| -------------------- | ---------------------------- |
 | `<chainofthought>`   | Chain-of-thought reasoning   |
 | `<treeofthought>`    | Tree-of-thought reasoning    |
 | `<selfcritique>`     | Self-critique approach       |
@@ -247,7 +259,7 @@ These are not hard-coded into the language and always subject to change, so they
 ### 💡 Generation Behaviors
 
 | Behavior     | Description                    |
-|--------------|--------------------------------|
+| ------------ | ------------------------------ |
 | `<moonshot>` | Innovative, ambitious ideas    |
 | `<sensible>` | Practical, grounded ideas      |
 | `<catalyst>` | Transformative ideas           |
@@ -259,7 +271,7 @@ These are not hard-coded into the language and always subject to change, so they
 ### 🔌 System Integration Behaviors
 
 | Behavior        | Description                  |
-|-----------------|------------------------------|
+| --------------- | ---------------------------- |
 | `<browser>`     | Chrome browser operations    |
 | `<github>`      | GitHub integration           |
 | `<environment>` | Linux environment operations |
