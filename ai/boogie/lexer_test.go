@@ -17,9 +17,9 @@ func TestLexer(t *testing.T) {
 
 		Convey(whenTokenized, func() {
 			lexemes := make([]Lexeme, 0)
-			lexer := NewLexer(program)
+			lexer := NewLexer()
 
-			for lexeme := range lexer.Generate() {
+			for lexeme := range lexer.Generate(program) {
 				lexemes = append(lexemes, lexeme)
 			}
 
@@ -39,9 +39,9 @@ func TestLexer(t *testing.T) {
 
 		Convey(whenTokenized, func() {
 			lexemes := make([]Lexeme, 0)
-			lexer := NewLexer(program)
+			lexer := NewLexer()
 
-			for lexeme := range lexer.Generate() {
+			for lexeme := range lexer.Generate(program) {
 				lexemes = append(lexemes, lexeme)
 			}
 
@@ -67,9 +67,9 @@ func TestLexer(t *testing.T) {
 
 		Convey(whenTokenized, func() {
 			lexemes := make([]Lexeme, 0)
-			lexer := NewLexer(program)
+			lexer := NewLexer()
 
-			for lexeme := range lexer.Generate() {
+			for lexeme := range lexer.Generate(program) {
 				lexemes = append(lexemes, lexeme)
 			}
 
@@ -99,9 +99,9 @@ func TestLexer(t *testing.T) {
 		`
 		Convey(whenTokenized, func() {
 			lexemes := make([]Lexeme, 0)
-			lexer := NewLexer(program)
+			lexer := NewLexer()
 
-			for lexeme := range lexer.Generate() {
+			for lexeme := range lexer.Generate(program) {
 				lexemes = append(lexemes, lexeme)
 			}
 
@@ -149,9 +149,9 @@ func TestLexer(t *testing.T) {
 		`
 		Convey(whenTokenized, func() {
 			lexemes := make([]Lexeme, 0)
-			lexer := NewLexer(program)
+			lexer := NewLexer()
 
-			for lexeme := range lexer.Generate() {
+			for lexeme := range lexer.Generate(program) {
 				lexemes = append(lexemes, lexeme)
 			}
 
@@ -195,9 +195,9 @@ func TestLexer(t *testing.T) {
 		`
 		Convey(whenTokenized, func() {
 			lexemes := make([]Lexeme, 0)
-			lexer := NewLexer(program)
+			lexer := NewLexer()
 
-			for lexeme := range lexer.Generate() {
+			for lexeme := range lexer.Generate(program) {
 				lexemes = append(lexemes, lexeme)
 			}
 

@@ -63,24 +63,23 @@ type Lexeme struct {
 }
 
 type Lexer struct {
-	source     string
 	buffer     strings.Builder
 	inBehavior bool
 	lexeme     bool
 	state      TokenType
 }
 
-func NewLexer(source string) *Lexer {
-	return &Lexer{source: source}
+func NewLexer() *Lexer {
+	return &Lexer{}
 }
 
-func (lexer *Lexer) Generate() chan Lexeme {
+func (lexer *Lexer) Generate(source string) chan Lexeme {
 	out := make(chan Lexeme, 1024)
 
 	go func() {
 		defer close(out)
 
-		for _, char := range lexer.source + " " {
+		for _, char := range source + " " {
 			lexer.processChar(char)
 
 			if lexer.lexeme && lexer.buffer.Len() > 0 {
@@ -100,12 +99,8 @@ func (lexer *Lexer) Generate() chan Lexeme {
 }
 
 func (lexer *Lexer) processChar(char rune) {
-	if lexer.state == COMMENT && char != '\n' {
-		return
-	}
-
-	if lexer.state == COMMENT && char == '\n' {
-		lexer.state = UNKNOWN
+	shouldReturn1 := lexer.handleComment(char)
+	if shouldReturn1 {
 		return
 	}
 
@@ -148,23 +143,42 @@ func (lexer *Lexer) processChar(char rune) {
 		return
 	}
 
+	lexer.handleSpace(char)
+}
+
+func (lexer *Lexer) handleComment(char rune) bool {
+	if lexer.state == COMMENT && char != '\n' {
+		return true
+	}
+
+	if lexer.state == COMMENT && char == '\n' {
+		lexer.state = UNKNOWN
+		return true
+	}
+
+	return false
+}
+
+func (lexer *Lexer) handleSpace(char rune) bool {
 	if unicode.IsSpace(char) {
 		if lexer.lexeme, lexer.state = lexer.check(operations, OPERATION); lexer.lexeme {
-			return
+			return true
 		}
 
 		if lexer.lexeme, lexer.state = lexer.check(values, VALUE); lexer.lexeme {
-			return
+			return true
 		}
 
 		if lexer.lexeme, lexer.state = lexer.check(flows, FLOW); lexer.lexeme {
-			return
+			return true
 		}
 
 		if lexer.lexeme, lexer.state = lexer.check(delimiters, DELIMITER); lexer.lexeme {
-			return
+			return true
 		}
 	}
+
+	return false
 }
 
 func (lexer *Lexer) check(set []string, token TokenType) (bool, TokenType) {

@@ -23,33 +23,28 @@ type Node struct {
 	Next     []*Node
 	Parent   *Node
 }
-
 type Parser struct {
-	tokens    chan Lexeme
-	current   *Node   // Current node we're building
-	program   *Node   // Root of our AST
-	openNodes []*Node // Stack of open nodes for nested structures
-	lastFlow  string  // Tracks the last flow operator encountered
+	current  *Node  // Current node we're building
+	program  *Node  // Root of our AST
+	lastFlow string // Tracks the last flow operator encountered
 }
 
-func NewParser(tokens chan Lexeme) *Parser {
+func NewParser() *Parser {
 	program := &Node{
 		Type: NODE_PROGRAM,
 		Next: make([]*Node, 0),
 	}
 
 	return &Parser{
-		tokens:    tokens,
-		program:   program,
-		current:   program,
-		openNodes: []*Node{program},
-		lastFlow:  "",
+		program:  program,
+		current:  program,
+		lastFlow: "",
 	}
 }
 
-func (parser *Parser) Generate() *Node {
-	for token := range parser.tokens {
-		fmt.Printf("Token: %s\n", token.Text)
+func (parser *Parser) Generate(tokens chan Lexeme) *Node {
+	for token := range tokens {
+		//fmt.Printf("Token: %s\n", token.Text)
 		switch token.ID {
 		case DELIMITER:
 			parser.handleDelimiter(token)
@@ -65,6 +60,7 @@ func (parser *Parser) Generate() *Node {
 			fmt.Printf("Unhandled token: %s\n", token.Text)
 		}
 	}
+
 	return parser.program
 }
 
@@ -77,34 +73,11 @@ func (parser *Parser) handleDelimiter(token Lexeme) {
 			Parent: parser.current,
 		}
 
-		// If parent is a join node, add to its Next slice
-		if parser.current.Type == NODE_JOIN {
-			parser.current.Next = append(parser.current.Next, closure)
-		} else {
-			parser.current.Next = append(parser.current.Next, closure)
-		}
-
-		parser.openNodes = append(parser.openNodes, closure)
+		// Add closure to parent's Next slice
+		parser.current.Next = append(parser.current.Next, closure)
 		parser.current = closure
 	case ")":
-		if len(parser.openNodes) > 0 {
-			lastIndex := len(parser.openNodes) - 1
-			parser.openNodes = parser.openNodes[:lastIndex] // Pop from stack
-
-			if lastIndex > 0 {
-				// If parent is a join node, stay at the join node level
-				parent := parser.openNodes[lastIndex-1]
-				if parent.Type == NODE_JOIN {
-					parser.current = parent
-				} else if parent.Parent != nil && parent.Parent.Type == NODE_JOIN {
-					parser.current = parent.Parent
-				} else {
-					parser.current = parent
-				}
-			} else {
-				parser.current = parser.program
-			}
-		}
+		parser.current = parser.current.Parent
 	}
 }
 

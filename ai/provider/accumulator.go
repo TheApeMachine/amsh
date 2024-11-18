@@ -34,6 +34,18 @@ func (accumulator *Accumulator) Stream(
 	}
 }
 
+func (accumulator *Accumulator) Collect(
+	in <-chan Event,
+) string {
+	var buffer strings.Builder
+
+	for event := range in {
+		buffer.WriteString(event.Content)
+	}
+
+	return buffer.String()
+}
+
 func (accumulator *Accumulator) String() string {
 	var buffer strings.Builder
 
