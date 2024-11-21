@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/utils"
 )
 
 /*
@@ -37,13 +36,12 @@ func (agent *Agent) Generate(input string) <-chan provider.Event {
 	errnie.Log("%s", input)
 	out := make(chan provider.Event)
 
-	agent.buffer.Clear().Poke(provider.Message{
-		Role:    "system",
-		Content: utils.JoinWith("\n", agent.prompt.systemPrompt, agent.prompt.rolePrompt),
-	}).Poke(provider.Message{
+	agent.buffer.Clear().Poke(agent.prompt.System()).Poke(provider.Message{
 		Role:    "user",
 		Content: input,
 	})
+
+	errnie.Log("%s", agent.buffer.Truncate())
 
 	go func() {
 		defer close(out)

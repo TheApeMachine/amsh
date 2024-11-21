@@ -4,6 +4,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
 )
 
@@ -98,7 +100,41 @@ func (lexer *Lexer) Generate(source string) chan Lexeme {
 	return out
 }
 
+func (lexer *Lexer) GenerateStream(loadStream chan provider.Event) chan Lexeme {
+	out := make(chan Lexeme, 1024)
+
+	go func() {
+		defer close(out)
+
+		for chunk := range loadStream {
+			// Ignore the markdown tags
+			if strings.HasPrefix(chunk.Content, "```boogie") || strings.HasPrefix(chunk.Content, "```") {
+				continue
+			}
+
+			for _, char := range chunk.Content {
+				lexer.processChar(char)
+
+				if lexer.lexeme && lexer.buffer.Len() > 0 {
+					out <- Lexeme{ID: lexer.state, Text: lexer.buffer.String()}
+					lexer.buffer.Reset()
+					lexer.lexeme = false
+					lexer.state = UNKNOWN
+				}
+
+				if !unicode.IsSpace(char) && lexer.state != COMMENT {
+					lexer.buffer.WriteRune(char)
+				}
+			}
+		}
+	}()
+
+	return out
+}
+
 func (lexer *Lexer) processChar(char rune) {
+	errnie.Log("lexer.processChar(%s) [buffer: %s]", string(char), lexer.buffer.String())
+
 	shouldReturn1 := lexer.handleComment(char)
 	if shouldReturn1 {
 		return
@@ -147,6 +183,8 @@ func (lexer *Lexer) processChar(char rune) {
 }
 
 func (lexer *Lexer) handleComment(char rune) bool {
+	errnie.Log("lexer.handleComment(%s) [state: %d]", string(char), lexer.state)
+
 	if lexer.state == COMMENT && char != '\n' {
 		return true
 	}
@@ -160,6 +198,8 @@ func (lexer *Lexer) handleComment(char rune) bool {
 }
 
 func (lexer *Lexer) handleSpace(char rune) bool {
+	errnie.Log("lexer.handleSpace(%s) [state: %d]", string(char), lexer.state)
+
 	if unicode.IsSpace(char) {
 		if lexer.lexeme, lexer.state = lexer.check(operations, OPERATION); lexer.lexeme {
 			return true

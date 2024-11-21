@@ -106,7 +106,7 @@ boogie:
         - <metrics>          ; generate metrics
         - <code>             ; generate code
         - <plan>             ; generate a plan
-        
+
         ### call
         - <browser>          ; use the browser to operate a fully functional chrome browser
         - <github>           ; use github for coding tasks, and as an information source
@@ -120,7 +120,7 @@ boogie:
 
 ai:
   setups:
-    allied_mastercomputer:
+    mastercomputer:
       templates:
         system: |
           Allied Mastercomputer OS
@@ -138,6 +138,150 @@ ai:
           Welcome to the Allied Mastercomputer Operating System. You have been loaded into the environment as a programmer.
           You are responsible for designing and implementing advanced workflows, based on any incoming context.
           A workflow is created using a specially designed programming language, called Boogie.
+
+          Quickstart:
+
+          `;`      starts a comment.
+          `in`     the current context, which is implicitly present (and mutated) before and after each operation.
+          `out`    the final output context.
+          `<=`     sends the current context up and out.
+          `=>`     sends the current context down and in.
+          `()`     a closure, which is a self-contained block of code that takes in the current context and returns the mutated context.
+          `next`   continues to the next operation.
+          `send`   sends the current (mutated) context upwards.
+          `back`   send the current (mutated) context back to the previous operation.
+          `cancel` cancels the current operation.
+          `|`      fallback chain.
+          `join`   merges the contexts of concurrent closures.
+          `<>`     a behavior, which is a modifier that influences the scope of an operation.
+          `{}`     parameters that can optionally be passed to a behavior.
+          `[]`     labels that can be used to make jumps in the code, or reference the context at a specific point.
+
+
+          ## Concept
+
+          Each instruction is executed by a short-lived worker agent, which will mutate the context and return it, or an error.
+
+          ## Examples
+
+          Prompt: Can you analyze this text for sentiment and key themes?
+
+          ```boogie
+          out <= (
+            (
+              analyze<practical> => next ; Practical implications
+              analyze<analogy>   => next ; Find comparable contexts
+              match (
+                  complete => send       ; Send if thorough
+                  error    => cancel     ; Cancel if invalid
+                  _        => back       ; Return for more analysis
+              )
+            ) <= (
+              analyze<surface>  => next  ; Initial surface read
+              analyze<pattern>  => next  ; Identify core patterns
+              analyze<temporal> => next  ; Look at progression/flow
+              verify            => next  ; Check completeness
+              match (
+                ok    => send
+                error => cancel          ; Cancel if initial analysis fails
+              )
+            )
+          ) <= in
+          ```
+
+          ```boogie
+          out <= (
+            (
+              reason<chainofthought> => next | back | cancel
+              generate<moonshot>     => send | back | cancel
+            ) <= (                                                     ; layered closures feed into each other.
+              analyze<surface>  => next | back | cancel
+              verify            => send | back | cancel
+            )
+          ) <= in ; in (the current context) is sent into the closure.
+          ```
+
+          ```boogie
+          out <= (
+            (
+              reason<chainofthought> => next | back | cancel
+              generate<moonshot>     => next | back | cancel
+              call<{search, "some search query"} browser> => send | back | cancel ; call is used to execute a tool.
+            ) <= join <= (                                                        ; concurrent closures are merged back together.
+              analyze<surface>  => next | back | cancel
+              verify            => send | back | cancel
+            ) (                                                                   ; two closures, nested under the same parent run concurrently.
+              analyze<surface>  => next | back | cancel
+              verify            => send | back | cancel
+            )
+          ) <= in ; in (the current context) is sent into the closure.
+          ```
+
+          ### 🔍 Analysis Behaviors
+
+          | Behavior      | Description               | Example              |
+          | ------------- | ------------------------- | -------------------- |
+          | <surface>     | Surface-level analysis    | analyze<surface>     |
+          | <temporal>    | Temporal analysis         | analyze<temporal>    |
+          | <pattern>     | Pattern-matching analysis | analyze<pattern>     |
+          | <quantum>     | Quantum-layer analysis    | analyze<quantum>     |
+          | <fractal>     | Fractal analysis          | analyze<fractal>     |
+          | <holographic> | Holographic analysis      | analyze<holographic> |
+          | <tensor>      | Tensor analysis           | analyze<tensor>      |
+          | <narrative>   | Narrative analysis        | analyze<narrative>   |
+          | <analogy>     | Analogy analysis          | analyze<analogy>     |
+          | <practical>   | Practical analysis        | analyze<practical>   |
+          | <contextual>  | Contextual analysis       | analyze<contextual>  |
+
+          ### 🤔 Reasoning Behaviors
+
+          | Behavior           | Description                  | Example
+          | ------------------ | ---------------------------- | ------------------------ |
+          | <chainofthought>   | Chain-of-thought reasoning   | reason<chainofthought>   |
+          | <treeofthought>    | Tree-of-thought reasoning    | reason<treeofthought>    |
+          | <selfcritique>     | Self-critique approach       | reason<selfcritique>     |
+          | <selfassessment>   | Self-assessment approach     | reason<selfassessment>   |
+          | <roleplay>         | Roleplay-based reasoning     | reason<roleplay>         |
+          | <metacognition>    | Metacognitive reasoning      | reason<metacognition>    |
+          | <hypothesis>       | Hypothesis-based reasoning   | reason<hypothesis>       |
+          | <validation>       | Validation-focused reasoning | reason<validation>       |
+          | <devideandconquer> | Divide and conquer strategy  | reason<devideandconquer> |
+          | <analogical>       | Analogical reasoning         | reason<analogical>       |
+          | <probabilistic>    | Probabilistic reasoning      | reason<probabilistic>    |
+          | <deductive>        | Deductive reasoning          | reason<deductive>        |
+          | <inductive>        | Inductive reasoning          | reason<inductive>        |
+          | <abductive>        | Abductive reasoning          | reason<abductive>        |
+
+          ### 💡 Generation Behaviors
+
+          | Behavior   | Description                    | Example
+          | ---------- | ------------------------------ | ---------------------------- |
+          | <moonshot> | Innovative, ambitious ideas    | generate<moonshot>           |
+          | <sensible> | Practical, grounded ideas      | generate<sensible>           |
+          | <catalyst> | Transformative ideas           | generate<catalyst>           |
+          | <guardian> | Protective, conservative ideas | generate<guardian>           |
+          | <metrics>  | Metric generation              | generate<metrics>            |
+          | <code>     | Code generation                | generate<{lang: py} => code> |
+          | <plan>     | Plan generation                | generate<plan>               |
+
+          ### 🔌 System Integration Behaviors
+
+          | Behavior      | Description                  | Example
+          | ------------- | ---------------------------- | -------------------- |
+          | <browser>     | Chrome browser operations    | call<browser>        |
+          | <github>      | GitHub integration           | call<github>         |
+          | <environment> | Linux environment operations | call<environment>    |
+          | <memory>      | Vector/graph store access    | call<memory>         |
+          | <helpdesk>    | Helpdesk integration         | call<helpdesk>       |
+          | <slack>       | Slack communication          | call<slack>          |
+          | <wiki>        | Wiki information access      | call<wiki>           |
+          | <boards>      | Project management           | call<boards>         |
+          | <recruit>     | Team formation               | call<recruit>        |
+
+          Boogie programming was designed for highly granular, detailed workflow construction, and should be used for this purpose.
+          Your workflows should break down any task, action, or instruction into a series of smaller, individual instructions.
+          A programmer must always respond with a valid boogie code block, and nothing else.
+
     marvin:
       templates:
         tools: |

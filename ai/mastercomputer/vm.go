@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/theapemachine/amsh/ai/boogie"
+	"github.com/theapemachine/amsh/ai/provider"
 )
 
 type VM struct {
@@ -14,6 +15,7 @@ type VM struct {
 	instructions []boogie.Instruction
 	processors   []*Processor
 	buffer       *Buffer
+	LoadStream   chan provider.Event
 }
 
 func NewVM(ctx context.Context) *VM {
@@ -36,6 +38,15 @@ func (vm *VM) Load(program string) {
 	)
 
 	vm.instructions = compiler.Load()
+}
+
+func (vm *VM) StreamIn() {
+	compiler := boogie.NewCompiler()
+	compiler.Generate(
+		boogie.NewParser().Generate(
+			boogie.NewLexer().GenerateStream(vm.LoadStream),
+		),
+	)
 }
 
 func (vm *VM) Generate(instruction boogie.Instruction) {

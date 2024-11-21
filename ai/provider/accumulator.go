@@ -15,7 +15,7 @@ func NewAccumulator() *Accumulator {
 
 func (accumulator *Accumulator) Stream(
 	in <-chan Event,
-	out chan<- Event,
+	sinks ...chan<- Event,
 ) {
 	for event := range in {
 		if _, ok := accumulator.buffer.Load(event.AgentID); !ok {
@@ -30,7 +30,12 @@ func (accumulator *Accumulator) Stream(
 			append(events, event),
 		)
 
-		out <- event
+		for _, sink := range sinks {
+			select {
+			case sink <- event:
+			default:
+			}
+		}
 	}
 }
 

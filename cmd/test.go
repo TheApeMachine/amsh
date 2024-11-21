@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -13,7 +14,9 @@ var testCmd = &cobra.Command{
 	Short: "Run the AI system integration test",
 	Long:  `Run a test that demonstrates the integration between agents, communication, and VM components.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		mastercomputer.NewSystem(cmd.Context()).Input("Hello, world!")
+		for event := range mastercomputer.NewSystem(cmd.Context()).Input("Design a new AI research project") {
+			fmt.Print(event.Content)
+		}
 		return nil
 	},
 }
