@@ -5,6 +5,7 @@ import (
 
 	"github.com/theapemachine/amsh/ai/boogie"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/qpool"
 )
 
@@ -16,6 +17,8 @@ type Processor struct {
 }
 
 func NewProcessor(ctx context.Context, instruction boogie.Instruction) *Processor {
+	errnie.Log("processor.NewProcessor(%v)", instruction)
+
 	return &Processor{
 		ctx:         ctx,
 		pool:        qpool.NewQ(ctx, 1, 4, &qpool.Config{}),
@@ -25,6 +28,8 @@ func NewProcessor(ctx context.Context, instruction boogie.Instruction) *Processo
 }
 
 func (processor *Processor) Generate(in string) chan provider.Event {
+	errnie.Log("processor.Generate(%s)", in)
+
 	out := make(chan provider.Event)
 
 	go func() {

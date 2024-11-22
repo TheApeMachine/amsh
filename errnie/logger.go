@@ -162,9 +162,7 @@ func Success(format string, v ...interface{}) {
 Info logs an info message to the logger.
 */
 func Info(format string, v ...interface{}) {
-	if os.Getenv("NOCONSOLE") != "true" {
-		logger.Info(fmt.Sprintf(format, v...))
-	}
+	logger.Info(fmt.Sprintf(format, v...))
 
 	writeToLog(fmt.Sprintf(format, v...))
 }

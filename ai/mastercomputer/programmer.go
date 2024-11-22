@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Programmer struct {
@@ -11,12 +12,16 @@ type Programmer struct {
 }
 
 func NewProgrammer(ctx context.Context) *Programmer {
+	errnie.Log("programmer.NewProgrammer()")
+
 	return &Programmer{
 		agent: NewAgent(ctx, "programmer"),
 	}
 }
 
 func (programmer *Programmer) Generate(input string) <-chan provider.Event {
+	errnie.Log("programmer.Generate(%s)", input)
+
 	out := make(chan provider.Event)
 
 	go func() {

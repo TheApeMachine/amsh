@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
 /*
@@ -20,6 +22,8 @@ type System struct {
 NewSystem creates a new system with a unique key.
 */
 func NewSystem(ctx context.Context) *System {
+	errnie.Log("system.NewSystem()")
+
 	return &System{ctx: ctx, vm: NewVM(ctx), programmers: make([]*Programmer, 0)}
 }
 
@@ -27,6 +31,8 @@ func NewSystem(ctx context.Context) *System {
 Input kicks off a new workflow with the provided input.
 */
 func (system *System) Input(input string) <-chan provider.Event {
+	errnie.Log("system.Input(%s)", input)
+
 	out := make(chan provider.Event)
 
 	go func() {
@@ -34,12 +40,20 @@ func (system *System) Input(input string) <-chan provider.Event {
 
 		system.programmers = append(system.programmers, NewProgrammer(system.ctx))
 
-		provider.NewAccumulator().Stream(
+		accumulator := provider.NewAccumulator()
+		accumulator.Stream(
 			system.programmers[0].Generate(input),
 			out,
-			system.vm.LoadStream,
 		)
+
+		system.vm.Load(accumulator.String())
 	}()
 
 	return out
+}
+
+func (system *System) load(input string) {
+	errnie.Log("system.load(%s)", input)
+
+	system.vm.Load(utils.StripMarkdown(input, "boogie"))
 }

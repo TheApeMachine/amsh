@@ -76,6 +76,8 @@ func NewLexer() *Lexer {
 }
 
 func (lexer *Lexer) Generate(source string) chan Lexeme {
+	errnie.Info("lexing")
+
 	out := make(chan Lexeme, 1024)
 
 	go func() {
@@ -101,6 +103,8 @@ func (lexer *Lexer) Generate(source string) chan Lexeme {
 }
 
 func (lexer *Lexer) GenerateStream(loadStream chan provider.Event) chan Lexeme {
+	errnie.Log("lexer.GenerateStream()")
+
 	out := make(chan Lexeme, 1024)
 
 	go func() {
@@ -133,8 +137,6 @@ func (lexer *Lexer) GenerateStream(loadStream chan provider.Event) chan Lexeme {
 }
 
 func (lexer *Lexer) processChar(char rune) {
-	errnie.Log("lexer.processChar(%s) [buffer: %s]", string(char), lexer.buffer.String())
-
 	shouldReturn1 := lexer.handleComment(char)
 	if shouldReturn1 {
 		return

@@ -1,5 +1,7 @@
 package boogie
 
+import "github.com/theapemachine/amsh/errnie"
+
 type InstructionType int
 
 const (
@@ -32,6 +34,8 @@ func (compiler *Compiler) Load() []Instruction {
 }
 
 func (compiler *Compiler) Generate(node *Node) int {
+	errnie.Info("compiling")
+
 	switch node.Type {
 	case NODE_PROGRAM:
 		compiler.Generate(node.Next[0])

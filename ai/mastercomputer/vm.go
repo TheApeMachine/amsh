@@ -5,6 +5,7 @@ import (
 
 	"github.com/theapemachine/amsh/ai/boogie"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type VM struct {
@@ -19,6 +20,8 @@ type VM struct {
 }
 
 func NewVM(ctx context.Context) *VM {
+	errnie.Log("vm.NewVM()")
+
 	return &VM{
 		ctx:        ctx,
 		lexer:      boogie.NewLexer(),
@@ -30,6 +33,8 @@ func NewVM(ctx context.Context) *VM {
 }
 
 func (vm *VM) Load(program string) {
+	errnie.Log("vm.Load(%s)", program)
+
 	compiler := boogie.NewCompiler()
 	compiler.Generate(
 		boogie.NewParser().Generate(
@@ -38,9 +43,12 @@ func (vm *VM) Load(program string) {
 	)
 
 	vm.instructions = compiler.Load()
+	errnie.Log("vm.instructions(%v)", vm.instructions)
 }
 
 func (vm *VM) StreamIn() {
+	errnie.Log("vm.StreamIn()")
+
 	compiler := boogie.NewCompiler()
 	compiler.Generate(
 		boogie.NewParser().Generate(
@@ -50,6 +58,8 @@ func (vm *VM) StreamIn() {
 }
 
 func (vm *VM) Generate(instruction boogie.Instruction) {
+	errnie.Log("vm.Generate(%v)", instruction)
+
 	switch instruction.Type {
 	case boogie.INSTRUCTION_SPAWN:
 		vm.processors = append(vm.processors, NewProcessor(vm.ctx, instruction))
@@ -59,6 +69,8 @@ func (vm *VM) Generate(instruction boogie.Instruction) {
 }
 
 func (vm *VM) parallel(indices []int) {
+	errnie.Log("vm.parallel(%v)", indices)
+
 	for _, idx := range indices {
 		vm.Generate(vm.instructions[idx])
 	}
