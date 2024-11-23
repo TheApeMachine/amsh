@@ -10,9 +10,9 @@ import (
 Process represents the evolution of thoughts over time.
 */
 type Process struct {
-	Timeline       []TimePoint     `json:"timeline" jsonschema:"title=Timeline,description=Sequence of thought states; required"`
-	CausalChains   []CausalChain   `json:"causal_chains" jsonschema:"title=CausalChains,description=Cause-effect relationships over time; required"`
-	EvolutionRules []EvolutionRule `json:"evolution_rules" jsonschema:"title=EvolutionRules,description=Patterns of state change; required"`
+	Timeline       []TimePoint     `json:"timeline" jsonschema:"title=Timeline,description=Sequence of thought states,required"`
+	CausalChains   []CausalChain   `json:"causal_chains" jsonschema:"title=CausalChains,description=Cause-effect relationships over time,required"`
+	EvolutionRules []EvolutionRule `json:"evolution_rules" jsonschema:"title=EvolutionRules,description=Patterns of state change,required"`
 }
 
 func NewProcess() *Process {
@@ -20,51 +20,51 @@ func NewProcess() *Process {
 }
 
 type CausalChain struct {
-	ID       string     `json:"id" jsonschema:"required,title=ID,description=Unique identifier for causal chain"`
-	EventIDs []string   `json:"event_ids" jsonschema:"required,title=EventIDs,description=IDs of events in chain"`
-	Strength float64    `json:"strength" jsonschema:"required,title=Strength,description=Causal relationship strength"`
-	Evidence []Evidence `json:"evidence" jsonschema:"required,title=Evidence,description=Supporting evidence"`
+	ID       string     `json:"id" jsonschema:"title=ID,description=Unique identifier for causal chain,required"`
+	EventIDs []string   `json:"event_ids" jsonschema:"title=EventIDs,description=IDs of events in chain,required"`
+	Strength float64    `json:"strength" jsonschema:"title=Strength,description=Causal relationship strength,required"`
+	Evidence []Evidence `json:"evidence" jsonschema:"title=Evidence,description=Supporting evidence,required"`
 }
 
 type Evidence struct {
-	Type        string  `json:"type" jsonschema:"required,title=Type,description=Type of evidence"`
-	Description string  `json:"description" jsonschema:"required,title=Description,description=Evidence description"`
-	Confidence  float64 `json:"confidence" jsonschema:"required,title=Confidence,description=Confidence level"`
-	Source      string  `json:"source" jsonschema:"required,title=Source,description=Evidence source"`
+	Type        string  `json:"type" jsonschema:"title=Type,description=Type of evidence,required"`
+	Description string  `json:"description" jsonschema:"title=Description,description=Evidence description,required"`
+	Confidence  float64 `json:"confidence" jsonschema:"title=Confidence,description=Confidence level,required"`
+	Source      string  `json:"source" jsonschema:"title=Source,description=Evidence source,required"`
 }
 
 type TimePoint struct {
-	Time   time.Time              `json:"time" jsonschema:"required,title=Time,description=Point in time"`
-	State  map[string]interface{} `json:"state" jsonschema:"required,title=State,description=System state"`
-	Delta  map[string]float64     `json:"delta" jsonschema:"required,title=Delta,description=State changes"`
-	Events []Event                `json:"events" jsonschema:"required,title=Events,description=Events at this time"`
+	Time   time.Time              `json:"time" jsonschema:"title=Time,description=Point in time,required"`
+	State  map[string]interface{} `json:"state" jsonschema:"title=State,description=System state,required"`
+	Delta  map[string]float64     `json:"delta" jsonschema:"title=Delta,description=State changes,required"`
+	Events []Event                `json:"events" jsonschema:"title=Events,description=Events at this time,required"`
 }
 
 type Event struct {
-	ID        string                 `json:"id" jsonschema:"required,title=ID,description=Unique identifier for event"`
-	Type      string                 `json:"type" jsonschema:"required,title=Type,description=Type of event"`
-	Data      map[string]interface{} `json:"data" jsonschema:"description=Event data"`
-	Timestamp time.Time              `json:"timestamp" jsonschema:"description=Event time"`
+	ID        string                 `json:"id" jsonschema:"title=ID,description=Unique identifier for event,required"`
+	Type      string                 `json:"type" jsonschema:"title=Type,description=Type of event,required"`
+	Data      map[string]interface{} `json:"data" jsonschema:"title=Data,description=Event data,required"`
+	Timestamp time.Time              `json:"timestamp" jsonschema:"title=Timestamp,description=Event time,required"`
 }
 
 type EvolutionRule struct {
-	ID          string    `json:"id" jsonschema:"required,description=Unique identifier for the evolution rule"`
-	Condition   Predicate `json:"condition" jsonschema:"required,description=Condition for the evolution rule"`
-	Action      Transform `json:"action" jsonschema:"required,description=Action to be taken"`
-	Priority    int       `json:"priority" jsonschema:"required,description=Priority of the evolution rule"`
-	Reliability float64   `json:"reliability" jsonschema:"required,description=Reliability of the evolution rule"`
+	ID          string    `json:"id" jsonschema:"title=ID,description=Unique identifier for the evolution rule,required"`
+	Condition   Predicate `json:"condition" jsonschema:"title=Condition,description=Condition for the evolution rule,required"`
+	Action      Transform `json:"action" jsonschema:"title=Action,description=Action to be taken,required"`
+	Priority    int       `json:"priority" jsonschema:"title=Priority,description=Priority of the evolution rule,required"`
+	Reliability float64   `json:"reliability" jsonschema:"title=Reliability,description=Reliability of the evolution rule,required"`
 }
 
 type Predicate struct {
-	Type      string                 `json:"type" jsonschema:"required,description=Type of the predicate"`
-	Params    map[string]interface{} `json:"params" jsonschema:"required,description=Parameters for the predicate"`
-	Threshold float64                `json:"threshold" jsonschema:"required,description=Threshold for the predicate"`
+	Type      string                 `json:"type" jsonschema:"title=Type,description=Type of the predicate,required"`
+	Params    map[string]interface{} `json:"params" jsonschema:"title=Params,description=Parameters for the predicate,required"`
+	Threshold float64                `json:"threshold" jsonschema:"title=Threshold,description=Threshold for the predicate,required"`
 }
 
 type Transform struct {
-	Type      string                 `json:"type" jsonschema:"required,description=Type of the transformation"`
-	Params    map[string]interface{} `json:"params" jsonschema:"required,description=Parameters for the transformation"`
-	Magnitude float64                `json:"magnitude" jsonschema:"required,description=Magnitude of the transformation"`
+	Type      string                 `json:"type" jsonschema:"title=Type,description=Type of the transformation,required"`
+	Params    map[string]interface{} `json:"params" jsonschema:"title=Params,description=Parameters for the transformation,required"`
+	Magnitude float64                `json:"magnitude" jsonschema:"title=Magnitude,description=Magnitude of the transformation,required"`
 }
 
 func (ta *Process) GenerateSchema() string {

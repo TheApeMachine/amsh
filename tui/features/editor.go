@@ -3,6 +3,8 @@ package features
 import (
 	"bufio"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +16,7 @@ import (
 	"github.com/theapemachine/amsh/tui/components/textarea"
 	"github.com/theapemachine/amsh/tui/types"
 	"github.com/theapemachine/amsh/utils"
+	"github.com/zyedidia/highlight"
 )
 
 type Editor struct {
@@ -36,7 +39,14 @@ func (editor *Editor) Name() string {
 }
 
 func (editor *Editor) Init() tea.Cmd {
-	return textarea.Blink
+	cmds := []tea.Cmd{textarea.Blink}
+	cmds = append(cmds, func() tea.Msg {
+		return ModeChangeMsg{Mode: types.ModeNormal}
+	})
+
+	editor.model.SetBlockInput(true)
+
+	return tea.Batch(cmds...)
 }
 
 func (editor *Editor) Size() (int, int) {
@@ -58,11 +68,63 @@ func (editor *Editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		editor.model.SetHeight(safeHeight)
 
 	case LoadFileMsg:
-		for scanner := bufio.NewScanner(errnie.SafeMust(func() (*os.File, error) {
+		file := errnie.SafeMust(func() (*os.File, error) {
 			return os.Open(msg.Filepath)
-		})); scanner.Scan(); {
-			editor.model.InsertString(scanner.Text() + "\n")
+		})
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+
+		// Get working directory for syntax file path
+		wd, err := os.Getwd()
+		if err != nil {
+			errnie.Error(err)
+			return editor, nil
 		}
+
+		// Load and parse syntax definition
+		syntaxFile, err := os.ReadFile(filepath.Join(wd, "tui/syntax/go.yaml"))
+		if err != nil {
+			errnie.Error(err)
+			return editor, nil
+		}
+
+		syntaxDef, err := highlight.ParseDef(syntaxFile)
+		if err != nil {
+			errnie.Error(err)
+			return editor, nil
+		}
+
+		h := highlight.NewHighlighter(syntaxDef)
+		var builder strings.Builder
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			matches := h.HighlightString(line)
+
+			var styledLine string
+			for colN, char := range line {
+				if group, ok := matches[0][colN]; ok {
+					switch group {
+					case highlight.Groups["comment"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render(string(char))
+					case highlight.Groups["keyword"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("5")).Render(string(char))
+					case highlight.Groups["string"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Render(string(char))
+					default:
+						styledLine += string(char)
+					}
+				} else {
+					styledLine += string(char)
+				}
+			}
+			builder.WriteString(styledLine + "\n")
+		}
+
+		errnie.Log("styled content sample: %s", builder.String()[:min(100, builder.Len())])
+
+		editor.model.SetValue(builder.String())
 		editor.model.CursorStart()
 		editor.model.Focus()
 		return editor, nil

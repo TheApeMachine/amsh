@@ -46,17 +46,6 @@ func (vm *VM) Load(program string) {
 	errnie.Log("vm.instructions(%v)", vm.instructions)
 }
 
-func (vm *VM) StreamIn() {
-	errnie.Log("vm.StreamIn()")
-
-	compiler := boogie.NewCompiler()
-	compiler.Generate(
-		boogie.NewParser().Generate(
-			boogie.NewLexer().GenerateStream(vm.LoadStream),
-		),
-	)
-}
-
 func (vm *VM) Generate(instruction boogie.Instruction) {
 	errnie.Log("vm.Generate(%v)", instruction)
 

@@ -163,6 +163,5 @@ func (te *TrainingExample) Save() error {
 		return fmt.Errorf("failed to write training example: %v", err)
 	}
 
-	errnie.Success("saved training example to %s", filepath)
 	return nil
 }

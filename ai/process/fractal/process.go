@@ -13,10 +13,10 @@ Each Pattern represents the essential characteristics that persist
 across different manifestations, ensuring consistency within the fractal system.
 */
 type Pattern struct {
-	Identifier  string    `json:"identifier" jsonschema:"description=Unique identifier for the pattern,required"`
-	Motif       string    `json:"motif" jsonschema:"description=Motif of the pattern,required"`
-	Description string    `json:"description" jsonschema:"description=Detailed description of the pattern,required"`
-	CreatedAt   time.Time `json:"created_at" jsonschema:"description=Timestamp of pattern creation,required"`
+	Identifier  string    `json:"identifier" jsonschema:"title=Identifier,description=Unique identifier for the pattern,required"`
+	Motif       string    `json:"motif" jsonschema:"title=Motif,description=Motif of the pattern,required"`
+	Description string    `json:"description" jsonschema:"title=Description,description=Detailed description of the pattern,required"`
+	CreatedAt   time.Time `json:"created_at" jsonschema:"title=CreatedAt,description=Timestamp of pattern creation,required"`
 }
 
 /*
@@ -26,19 +26,23 @@ abstraction or granularity, allowing patterns to be observed and analyzed
 at varying levels of detail.
 */
 type Scale struct {
-	Level       int     `json:"level" jsonschema:"description=Hierarchical level of the scale,required"`
-	Magnitude   float64 `json:"magnitude" jsonschema:"description=Extent of pattern manifestation at this scale,required"`
-	Description string  `json:"description" jsonschema:"description=Explanation of the pattern's behavior at this scale,required"`
+	Level       int     `json:"level" jsonschema:"title=Level,description=Hierarchical level of the scale,required"`
+	Magnitude   float64 `json:"magnitude" jsonschema:"title=Magnitude,description=Extent of pattern manifestation at this scale,required"`
+	Description string  `json:"description" jsonschema:"title=Description,description=Explanation of the pattern's behavior at this scale,required"`
 }
 
 /*
 Process represents a fractal thought or reasoning process.
 */
 type Process struct {
-	BasePattern    Pattern `json:"base_pattern" jsonschema:"description=Fundamental pattern that repeats,required"`
-	Scales         []Scale `json:"scales" jsonschema:"description=Different levels of pattern manifestation,required"`
-	Iterations     int     `json:"iterations" jsonschema:"description=Depth of fractal recursion,required"`
-	SelfSimilarity float64 `json:"self_similarity" jsonschema:"description=Degree of pattern preservation across scales,required"`
+	BasePattern    Pattern `json:"base_pattern" jsonschema:"title=BasePattern,description=Fundamental pattern that repeats,required"`
+	Scales         []Scale `json:"scales" jsonschema:"title=Scales,description=Different levels of pattern manifestation,required"`
+	Iterations     int     `json:"iterations" jsonschema:"title=Iterations,description=Depth of fractal recursion,required"`
+	SelfSimilarity float64 `json:"self_similarity" jsonschema:"title=SelfSimilarity,description=Degree of pattern preservation across scales,required"`
+}
+
+func NewProcess() *Process {
+	return &Process{}
 }
 
 func (ta *Process) GenerateSchema() string {

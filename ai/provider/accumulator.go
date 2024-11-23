@@ -1,8 +1,11 @@
 package provider
 
 import (
+	"errors"
 	"strings"
 	"sync"
+
+	"github.com/theapemachine/amsh/errnie"
 )
 
 type Accumulator struct {
@@ -18,6 +21,13 @@ func (accumulator *Accumulator) Stream(
 	sinks ...chan<- Event,
 ) {
 	for event := range in {
+		if event.Type == EventError {
+			errnie.Error(errors.New("error event from agent"),
+				event.AgentID,
+				event.Content,
+			)
+		}
+
 		if _, ok := accumulator.buffer.Load(event.AgentID); !ok {
 			accumulator.buffer.Store(event.AgentID, []Event{})
 		}

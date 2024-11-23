@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/acarl005/stripansi"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
 	"github.com/davecgh/go-spew/spew"
@@ -34,22 +33,30 @@ var (
 Initialize logging system by configuring log styles, setting log levels,
 and initializing log files if applicable.
 */
-func init() {
-	// Initialize the log file
-	initLogFile()
-	if logFile == nil {
-		fmt.Println("WARNING: Log file initialization failed!")
+func InitLogger() {
+	fmt.Printf("LOGFILE=%s\n", os.Getenv("LOGFILE"))
+	fmt.Printf("NOCONSOLE=%s\n", os.Getenv("NOCONSOLE"))
+
+	if os.Getenv("LOGFILE") == "true" {
+		// Initialize the log file
+		initLogFile()
+
+		if logFile == nil {
+			fmt.Println("WARNING: Log file initialization failed!")
+		}
 	}
 
 	// Set log level based on configuration
 	setLogLevel()
 
-	// Periodic routine to print the number of active goroutines
-	// go func() {
-	// 	for range time.Tick(time.Second * 5) {
-	// 		logger.Debug("active goroutines", "count", runtime.NumGoroutine())
-	// 	}
-	// }()
+	if os.Getenv("LOGGOROUTINES") == "true" {
+		// Periodic routine to print the number of active goroutines
+		go func() {
+			for range time.Tick(time.Second * 5) {
+				logger.Debug("active goroutines", "count", runtime.NumGoroutine())
+			}
+		}()
+	}
 }
 
 /*
@@ -75,14 +82,19 @@ Initialize the log file by creating or overwriting the log file.
 Handles any errors during initialization gracefully.
 */
 func initLogFile() {
-	logDir := "./"
+	wd, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Failed to get working directory: %v\n", err)
+		return
+	}
+
+	logDir := filepath.Join(wd, "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		fmt.Printf("Failed to create log directory: %v\n", err)
 		return
 	}
 
 	logFilePath := filepath.Join(logDir, "amsh.log")
-	var err error
 	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		fmt.Printf("Failed to open log file: %v\n", err)
@@ -137,32 +149,12 @@ func Debug(format string, v ...interface{}) {
 }
 
 /*
-Note is a custom log message with a different style.
-*/
-func Note(format string, v ...interface{}) {
-	if os.Getenv("NOCONSOLE") != "true" {
-		logger.Info(fmt.Sprintf(format, v...))
-	}
-
-	writeToLog(fmt.Sprintf(format, v...))
-}
-
-/*
-Success is a custom log message with a different style.
-*/
-func Success(format string, v ...interface{}) {
-	if os.Getenv("NOCONSOLE") != "true" {
-		logger.Info(fmt.Sprintf(format, v...))
-	}
-
-	writeToLog(fmt.Sprintf(format, v...))
-}
-
-/*
 Info logs an info message to the logger.
 */
 func Info(format string, v ...interface{}) {
-	logger.Info(fmt.Sprintf(format, v...))
+	if os.Getenv("NOCONSOLE") != "true" {
+		logger.Info(fmt.Sprintf(format, v...))
+	}
 
 	writeToLog(fmt.Sprintf(format, v...))
 }
@@ -208,7 +200,7 @@ func Error(err error, v ...interface{}) error {
 Write a log message to the log file, ensuring thread safety.
 */
 func writeToLog(message string) {
-	if message == "" || logFile == nil {
+	if os.Getenv("LOGFILE") != "true" || message == "" || logFile == nil {
 		return
 	}
 
@@ -216,7 +208,8 @@ func writeToLog(message string) {
 	defer logFileMu.Unlock()
 
 	// Strip ANSI escape codes and add a timestamp
-	formattedMessage := fmt.Sprintf("[%s] %s\n", time.Now().Format("15:04:05"), stripansi.Strip(strings.TrimSpace(message)))
+	// formattedMessage := fmt.Sprintf("[%s] %s\n", time.Now().Format("15:04:05"), stripansi.Strip(strings.TrimSpace(message)))
+	formattedMessage := fmt.Sprintf("[%s] %s\n", time.Now().Format("15:04:05"), strings.TrimSpace(message))
 
 	_, err := logFile.WriteString(formattedMessage)
 	if err != nil {

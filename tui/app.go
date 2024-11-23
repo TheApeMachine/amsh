@@ -2,6 +2,7 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/core"
 )
 
@@ -18,6 +19,8 @@ type App struct {
 NewApp initializes the application and sets up the default screens.
 */
 func NewApp() *App {
+	errnie.Info("Initializing application")
+
 	return &App{
 		Manager: core.NewManager(),
 	}
@@ -27,6 +30,7 @@ func NewApp() *App {
 Init initializes the application.
 */
 func (app *App) Init() tea.Cmd {
+	errnie.Info("Initializing application")
 	return app.Manager.Init()
 }
 

@@ -11,7 +11,7 @@ const whenTokenized = "When the program is tokenzized"
 /*
 TestLexer checks that the lexer correctly tokenizes Boogie programs.
 */
-func TestLexer(t *testing.T) {
+func TestLexerEmptyProgram(t *testing.T) {
 	Convey("Given an empty Boogie program ", t, func() {
 		program := `out <= () <= in`
 
@@ -33,7 +33,9 @@ func TestLexer(t *testing.T) {
 			})
 		})
 	})
+}
 
+func TestLexerSingleOperation(t *testing.T) {
 	Convey("Given a single operation Boogie program ", t, func() {
 		program := `out <= (analyze => send) <= in`
 
@@ -58,7 +60,9 @@ func TestLexer(t *testing.T) {
 			})
 		})
 	})
+}
 
+func TestLexerMultiOperation(t *testing.T) {
 	Convey("Given a multi operation Boogie program ", t, func() {
 		program := `out <= (
 		    analyze => next
@@ -135,7 +139,9 @@ func TestLexer(t *testing.T) {
 			})
 		})
 	})
+}
 
+func TestLexerMultiOperationWithConditionalFlow(t *testing.T) {
 	Convey("Given a multi operation Boogie program with conditional flow", t, func() {
 		program := `
 		out <= (
@@ -180,7 +186,9 @@ func TestLexer(t *testing.T) {
 			})
 		})
 	})
+}
 
+func TestLexerMultiOperationWithParallelExecution(t *testing.T) {
 	Convey("Given a multi operation Boogie program with parallel execution", t, func() {
 		program := `
 		out <= (

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
 	"github.com/theapemachine/amsh/errnie"
 )
 
@@ -13,9 +14,12 @@ type OpenAI struct {
 	maxTokens int
 }
 
-func NewOpenAI(apiKey string, model string) *OpenAI {
+func NewOpenAI(apiKey, endpoint, model string) *OpenAI {
 	return &OpenAI{
-		client:    openai.NewClient(),
+		client: openai.NewClient(
+			option.WithBaseURL(endpoint),
+			option.WithAPIKey(apiKey),
+		),
 		model:     model,
 		maxTokens: 4096,
 	}
@@ -43,11 +47,11 @@ func (o *OpenAI) Generate(ctx context.Context, params GenerationParams) <-chan E
 		}
 
 		stream := o.client.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
-			Messages:         openai.F(openAIMessages),
-			Model:            openai.F(o.model),
-			Temperature:      openai.F(params.Temperature),
-			FrequencyPenalty: openai.F(params.FrequencyPenalty),
-			PresencePenalty:  openai.F(params.PresencePenalty),
+			Messages: openai.F(openAIMessages),
+			Model:    openai.F(o.model),
+			// Temperature:      openai.F(params.Temperature),
+			// FrequencyPenalty: openai.F(params.FrequencyPenalty),
+			// PresencePenalty:  openai.F(params.PresencePenalty),
 		})
 
 		for stream.Next() {
@@ -58,6 +62,7 @@ func (o *OpenAI) Generate(ctx context.Context, params GenerationParams) <-chan E
 		}
 
 		if err := stream.Err(); err != nil {
+			errnie.Error(err)
 			events <- Event{Type: EventError, Error: err}
 			return
 		}
@@ -68,7 +73,6 @@ func (o *OpenAI) Generate(ctx context.Context, params GenerationParams) <-chan E
 	return events
 }
 
-// Add Configure method
 func (o *OpenAI) Configure(config map[string]interface{}) {
 	// OpenAI-specific configuration can be added here if needed
 }

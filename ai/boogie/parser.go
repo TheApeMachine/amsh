@@ -2,8 +2,6 @@ package boogie
 
 import (
 	"fmt"
-
-	"github.com/theapemachine/amsh/errnie"
 )
 
 type NodeType int
@@ -45,8 +43,6 @@ func NewParser() *Parser {
 }
 
 func (parser *Parser) Generate(tokens chan Lexeme) *Node {
-	errnie.Info("parsing")
-
 	for token := range tokens {
 		//fmt.Printf("Token: %s\n", token.Text)
 		switch token.ID {

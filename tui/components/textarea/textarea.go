@@ -355,10 +355,49 @@ func DefaultStyles() (Style, Style) {
 	return focused, blurred
 }
 
+// Add these helper functions first
+func isANSIStart(r rune) bool {
+	return r == '\x1b'
+}
+
+// characterRight moves the cursor one character to the right.
+func (m *Model) characterRight() {
+	if m.col < len(m.value[m.row]) {
+		m.SetCursor(m.col + 1)
+	} else {
+		if m.row < len(m.value)-1 {
+			m.row++
+			m.CursorStart()
+		}
+	}
+}
+
+// characterLeft moves the cursor one character to the left.
+// If insideLine is set, the cursor is moved to the last
+// character in the previous line, instead of one past that.
+func (m *Model) characterLeft() {
+	if m.col == 0 && m.row != 0 {
+		m.row--
+		m.CursorEnd()
+	}
+	if m.col > 0 {
+		m.SetCursor(m.col - 1)
+	}
+}
+
 // SetValue sets the value of the text input.
 func (m *Model) SetValue(s string) {
-	m.Reset()
-	m.InsertString(s)
+	lines := strings.Split(s, "\n")
+	m.value = make([][]rune, 0, len(lines))
+
+	for _, line := range lines {
+		// Store the styled line but strip ANSI codes for cursor operations
+		m.value = append(m.value, []rune(stripANSI(line)))
+	}
+
+	// Reset cursor position
+	m.row = 0
+	m.col = 0
 }
 
 // InsertString inserts a string at the cursor position.
@@ -569,7 +608,20 @@ func (m *Model) CursorUp() {
 // SetCursor moves the cursor to the given position. If the position is
 // out of bounds the cursor will be moved to the start or end accordingly.
 func (m *Model) SetCursor(col int) {
-	m.col = clamp(col, 0, len(m.value[m.row]))
+	// First find the actual position skipping ANSI codes
+	actualCol := col
+	for i := 0; i < col && i < len(m.value[m.row]); i++ {
+		if isANSIStart(m.value[m.row][i]) {
+			// Skip the ANSI escape sequence
+			for i < len(m.value[m.row]) && m.value[m.row][i] != 'm' {
+				i++
+				actualCol++
+			}
+			actualCol++ // Skip the 'm'
+		}
+	}
+
+	m.col = clamp(actualCol, 0, len(m.value[m.row]))
 	// Any time that we move the cursor horizontally we need to reset the last
 	// offset so that the horizontal position when navigating is adjusted.
 	m.lastCharOffset = 0
@@ -731,40 +783,12 @@ func (m *Model) deleteWordRight() {
 	m.SetCursor(oldCol)
 }
 
-// characterRight moves the cursor one character to the right.
-func (m *Model) characterRight() {
-	if m.col < len(m.value[m.row]) {
-		m.SetCursor(m.col + 1)
-	} else {
-		if m.row < len(m.value)-1 {
-			m.row++
-			m.CursorStart()
-		}
-	}
-}
-
-// characterLeft moves the cursor one character to the left.
-// If insideLine is set, the cursor is moved to the last
-// character in the previous line, instead of one past that.
-func (m *Model) characterLeft(insideLine bool) {
-	if m.col == 0 && m.row != 0 {
-		m.row--
-		m.CursorEnd()
-		if !insideLine {
-			return
-		}
-	}
-	if m.col > 0 {
-		m.SetCursor(m.col - 1)
-	}
-}
-
 // wordLeft moves the cursor one word to the left. Returns whether or not the
 // cursor blink should be reset. If input is masked, move input to the start
 // so as not to reveal word breaks in the masked input.
 func (m *Model) wordLeft() {
 	for {
-		m.characterLeft(true /* insideLine */)
+		m.characterLeft()
 		if m.col < len(m.value[m.row]) && !unicode.IsSpace(m.value[m.row][m.col]) {
 			break
 		}
@@ -1084,7 +1108,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.Paste):
 			return m, Paste
 		case key.Matches(msg, m.KeyMap.CharacterBackward):
-			m.characterLeft(false /* insideLine */)
+			m.characterLeft()
 		case key.Matches(msg, m.KeyMap.LinePrevious):
 			m.CursorUp()
 		case key.Matches(msg, m.KeyMap.WordBackward):
@@ -1606,4 +1630,8 @@ func (m Model) cursorPosition() int {
 		pos += len(m.value[i])
 	}
 	return pos + m.col
+}
+
+func stripANSI(s string) string {
+	return ansi.Strip(s)
 }
