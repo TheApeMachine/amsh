@@ -81,7 +81,7 @@ func (sb *StatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 		return sb, nil
 
-	case LoadFileMsg:
+	case types.LoadFileMsg:
 		// Handle LoadFileMsg to keep status bar in sync
 		sb.model.SetContent(
 			"NORMAL",
