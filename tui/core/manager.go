@@ -87,27 +87,17 @@ func (manager *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			))
 		}
 
-		if len(manager.keyBuffer) == 2 && manager.keyBuffer[0] == "c" && manager.keyBuffer[1] == "c" {
-			for _, model := range manager.screens.ModelMap {
-				if textarea, ok := model.(*features.Editor); ok {
-					highlightedText := textarea.GetHighlightedText()
-					cmds = append(cmds, func() tea.Msg {
-						return types.OpenChatMsg{Context: highlightedText}
-					})
-				}
-			}
-		}
 	case features.FileSelectedMsg:
 		// Switch out browser for textarea and statusbar
 		cmds = append(cmds, manager.addScreens(
 			true,
-			features.NewTextarea(),
+			features.NewEditor(),
 			features.NewStatusBar(),
 		))
 
 		// Forward the file path to the textarea
 		cmds = append(cmds, func() tea.Msg {
-			return features.LoadFileMsg{Filepath: msg.Path}
+			return types.LoadFileMsg{Filepath: msg.Path}
 		})
 	case tea.WindowSizeMsg:
 		manager.width, manager.height = msg.Width, msg.Height
@@ -143,7 +133,6 @@ func (manager *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 	}
-
 
 	return manager, tea.Batch(cmds...)
 }

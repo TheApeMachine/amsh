@@ -1,10 +1,10 @@
 package features
 
 import (
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/theapemachine/amsh/errnie"
-	"github.com/theapemachine/amsh/tui/components/textarea"
 	"github.com/theapemachine/amsh/tui/types"
 )
 
