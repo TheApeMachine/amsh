@@ -1,0 +1,30 @@
+{
+    "dynamicIsland": {
+        "styles": {
+            "width": "100vw",
+            "height": "100vh"
+        }
+    },
+    "header": {
+        "styles": {
+            "display": "flex",
+            "flexDirection": "row",
+            "justifyContent": "space-between",
+            "alignItems": "center"
+        }
+    },
+    "aside": {
+        "styles": {
+            "display": "flex",
+            "flexDirection": "column",
+            "alignItems": "center"
+        }
+    },
+    "main": {
+        "styles": {
+            "display": "flex",
+            "flexDirection": "column",
+            "alignItems": "center"
+        }
+    }
+}

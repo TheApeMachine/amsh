@@ -107,11 +107,21 @@ func (editor *Editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if group, ok := matches[0][colN]; ok {
 					switch group {
 					case highlight.Groups["comment"]:
-						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render(string(char))
-					case highlight.Groups["keyword"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(string(char))
+					case highlight.Groups["keyword"], highlight.Groups["statement"], highlight.Groups["preproc"]:
 						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("5")).Render(string(char))
-					case highlight.Groups["string"]:
+					case highlight.Groups["type"], highlight.Groups["type.keyword"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("4")).Render(string(char))
+					case highlight.Groups["constant.string"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render(string(char))
+					case highlight.Groups["constant.number"], highlight.Groups["constant.bool"]:
 						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Render(string(char))
+					case highlight.Groups["symbol.operator"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render(string(char))
+					case highlight.Groups["symbol.brackets"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("7")).Render(string(char))
+					case highlight.Groups["special"]:
+						styledLine += lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(string(char))
 					default:
 						styledLine += string(char)
 					}

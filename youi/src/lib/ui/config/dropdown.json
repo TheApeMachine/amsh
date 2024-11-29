@@ -1,0 +1,52 @@
+{
+    "dynamicIsland": {
+        "styles": {
+            "width": "100%",
+            "background": "var(--muted)",
+            "borderBottom": "1px solid var(--lighter)"
+        }
+    },
+    "header": {
+        "transforms": {
+            "data": {
+                "template": {
+                    "tag": "h3",
+                    "styles": {
+                        "cursor": "pointer",
+                        "padding": "var(--md)"
+                    },
+                    "content": "{{category}}",
+                    "events": {
+                        "trigger": "click",
+                        "target": "main",
+                        "effect": "toggle",
+                        "variant": "vertical"
+                    }
+                }
+            }
+        }
+    },
+    "main": {
+        "transforms": {
+            "data": {
+                "template": {
+                    "tag": "ul",
+                    "children": {
+                        "tag": "li",
+                        "children": {
+                            "tag": "a",
+                            "content": "{{label}}",
+                            "styles": {
+                                "display": "flex",
+                                "padding": "var(--sm) var(--xs)"
+                            },
+                            "props": {
+                                "href": "{{path}}"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -5,14 +5,11 @@ go 1.22.5
 require (
 	capnproto.org/go/capnp/v3 v3.0.1-alpha.2
 	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2
-	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
-	github.com/alecthomas/chroma/v2 v2.14.0
 	github.com/atotto/clipboard v0.1.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.0
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v0.13.0
-	github.com/charmbracelet/x/ansi v0.2.3
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/fasthttp/websocket v1.5.10
 	github.com/gofiber/utils/v2 v2.0.0-beta.4
@@ -27,6 +24,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/theckman/yacspin v0.13.12
 	github.com/tmc/langchaingo v0.1.12
+	github.com/zyedidia/highlight v0.0.0-20200217010119-291680feaca1
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
 	golang.org/x/oauth2 v0.23.0
 	google.golang.org/api v0.199.0
@@ -54,6 +52,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/charmbracelet/x/ansi v0.2.3 // indirect
 	github.com/charmbracelet/x/term v0.2.0 // indirect
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -117,7 +116,6 @@ require (
 	github.com/ysmood/got v0.40.0 // indirect
 	github.com/ysmood/gson v0.7.3 // indirect
 	github.com/ysmood/leakless v0.9.0 // indirect
-	github.com/zyedidia/highlight v0.0.0-20200217010119-291680feaca1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.55.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.55.0 // indirect
@@ -143,7 +141,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/chroma v0.10.0
 	github.com/anthropics/anthropic-sdk-go v0.2.0-alpha.3
 	github.com/aws/aws-sdk-go-v2 v1.32.2
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.41
@@ -174,7 +171,7 @@ require (
 	github.com/muesli/termenv v0.15.3-0.20240618155329-98d742f6907a
 	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
 	github.com/ollama/ollama v0.3.14
-	github.com/rivo/uniseg v0.4.7
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/slack-go/slack v0.14.0
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/spf13/pflag v1.0.5 // indirect

@@ -1,0 +1,30 @@
+{
+    "main": {
+        "styles": {
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "gap": "var(--xs)",
+            "cursor": "pointer",
+            "padding": "var(--sm) var(--sm)",
+            "borderRadius": "var(--border-radius-xs)",
+            "background": "var(--lighter)",
+            "color": "var(--white)",
+            "fontWeight": "600"
+        },
+        "template": [
+            {
+                "tag": "i",
+                "class": "material-icons",
+                "content": "{{icon}}",
+                "styles": {
+                    "fontSize": "var(--font-size)"
+                }
+            },
+            {
+                "tag": "span",
+                "content": "{{text}}"
+            }
+        ]
+    }
+}

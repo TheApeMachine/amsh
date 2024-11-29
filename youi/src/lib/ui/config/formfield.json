@@ -1,0 +1,64 @@
+{
+    "dynamicIsland": {
+        "styles": {
+            "padding": "0 var(--md)"
+        }
+    },
+    "aside": {
+        "styles": {
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "start",
+            "padding": "var(--sm)",
+            "width": "200px"
+        },
+        "transforms": {
+            "data": {
+                "template": {
+                    "tag": "label",
+                    "styles": {
+                        "fontWeight": "700",
+                        "color": "var(--gray-700)",
+                        "whiteSpace": "nowrap"
+                    },
+                    "content": "{{key}}"
+                }
+            }
+        }
+    },
+    "main": {
+        "styles": {
+            "display": "flex",
+            "alignItems": "center",
+            "justifyContent": "center",
+            "boxShadow": "var(--ring)",
+            "borderRadius": "var(--border-radius)"
+        },
+        "transforms": {
+            "data": {
+                "template": {
+                    "tag": "input",
+                    "styles": {
+                        "width": "100%",
+                        "padding": "var(--xs) var(--sm)",
+                        "border": "none",
+                        "borderRadius": "var(--border-radius)",
+                        "color": "var(--darker)",
+                        "backgroundColor": "var(--gray-100)",
+                        "outline": "none"
+                    },
+                    "props": {
+                        "value": "{{value}}",
+                        "name": "{{key}}"
+                    },
+                    "events": {
+                        "effect": "input",
+                        "trigger": "input",
+                        "target": "form",
+                        "variant": "field"
+                    }
+                }
+            }
+        }
+    }
+}

@@ -78,6 +78,16 @@ export const EventManager = () => {
     const handleClick = (event: Event) => {
         if (!(event.target instanceof HTMLElement)) return;
 
+        const link = event.target.closest('a');
+        if (link?.href?.startsWith(window.location.origin)) {
+            event.preventDefault();
+            eventBus.publish('navigate', {
+                url: link.getAttribute('href'),
+                originalEvent: event
+            });
+            return;
+        }
+
         let element = event.target;
         while (element && !element.hasAttribute("data-event")) {
             element = element.parentElement as HTMLElement;

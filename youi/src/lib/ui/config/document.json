@@ -1,0 +1,75 @@
+{
+    "dynamicIsland": {
+        "styles": {
+            "width": "100%"
+        }
+    },
+    "header": {
+        "styles": {
+            "display": "flex",
+            "justifyContent": "space-between",
+            "alignItems": "center",
+            "padding": "var(--md)",
+            "background": "var(--muted)",
+            "borderBottom": "1px solid var(--lighter)"
+        },
+        "template": [
+            {
+                "tag": "h1",
+                "text": "Test"
+            },
+            {
+                "component": "DynamicIsland",
+                "props": {
+                    "variant": "button"
+                },
+                "events": {
+                    "effect": "submit",
+                    "trigger": "click",
+                    "target": "form",
+                    "variant": "save"
+                },
+                "data": {
+                    "icon": "save"
+                }
+            }
+        ]
+    },
+    "main": {
+        "styles": {
+            "display": "flex"
+        },
+        "template": [
+            {
+                "tag": "form",
+                "styles": {
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "var(--md)",
+                    "padding": "var(--md) 0",
+                    "flex": "1"
+                },
+                "transforms": {
+                    "data": {
+                        "template": {
+                            "component": "DynamicIsland",
+                            "props": {
+                                "variant": "formfield"
+                            },
+                            "styles": {}
+                        }
+                    }
+                }
+            },
+            {
+                "tag": "div",
+                "styles": {
+                    "flex": "1",
+                    "borderLeft": "1px solid var(--lighter)",
+                    "padding": "var(--sm)"
+                },
+                "class": "nested-documents"
+            }
+        ]
+    }
+}

@@ -1,0 +1,56 @@
+{
+    "header": {
+        "transforms": {
+            "data": {
+                "template": {
+                    "tag": "i",
+                    "content": "{{category}}",
+                    "class": "material-icons",
+                    "styles": {
+                        "cursor": "pointer"
+                    },
+                    "events": {
+                        "trigger": "click",
+                        "target": "main",
+                        "effect": "toggle",
+                        "variant": "vertical"
+                    }
+                }
+            }
+        }
+    },
+    "main": {
+        "transforms": {
+            "data": {
+                "template": {
+                    "tag": "div",
+                    "class": "menu-items",
+                    "children": {
+                        "tag": "a",
+                        "props": {
+                            "href": "{{path}}"
+                        },
+                        "children": [
+                            {
+                                "tag": "i",
+                                "content": "{{icon}}",
+                                "class": "material-icons"
+                            },
+                            {
+                                "tag": "span",
+                                "content": "{{label}}"
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        "styles": {
+            "position": "absolute",
+            "height": "0",
+            "backgroundColor": "white",
+            "boxShadow": "0 2px 5px rgba(0,0,0,0.2)",
+            "zIndex": "1000"
+        }
+    }
+}

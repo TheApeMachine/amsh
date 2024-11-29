@@ -1,6 +1,6 @@
 declare namespace JSX {
     // Define what a JSX.Element is in our system
-    interface Element extends Node { }
+    type Element = Node | Promise<Node> | JSX.Element | Promise<JSX.Element> | string | Promise<string> | number | Promise<number> | boolean | Promise<boolean> | Promise<Node | Element>;
 
     // Define the base interface for element attributes
     interface ElementAttributesProperty {
@@ -10,14 +10,24 @@ declare namespace JSX {
     // Define all valid HTML elements
     interface IntrinsicElements {
         [elemName: string]: {
-            children?: string | Node | Array<string | Node>;
+            children?: Element | Element[] | string | string[] | number | (string | number | Element | Element[])[] | null;
             [key: string]: any;
         };
     }
-}
 
-// Tell TypeScript to use our JSX namespace
-declare module "*.tsx" {
-    const content: any;
-    export default content;
+    // Add support for async components
+    interface ElementClass {
+        render?: () => Element;
+    }
+
+    interface IntrinsicAttributes {
+        children?: Element | Element[];
+    }
+
+    interface ElementChildrenAttribute {
+        children: Element | Element[] | string | string[] | number | (string | number | Element | Element[])[] | null;
+    }
+
+    // Remove the FunctionElement type to prevent circular references
+    type FunctionElement = () => Element | Element[];
 }

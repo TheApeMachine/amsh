@@ -1,0 +1,38 @@
+{
+    "dynamicIsland": {
+        "styles": {
+            "width": "100%",
+            "height": "100vh",
+            "backgroundColor": "var(--surface-1)"
+        }
+    },
+    "aside": {
+        "styles": {
+            "display": "flex",
+            "flexDirection": "column",
+            "position": "sticky",
+            "top": "0",
+            "maxHeight": "100vh",
+            "background": "var(--muted)",
+            "overflow": "hidden"
+        },
+        "transforms": {
+            "data": {
+                "template": {
+                    "component": "DynamicIsland",
+                    "props": {
+                        "variant": "dropdown"
+                    }
+                }
+            }
+        }
+    },
+    "main": {
+        "styles": {
+            "display": "flex",
+            "boxShadow": "var(--shadow-page)",
+            "borderInlineStart": "1px solid var(--lightest)",
+            "zIndex": "1"
+        }
+    }
+}
