@@ -26,10 +26,10 @@ type ConsoleMethod = keyof Console;
 
 export const createDebugOverlay = () => {
     let logs: DebugEntry[] = [];
-    let expandedEntries = new Set<string>();
+    const expandedEntries = new Set<string>();
     let observer: MutationObserver;
     const originalConsole: Record<string, any> = {};
-    let isMinimized = false;
+    const isMinimized = false;
 
     const addLog = (entry: DebugEntry) => {
         logs.unshift(entry);

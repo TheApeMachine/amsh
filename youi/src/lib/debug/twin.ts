@@ -41,8 +41,8 @@ interface SerializableStateSnapshot {
 
 export const setupDigitalTwin = ({ addLog, overlay }: { addLog: Function; overlay: HTMLElement }) => {
     let isActive = false;
-    let userPatterns: Map<string, number> = new Map();
-    let predictedStates: Map<string, StateSnapshot> = new Map();
+    const userPatterns: Map<string, number> = new Map();
+    const predictedStates: Map<string, StateSnapshot> = new Map();
     let currentSimulation: Worker | null = null;
 
     // Create UI within the provided overlay

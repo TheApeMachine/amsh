@@ -242,7 +242,7 @@ export const setupScriptChaos = ({ logChaos, shouldCreateChaos, config }: { logC
     const interceptGlobals = () => {
         // Keep track of added globals
         const addedGlobals = new Set<string>();
-        let originalValues = new Map<string, any>();
+        const originalValues = new Map<string, any>();
 
         // Watch for new globals
         const globalProxy = new Proxy(window, {
