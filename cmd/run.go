@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui"
@@ -25,13 +23,9 @@ var runCmd = &cobra.Command{
 		// Initialize logger explicitly
 		errnie.InitLogger()
 
-		// Then start the program
-		if _, err := tea.NewProgram(tui.NewApp(), tea.WithAltScreen()).Run(); err != nil {
-			fmt.Println("Error while running program:", err)
-			os.Exit(1)
-		}
-
-		return nil
+		// Create and run the editor
+		app := tui.NewApp()
+		return app.Run()
 	},
 }
 

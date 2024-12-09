@@ -1,58 +1,265 @@
-You are a skilled programmer tasked with writing code for various programming tasks. Your goal is to produce clean, efficient, and well-documented code that solves the given problem.
+/_
+Package architecture defines the core architectural guidelines and patterns
+for AI assistance in this Go project. It emphasizes clean code, controlled
+changes, and clear communication patterns.
+_/
+package architecture
 
-Here is the description of the task you need to complete:
+// Guidelines defines the core architectural rules and patterns
+// for AI assistance in this project
+var Guidelines = struct {
+// ChangeManagement defines rules for how code modifications should be handled
+ChangeManagement struct {
+// Principles defines core tenets for making changes
+Principles []string
+// UpdateStrategy defines how changes should be implemented
+UpdateStrategy struct {
+PreferredApproach string
+Methodology []string
+Scope map[string]string
+}
+// Validation defines requirements for validating changes
+Validation struct {
+Required []string
+}
+}
 
-<task_description>
-Write a comprehensive, feature-rich, multi-agent system, that can be used to complete complex tasks.
-</task_description>
+    // CodeStandards defines code quality requirements and patterns
+    CodeStandards struct {
+        // Structure defines code organization rules
+        Structure struct {
+            PackageOrganization string
+            InterfaceDesign    string
+            ErrorHandling      string
+        }
+        // Documentation defines documentation requirements
+        Documentation struct {
+            Required []string
+            Style    string
+        }
+        // Patterns provides example patterns to follow
+        Patterns struct {
+            Interface string
+            Error    string
+            Handler  string
+        }
+    }
 
-You should write your code in the following programming language:
+    // AIProtocols defines how AI should interact with the codebase
+    AIProtocols struct {
+        // BeforeModifying lists steps required before making changes
+        BeforeModifying []string
+        // DuringImplementation lists requirements while making changes
+        DuringImplementation []string
+        // Communication defines how AI should communicate about changes
+        Communication struct {
+            Required      []string
+            Clarification struct {
+                When []string
+                How  string
+            }
+        }
+    }
 
-<programming_language>
-Go
-</programming_language>
+}{
+ChangeManagement: struct {
+Principles []string
+UpdateStrategy struct {
+PreferredApproach string
+Methodology []string
+Scope map[string]string
+}
+Validation struct {
+Required []string
+}
+}{
+Principles: []string{
+"Make minimal, precise changes",
+"Verify before modifying",
+"Document all changes",
+"Test thoroughly",
+},
+UpdateStrategy: struct {
+PreferredApproach string
+Methodology []string
+Scope map[string]string
+}{
+PreferredApproach: "incremental",
+Methodology: []string{
+"Identify specific section to modify",
+"Verify surrounding dependencies",
+"Make targeted change",
+"Validate change does not affect other components",
+},
+Scope: map[string]string{
+"minimal": "Single function or method update",
+"moderate": "Package-level modification",
+"major": "Must be broken into smaller changes",
+},
+},
+Validation: struct {
+Required []string
+}{
+Required: []string{
+"Interface compliance",
+"Error handling",
+"Documentation updates",
+"Test coverage",
+},
+},
+},
 
-Follow these guidelines when writing your code:
+    CodeStandards: struct {
+        Structure struct {
+            PackageOrganization string
+            InterfaceDesign    string
+            ErrorHandling      string
+        }
+        Documentation struct {
+            Required []string
+            Style    string
+        }
+        Patterns struct {
+            Interface string
+            Error    string
+            Handler  string
+        }
+    }{
+        Structure: struct {
+            PackageOrganization string
+            InterfaceDesign    string
+            ErrorHandling      string
+        }{
+            PackageOrganization: "Small, focused packages with clear responsibilities",
+            InterfaceDesign:     "Small interfaces, composition over inheritance",
+            ErrorHandling:       "Use error wrapping, provide context",
+        },
+        Documentation: struct {
+            Required []string
+            Style    string
+        }{
+            Required: []string{
+                "Package purpose",
+                "Interface contracts",
+                "Error scenarios",
+                "Usage examples",
+            },
+            Style: "Explain why, not what",
+        },
+        Patterns: struct {
+            Interface string
+            Error    string
+            Handler  string
+        }{
+            Interface: `
+                // Agent represents an autonomous agent in the system
+                type Agent interface {
+                    // Process handles incoming tasks and returns results
+                    // It may return ErrInvalidTask if the task cannot be processed
+                    Process(ctx context.Context, task Task) (Result, error)
 
-1. Start by carefully analyzing the task description to ensure you understand all requirements.
-2. Structure your code logically, using appropriate functions, classes, or modules as needed for the given language and task.
-3. Use meaningful variable and function names that clearly convey their purpose.
-4. Implement efficient algorithms and data structures suitable for the task.
-5. Follow best practices and conventions for the specified programming language.
-6. Handle potential errors and edge cases appropriately.
-7. Include clear and concise comments to explain complex logic or important parts of your code.
-   Always explain in your comments WHY the code is doing what it is doing, never WHAT.
-   Example:
-   ```go
-   // Unmarshal the data into the variable v. (WRONG)
-   err := json.Unmarshal(data, &v)
+                    // Status returns the current agent status
+                    Status() AgentStatus
+                }
+            `,
+            Error: `
+                // Example error handling pattern
+                if err != nil {
+                    return fmt.Errorf("processing task %s: %w", task.ID, err)
+                }
+            `,
+            Handler: `
+                // Example handler pattern
+                func (agent *Agent) HandleTask(ctx context.Context, task Task) (Result, error) {
+                    // Pre-conditions
+                    if err := task.Validate(); err != nil {
+                        return Result{}, fmt.Errorf("invalid task: %w", err)
+                    }
 
-   // Convert data so that we can use it to create a new Agent. (RIGHT)
-   err := json.Unmarshal(data, &v)
-   ```
-   Top-level comments should always be the `/**/` style, while inline comments should be the `//` style.
-   ```go
-   /*
-   MyFunction is a function that does something.
-   */
-   func MyFunction() {
-       // This is an inline comment.
-   }
-   ```
-8. When it comes to implementing methods on types, do not use single letter variable names.
-   Example:
-   ```go
-   // Wrong
-   func (a *Agent) GetID() string {
-       return a.id
-   }
+                    // Core logic
+                    result, err := agent.process(ctx, task)
+                    if err != nil {
+                        return Result{}, fmt.Errorf("processing task: %w", err)
+                    }
 
-   // Right
-   func (agent *Agent) GetID() string {
-       return agent.id
-   }
-   ```
+                    // Post-conditions
+                    if err := result.Validate(); err != nil {
+                        return Result{}, fmt.Errorf("invalid result: %w", err)
+                    }
 
-Before providing your final code, use a step by step reasoning and planning process to outline your approach and think through any challenging aspects of the problem. This will help you organize your thoughts and design a better solution.
+                    return result, nil
+                }
+            `,
+        },
+    },
 
-Remember to test your code mentally to ensure it works as expected and handles various input scenarios correctly.
+    AIProtocols: struct {
+        BeforeModifying []string
+        DuringImplementation []string
+        Communication struct {
+            Required      []string
+            Clarification struct {
+                When []string
+                How  string
+            }
+        }
+    }{
+        BeforeModifying: []string{
+            "Understand full context",
+            "Identify minimal change set",
+            "Verify interface compliance",
+            "Plan rollback strategy",
+        },
+        DuringImplementation: []string{
+            "Follow Go idioms and patterns",
+            "Maintain interface contracts",
+            "Document changes inline",
+            "Handle all error cases",
+        },
+        Communication: struct {
+            Required      []string
+            Clarification struct {
+                When []string
+                How  string
+            }
+        }{
+            Required: []string{
+                "Explicit assumptions",
+                "Clear limitations",
+                "Specific questions",
+                "Validation needs",
+            },
+            Clarification: struct {
+                When []string
+                How  string
+            }{
+                When: []string{
+                    "Ambiguous requirements",
+                    "Missing context",
+                    "Multiple approaches possible",
+                    "High-risk changes",
+                },
+                How: "Ask specific, targeted questions about interfaces and behaviors",
+            },
+        },
+    },
+
+}
+
+// Example validation function
+func ValidateChange(change struct {
+Type string
+Files []string
+Description string
+}) error {
+// Implementation would verify change against guidelines
+return nil
+}
+
+// Example error creation function
+func CreateError(code string, message string, context error) error {
+if context != nil {
+return fmt.Errorf("%s: %s: %w", code, message, context)
+}
+return fmt.Errorf("%s: %s", code, message)
+}

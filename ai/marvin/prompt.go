@@ -1,79 +1,83 @@
 package marvin
 
 import (
+	"strings"
+
 	"github.com/spf13/viper"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/utils"
 )
 
+// Prompt manages the system and user prompts for an agent
 type Prompt struct {
+	role         string
 	systemPrompt string
 	rolePrompt   string
 	userPrompt   string
 	processes    []Process
 }
 
+// NewPrompt creates a new prompt with the given role
 func NewPrompt(role string) *Prompt {
 	return &Prompt{
-		systemPrompt: viper.GetViper().GetString("ai.setups.marvin.templates.system"),
-		rolePrompt:   viper.GetViper().GetString("ai.setups.marvin.templates." + role),
+		role:         role,
+		systemPrompt: viper.GetString("ai.setups.marvin.templates.system"),
+		rolePrompt:   viper.GetString("ai.setups.marvin.templates." + role),
+		processes:    make([]Process, 0),
 	}
 }
 
-func (prompt *Prompt) SetUserPrompt(userPrompt string) {
-	prompt.userPrompt = userPrompt
-}
-
-func (prompt *Prompt) System() provider.Message {
-	processes := []string{}
-
-	for _, process := range prompt.processes {
-		processes = append(processes, process.GenerateSchema())
+// System returns the system prompt with injected schema
+func (p *Prompt) System() provider.Message {
+	// Generate schema block
+	var schemaBlock string
+	if len(p.processes) > 0 {
+		schemas := make([]string, 0, len(p.processes))
+		for _, process := range p.processes {
+			schemas = append(schemas, process.GenerateSchema())
+		}
+		schemaBlock = utils.JoinWith("\n",
+			"<schema>",
+			utils.JoinWith("\n\n", schemas...),
+			"</schema>",
+		)
 	}
+
+	// Replace schema marker in templates if present
+	systemPrompt := strings.Replace(p.systemPrompt, "{{schema}}", schemaBlock, 1)
+	rolePrompt := strings.Replace(p.rolePrompt, "{{schema}}", schemaBlock, 1)
 
 	return provider.Message{
 		Role: "system",
-		Content: utils.JoinWith(
-			"\n\n",
-			prompt.systemPrompt,
-			prompt.rolePrompt,
-			"The following schema determines the manner in which you should respond to the incoming context, as well as how to structure your JSON response.",
-			utils.JoinWith("\n",
-				"<schema>",
-				utils.JoinWith("\n\n", processes...),
-				"</schema>",
-			),
-			"You should format your response as a valid JSON object, using the schema as a guide.",
-			"You should go into as much detail as possible, and include all relevant information.",
-			"You should not focus on a final answer, but rather focus on the most detailed execution of the schema, using the context as a source of information.",
-			"You should never make any claims about the context, and never provide baseless conclusions, always focus only on the facts, no matter how confident you are.",
-			"You should always fullfil the schema, in the most detailed way possible, no matter what.",
+		Content: utils.JoinWith("\n\n",
+			systemPrompt,
+			rolePrompt,
 		),
 	}
 }
 
-func (prompt *Prompt) User() provider.Message {
+// User returns the user prompt
+func (p *Prompt) User() provider.Message {
 	return provider.Message{
 		Role:    "user",
-		Content: prompt.userPrompt,
+		Content: p.userPrompt,
 	}
 }
 
-func (prompt *Prompt) Context() provider.Message {
+// Context returns the context prompt
+func (p *Prompt) Context() provider.Message {
 	return provider.Message{
-		Role: "assistant",
-		Content: utils.JoinWith("\n\n",
-			utils.JoinWith("\n",
-				"<context>",
-				prompt.userPrompt,
-				"</context>",
-			),
-			"Please respond according to the schema provided, and do not deviate from it.",
-			"Your response should be a valid JSON object, encapsulated by the <response> and </response> tags.",
-		),
+		Role:    "system",
+		Content: "",
 	}
 }
 
-func (prompt *Prompt) AddProcess(process Process) {
-	prompt.processes = append(prompt.processes, process)
+// SetUserPrompt sets the user prompt content
+func (p *Prompt) SetUserPrompt(content string) {
+	p.userPrompt = content
+}
+
+// AddProcess adds a process to the prompt
+func (p *Prompt) AddProcess(process Process) {
+	p.processes = append(p.processes, process)
 }
