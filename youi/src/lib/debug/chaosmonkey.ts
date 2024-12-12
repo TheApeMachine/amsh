@@ -47,7 +47,7 @@ export const setupChaosMonkey = ({ addLog, overlay }: { addLog: Function; overla
     };
 
     const chaosHistory: ChaosEvent[] = [];
-    let activeNetwork: Map<string, Response> = new Map();
+    const activeNetwork: Map<string, Response> = new Map();
 
     // Create container within the provided overlay
     const container = document.createElement('div');

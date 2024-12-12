@@ -24,7 +24,7 @@ export const ToBinary = (uuid: string) => {
         throw new Error("Invalid UUID format")
     }
 
-    let hex = uuid.replace(/[{}-]/g, "")
+    const hex = uuid.replace(/[{}-]/g, "")
     if (hex.length !== 32) {
         throw new Error("Invalid UUID format after stripping characters")
     }

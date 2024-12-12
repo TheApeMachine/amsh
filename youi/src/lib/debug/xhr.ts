@@ -5,7 +5,7 @@ export const setupXHRTracking = ({ addLog }: { addLog: (entry: any) => void }) =
         const id = crypto.randomUUID();
 
         // Track request details
-        let requestDetails = {
+        const requestDetails = {
             method: 'GET',
             url: '',
             startTime: 0,
