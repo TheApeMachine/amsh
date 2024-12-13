@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/theapemachine/amsh/utils"
 )
@@ -72,6 +73,7 @@ func (params GenerationParams) String() string {
 
 // Provider defines the interface for AI providers
 type Provider interface {
+	io.ReadWriteCloser
 	// Generate returns a channel of events (tokens, tool calls, errors)
 	Generate(ctx context.Context, params GenerationParams) <-chan Event
 

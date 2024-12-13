@@ -4,8 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/errnie"
 )
 
 /*
@@ -15,83 +16,62 @@ type Agent struct {
 	ID        string
 	ctx       context.Context
 	buffer    *Buffer
-	processes map[string]Process
+	processes map[string]*data.Artifact
 	sidekicks map[string][]*Agent
 	prompt    *Prompt
 	role      string
+	tools     []ai.Tool
 }
 
 func NewAgent(ctx context.Context, role string) *Agent {
+	errnie.Trace("%s", "role", role)
+
 	return &Agent{
 		ID:        uuid.New().String(),
 		ctx:       ctx,
 		buffer:    NewBuffer(),
-		processes: make(map[string]Process),
+		processes: make(map[string]*data.Artifact),
 		sidekicks: make(map[string][]*Agent),
 		prompt:    NewPrompt(role),
 		role:      role,
+		tools:     make([]ai.Tool, 0),
 	}
 }
 
-// GetBuffer returns the agent's buffer
-func (agent *Agent) GetBuffer() *Buffer {
-	return agent.buffer
+func (agent *Agent) AddTools(tools ...ai.Tool) {
+	errnie.Trace("%s", "tools", tools)
+	agent.tools = append(agent.tools, tools...)
 }
 
-// GetPrompt returns the agent's prompt
-func (agent *Agent) GetPrompt() *Prompt {
-	return agent.prompt
-}
+func (agent *Agent) AddProcesses(processes ...*data.Artifact) {
+	errnie.Trace("%s", "processes", processes)
 
-// GetRole returns the agent's role
-func (agent *Agent) GetRole() string {
-	return agent.role
-}
-
-// GetContext returns the agent's context
-func (agent *Agent) GetContext() context.Context {
-	return agent.ctx
-}
-
-func (agent *Agent) AddProcess(process Process) {
-	agent.prompt.AddProcess(process)
+	for _, process := range processes {
+		agent.processes[process.Peek("context")] = process
+	}
 }
 
 func (agent *Agent) AddSidekick(key string, sidekick *Agent) {
+	errnie.Trace("%s", "key", key, "sidekick", sidekick.ID)
 	agent.sidekicks[key] = append(agent.sidekicks[key], sidekick)
 }
 
-func (agent *Agent) SetUserPrompt(userPrompt string) {
-	agent.prompt.SetUserPrompt(userPrompt)
+func (agent *Agent) Read(p []byte) (n int, err error) {
+	// Only try to unmarshal if we have data
+	if len(p) > 0 {
+		artifact := data.Empty()
+		artifact.Unmarshal(p)
+		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+	}
+	return agent.buffer.Read(p)
 }
 
-/*
-Generate uses a simple string as the input and returns a channel of events.
-*/
-func (agent *Agent) Generate() <-chan provider.Event {
-	out := make(chan provider.Event)
-
-	go func() {
-		defer close(out)
-
-		// Basic prompt setup
-		agent.buffer.Clear().
-			Poke(agent.prompt.System()).
-			Poke(agent.prompt.User()).
-			Poke(agent.prompt.Context())
-
-		errnie.Log("%s", agent.buffer.Truncate())
-
-		// Generate response
-		prvdr := provider.NewBalancedProvider()
-
-		accumulator := provider.NewAccumulator()
-		accumulator.Stream(prvdr.Generate(agent.ctx, provider.GenerationParams{
-			Messages: agent.buffer.Truncate(),
-		}), out)
-
-		errnie.Log("%s", accumulator.String())
-	}()
-
-	return out
+func (agent *Agent) Write(p []byte) (n int, err error) {
+	// Only try to unmarshal if we have data
+	if len(p) > 0 {
+		artifact := data.Empty()
+		artifact.Unmarshal(p)
+		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+	}
+	return agent.buffer.Write(p)
 }
