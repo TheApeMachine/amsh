@@ -8,7 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/invopop/jsonschema"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/tmc/langchaingo/schema"

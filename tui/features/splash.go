@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucasb-eyer/go-colorful"
 	"github.com/muesli/gamut"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Splash struct {

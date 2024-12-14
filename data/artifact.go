@@ -5,7 +5,7 @@ import (
 
 	"capnproto.org/go/capnp/v3"
 	"github.com/google/uuid"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 const version = "0.0.1"

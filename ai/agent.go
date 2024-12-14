@@ -11,8 +11,8 @@ import (
 	"github.com/theapemachine/amsh/ai/process"
 	"github.com/theapemachine/amsh/ai/process/persona"
 	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
+	"github.com/theapemachine/errnie"
 )
 
 // AgentState represents the current state of an agent

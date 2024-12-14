@@ -4,9 +4,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/features"
 	"github.com/theapemachine/amsh/tui/types"
+	"github.com/theapemachine/errnie"
 	boxer "github.com/treilik/bubbleboxer"
 )
 

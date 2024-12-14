@@ -5,7 +5,7 @@ import (
 
 	"github.com/theapemachine/amsh/ai/process/layering"
 	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 /*

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Proxy struct {

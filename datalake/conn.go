@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 // Conn implements the io.ReadWriteCloser interface such that datalake (S3)

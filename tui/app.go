@@ -2,8 +2,8 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/core"
+	"github.com/theapemachine/errnie"
 )
 
 /*

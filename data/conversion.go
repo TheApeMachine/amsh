@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"capnproto.org/go/capnp/v3"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 func (artifact *Artifact) Marshal() []byte {

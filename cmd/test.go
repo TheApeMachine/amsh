@@ -12,7 +12,7 @@ import (
 var testCmd = &cobra.Command{
 	Use:   "test",
 	Short: "Run the AI system integration test",
-	Long:  `Run a test that demonstrates the integration between agents, communication, and VM components.`,
+	Long:  `Run a practical test of the AI system.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		for event := range marvin.NewSystem().Process("How many times do we find the letter r in the word strawberry?") {
 			fmt.Print(event.Content)

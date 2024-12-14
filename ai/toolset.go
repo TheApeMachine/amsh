@@ -7,7 +7,7 @@ import (
 	"regexp"
 
 	"github.com/theapemachine/amsh/ai/tools"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 var Delivery = map[string]*Agent{}

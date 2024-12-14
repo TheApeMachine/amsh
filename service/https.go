@@ -13,9 +13,9 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/favicon"
 	"github.com/gofiber/fiber/v3/middleware/static"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/comms"
 	"github.com/theapemachine/amsh/utils"
+	"github.com/theapemachine/errnie"
 )
 
 /*

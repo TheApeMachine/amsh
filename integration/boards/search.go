@@ -9,7 +9,7 @@ import (
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/search"
 	"github.com/microsoft/azure-devops-go-api/azuredevops/v7/searchshared"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type SearchWiki struct {

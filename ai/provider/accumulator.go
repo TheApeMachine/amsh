@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Accumulator struct {

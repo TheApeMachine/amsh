@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
+	"github.com/theapemachine/errnie"
 )
 
 /*

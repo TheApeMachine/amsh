@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type MessageService struct {

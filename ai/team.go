@@ -10,8 +10,8 @@ import (
 	"github.com/theapemachine/amsh/ai/process/layering"
 	"github.com/theapemachine/amsh/ai/process/persona"
 	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
+	"github.com/theapemachine/errnie"
 )
 
 type Team struct {

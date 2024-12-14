@@ -12,7 +12,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/theapemachine/amsh/container"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Environment struct {

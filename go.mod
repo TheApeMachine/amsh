@@ -1,16 +1,14 @@
 module github.com/theapemachine/amsh
 
-go 1.22.5
+go 1.23.4
 
 require (
 	capnproto.org/go/capnp/v3 v3.0.1-alpha.2
 	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2
-	github.com/atotto/clipboard v0.1.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.0
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v0.13.0
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/fasthttp/websocket v1.5.10
 	github.com/gofiber/utils/v2 v2.0.0-beta.4
 	github.com/google/generative-ai-go v0.18.0
@@ -22,9 +20,9 @@ require (
 	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.1
+	github.com/theapemachine/errnie v0.0.1
 	github.com/theckman/yacspin v0.13.12
 	github.com/tmc/langchaingo v0.1.12
-	github.com/zyedidia/highlight v0.0.0-20200217010119-291680feaca1
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
 	golang.org/x/oauth2 v0.23.0
 	google.golang.org/api v0.199.0
@@ -39,7 +37,9 @@ require (
 	cloud.google.com/go/longrunning v0.6.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.21 // indirect
@@ -56,6 +56,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.0 // indirect
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/containerd/log v0.1.0 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
@@ -135,7 +136,6 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 )

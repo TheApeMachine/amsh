@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type TicketService struct {

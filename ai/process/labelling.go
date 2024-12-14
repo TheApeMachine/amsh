@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/invopop/jsonschema"
 	"github.com/spf13/viper"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Labelling struct {

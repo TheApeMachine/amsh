@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"github.com/theapemachine/amsh/cmd"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 func main() {

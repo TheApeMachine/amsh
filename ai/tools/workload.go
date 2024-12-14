@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/invopop/jsonschema"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 /*

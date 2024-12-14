@@ -3,7 +3,7 @@ package twoface
 import (
 	"time"
 
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type PoolWorker interface {

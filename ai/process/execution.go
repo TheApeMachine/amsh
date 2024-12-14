@@ -6,7 +6,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/theapemachine/amsh/berrt"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Execution struct {

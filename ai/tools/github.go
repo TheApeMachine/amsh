@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/invopop/jsonschema"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/integration/git"
+	"github.com/theapemachine/errnie"
 )
 
 type Github struct {
@@ -41,6 +41,6 @@ func (github *Github) Use(ctx context.Context, args map[string]any) string {
 
 		return fmt.Sprintf("%v", results)
 	}
-	
+
 	return ""
 }

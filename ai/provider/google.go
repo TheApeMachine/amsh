@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/google/generative-ai-go/genai"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 	"google.golang.org/api/option"
 )
 

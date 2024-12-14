@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/slack-go/slack"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Message struct {
