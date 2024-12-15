@@ -25,6 +25,12 @@ func (artifact *Artifact) Marshal(p []byte) {
 }
 
 func (artifact *Artifact) Unmarshal(buf []byte) {
+	// Check if buffer is empty or too small
+	if len(buf) == 0 {
+		errnie.Trace("empty buffer, skipping unmarshal")
+		return
+	}
+
 	var (
 		msg    *capnp.Message
 		artfct Artifact
@@ -33,14 +39,14 @@ func (artifact *Artifact) Unmarshal(buf []byte) {
 
 	// Unmarshal is a bit of a misnomer in the world of Cap 'n Proto,
 	// but they went with it anyway.
-	if msg, err = capnp.Unmarshal(buf); errnie.Error(err) != nil {
+	if msg, err = capnp.Unmarshal(buf); err != nil {
+		errnie.Error(err)
 		return
 	}
 
-	errnie.Raw(msg)
-
 	// Read a Datagram instance from the message.
-	if artfct, err = ReadRootArtifact(msg); errnie.Error(err) != nil {
+	if artfct, err = ReadRootArtifact(msg); err != nil {
+		errnie.Error(err)
 		return
 	}
 
@@ -48,5 +54,7 @@ func (artifact *Artifact) Unmarshal(buf []byte) {
 	// pointing to our root Datagram.
 	artifact = &artfct
 
-	errnie.Trace("%s", "payload", artifact.Peek("payload"))
+	if payload := artifact.Peek("payload"); payload != "" {
+		errnie.Trace("%s", "payload", payload)
+	}
 }

@@ -25,13 +25,19 @@ func NewSystem() *System {
 }
 
 func (system *System) Read(p []byte) (n int, err error) {
-	// Only try to unmarshal if we have data
-	if len(p) > 0 {
+	// First read from the pipe
+	n, err = system.pr.Read(p)
+	if err != nil {
+		return n, err
+	}
+
+	// Only try to unmarshal if we have valid data
+	if n > 0 {
 		artifact := data.Empty()
-		artifact.Unmarshal(p)
+		artifact.Unmarshal(p[:n]) // Only use the valid portion of the buffer
 		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
 	}
-	return system.pr.Read(p)
+	return n, nil
 }
 
 func (system *System) Write(p []byte) (n int, err error) {
