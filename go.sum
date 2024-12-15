@@ -406,8 +406,8 @@ github.com/testcontainers/testcontainers-go v0.33.0 h1:zJS9PfXYT5O0ZFXM2xxXfk4J5
 github.com/testcontainers/testcontainers-go v0.33.0/go.mod h1:W80YpTa8D5C3Yy16icheD01UTDu+LmXIA2Keo+jWtT8=
 github.com/testcontainers/testcontainers-go/modules/qdrant v0.31.0 h1:5bYvi8lSqDnJrO1w5W3AFaSsRe4ZDv4TPj1tsaBEz20=
 github.com/testcontainers/testcontainers-go/modules/qdrant v0.31.0/go.mod h1:/3GyFMTSiem1j5mfI/96MufdNvB3A8Xqa+xnV4CUR4A=
-github.com/theapemachine/errnie v0.0.1 h1:T+D4QWTar/spw9hN8nNc9yFMXqIY2hMbBInjPIeLfe0=
-github.com/theapemachine/errnie v0.0.1/go.mod h1:b5TD/mCOSXuRa9+qqYRSWZPkulhRtRxSoVa9b8K85Lg=
+github.com/theapemachine/errnie v0.0.2 h1:8KfcmlfF3gwidbYfG0FA8zgiBf4AC7MJ/KLelCCo24A=
+github.com/theapemachine/errnie v0.0.2/go.mod h1:b5TD/mCOSXuRa9+qqYRSWZPkulhRtRxSoVa9b8K85Lg=
 github.com/theapemachine/qpool v0.0.1 h1:c97Jp0qBdaWXWMwd7WLTOZTZ5ryWpaDEUw4JFASi1WE=
 github.com/theapemachine/qpool v0.0.1/go.mod h1:DiYpHPqpl5rrVjJ2QJjo2IMTQVSQlKDFQ/W04JCT7mc=
 github.com/theckman/yacspin v0.13.12 h1:CdZ57+n0U6JMuh2xqjnjRq5Haj6v1ner2djtLQRzJr4=
@@ -432,8 +432,6 @@ github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+F
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
 github.com/tmc/langchaingo v0.1.12 h1:yXwSu54f3b1IKw0jJ5/DWu+qFVH1NBblwC0xddBzGJE=
 github.com/tmc/langchaingo v0.1.12/go.mod h1:cd62xD6h+ouk8k/QQFhOsjRYBSA1JJ5UVKXSIgm7Ni4=
-github.com/treilik/bubbleboxer v0.2.0 h1:663EnD09jKjDbOz4YFwR+b4GGW2zVFneo7gJH9w1S/k=
-github.com/treilik/bubbleboxer v0.2.0/go.mod h1:2ssGV7vIybvBcbD/LZzjL8oDQPviou7ZVKZLaKSsRB4=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.56.0 h1:bEZdJev/6LCBlpdORfrLu/WOZXXxvrUQSiyniuaoW8U=

@@ -2,6 +2,7 @@ package marvin
 
 import (
 	"context"
+	"io"
 
 	"github.com/google/uuid"
 	"github.com/theapemachine/amsh/ai"
@@ -51,29 +52,22 @@ func (agent *Agent) AddSidekick(key string, sidekick *Agent) {
 }
 
 func (agent *Agent) Read(p []byte) (n int, err error) {
-	// Read from buffer first
-	n, err = agent.buffer.Read(p)
-	if err != nil {
-		return n, err
+	if n = errnie.SafeMust(func() (int, error) {
+		return agent.buffer.Read(p)
+	}); n == 0 {
+		return 0, io.EOF
 	}
 
-	// Only try to unmarshal if we successfully read data
-	if n > 0 {
-		artifact := data.Empty()
-		if err := artifact.Unmarshal(p[:n]); err != nil {
-			errnie.Error(err)
-			// Continue even if unmarshal fails - the raw data will still be returned
-		}
-	}
+	artifact := data.Empty()
+	errnie.Error(artifact.Unmarshal(p[:n]))
 
-	return n, nil
+	return
 }
 
 func (agent *Agent) Write(p []byte) (n int, err error) {
-	// Only try to unmarshal if we have data
-	if len(p) > 0 {
-		artifact := data.Empty()
-		artifact.Unmarshal(p)
-	}
-	return agent.buffer.Write(p)
+	n = errnie.SafeMust(func() (int, error) {
+		return agent.buffer.Write(p)
+	})
+
+	return
 }

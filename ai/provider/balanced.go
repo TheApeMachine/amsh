@@ -11,6 +11,7 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/errnie"
 )
 
@@ -28,8 +29,7 @@ type BalancedProvider struct {
 	selectIndex int
 	initMu      sync.Mutex
 	initialized bool
-	pr          *io.PipeReader
-	pw          *io.PipeWriter
+	accumulator *twoface.Accumulator
 }
 
 var (
@@ -43,10 +43,8 @@ so multiple calls to NewBalancedProvider will return the same instance.
 */
 func NewBalancedProvider() *BalancedProvider {
 	onceBalancedProvider.Do(func() {
-		pr, pw := io.Pipe()
 		balancedProviderInstance = &BalancedProvider{
-			pr: pr,
-			pw: pw,
+			accumulator: twoface.NewAccumulator(),
 			providers: []*ProviderStatus{
 				{
 					name: "gpt-4o",
@@ -100,68 +98,15 @@ func NewBalancedProvider() *BalancedProvider {
 }
 
 func (lb *BalancedProvider) Read(p []byte) (n int, err error) {
-	if lb.pr == nil {
-		return 0, io.EOF
-	}
-
-	n, err = lb.pr.Read(p)
-	return n, err
+	return lb.accumulator.Read(p)
 }
 
 func (lb *BalancedProvider) Write(p []byte) (n int, err error) {
-	ps := lb.getAvailableProvider()
-	if ps == nil {
-		return 0, errors.New("no provider available")
-	}
-
-	// Start a goroutine to handle the response
-	go func() {
-		defer func() {
-			ps.mu.Lock()
-			ps.occupied = false
-			ps.mu.Unlock()
-		}()
-
-		// Write to provider
-		if _, err := ps.provider.Write(p); err != nil {
-			errnie.Error(err)
-			return
-		}
-
-		// Read from provider and write to balanced provider's pipe
-		buf := make([]byte, 1024)
-		for {
-			n, err := ps.provider.Read(buf)
-			
-			if err != nil {
-				if err != io.EOF {
-					errnie.Error(err)
-				}
-				lb.pw.Close()
-				return
-			}
-
-			if n > 0 {
-				if _, err := lb.pw.Write(buf[:n]); err != nil {
-					errnie.Error(err)
-					lb.pw.Close()
-					return
-				}
-			}
-		}
-	}()
-
-	return len(p), nil
+	return lb.accumulator.Write(p)
 }
 
 func (lb *BalancedProvider) Close() error {
-	if lb.pw != nil {
-		lb.pw.Close()
-	}
-	if lb.pr != nil {
-		lb.pr.Close()
-	}
-	return nil
+	return lb.accumulator.Close()
 }
 
 func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParams) <-chan Event {

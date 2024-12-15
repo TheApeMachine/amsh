@@ -2,10 +2,11 @@ package provider
 
 import (
 	"context"
-	"io"
+
 	sdk "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/errnie"
 )
 
@@ -13,10 +14,9 @@ import (
 const bufferThreshold = 1024 * 4 // 4KB
 
 type OpenAI struct {
-	pr     *io.PipeReader
-	pw     *io.PipeWriter
-	client *sdk.Client
-	model  string
+	accumulator *twoface.Accumulator
+	client      *sdk.Client
+	model       string
 }
 
 /*
@@ -25,10 +25,8 @@ api key, and model, given that a lot of other providers use the OpenAI API
 specifications.
 */
 func NewOpenAI(apiKey, model string) *OpenAI {
-	pr, pw := io.Pipe()
 	return &OpenAI{
-		pr: pr,
-		pw: pw,
+		accumulator: twoface.NewAccumulator(),
 		client: sdk.NewClient(
 			option.WithAPIKey(apiKey),
 		),
@@ -37,20 +35,7 @@ func NewOpenAI(apiKey, model string) *OpenAI {
 }
 
 func (openai *OpenAI) Read(p []byte) (n int, err error) {
-	if openai.pr == nil {
-		return 0, io.EOF
-	}
-
-	n, err = openai.pr.Read(p)
-	if err == nil && n > 0 {
-		// Try to unmarshal and log the content for debugging
-		artifact := data.Empty()
-		if err := artifact.Unmarshal(p[:n]); err == nil {
-			errnie.Error(err)
-		}
-	}
-
-	return n, err
+	return openai.accumulator.Read(p)
 }
 
 func (openai *OpenAI) Write(p []byte) (n int, err error) {
@@ -63,7 +48,7 @@ func (openai *OpenAI) Write(p []byte) (n int, err error) {
 	// Process the request in a goroutine
 	go func() {
 		defer func() {
-			openai.pw.Close()
+			openai.accumulator.Close()
 		}()
 
 		messages := []sdk.ChatCompletionMessageParamUnion{
@@ -85,7 +70,7 @@ func (openai *OpenAI) Write(p []byte) (n int, err error) {
 					buf := make([]byte, 1024)
 					responseArtifact.Marshal(buf)
 
-					if _, err := openai.pw.Write(buf); err != nil {
+					if _, err := openai.accumulator.Write(buf); err != nil {
 						errnie.Error(err)
 						return
 					}
@@ -103,16 +88,7 @@ func (openai *OpenAI) Write(p []byte) (n int, err error) {
 }
 
 func (openai *OpenAI) Close() error {
-	if openai.pw != nil {
-		openai.pw.Close()
-	}
-
-	if openai.pr != nil {
-		openai.pr.Close()
-	}
-
-	openai.client = nil
-	return nil
+	return openai.accumulator.Close()
 }
 
 func (openai *OpenAI) makeMessages(artifact *data.Artifact) sdk.ChatCompletionMessageParamUnion {

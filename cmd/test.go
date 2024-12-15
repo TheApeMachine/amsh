@@ -2,14 +2,11 @@
 package cmd
 
 import (
-	"io"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/ai/marvin"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/twoface"
-	"github.com/theapemachine/errnie"
 )
 
 var testCmd = &cobra.Command{
@@ -20,42 +17,7 @@ var testCmd = &cobra.Command{
 		system := marvin.NewSystem()
 		user := data.New("test", "user", "prompt", []byte("How many times do we find the letter r in the word strawberry?"))
 
-		accumulator := twoface.NewAccumulator()
-
-		go func() {
-			if _, err = io.Copy(system, user); err != nil {
-				errnie.Error(err)
-			}
-
-			if _, err = io.Copy(accumulator, system); err != nil {
-				errnie.Error(err)
-			}
-
-			if _, err = io.Copy(os.Stdout, accumulator); err != nil {
-				errnie.Error(err)
-			}
-		}()
-
-		buf := make([]byte, 32768)
-		artifact := data.Empty()
-
-		for {
-			n, err := accumulator.Read(buf)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				errnie.Error(err)
-				break
-			}
-
-			if err := artifact.Unmarshal(buf[:n]); err != nil {
-				errnie.Error(err)
-				continue
-			}
-
-			os.Stdout.Write([]byte(artifact.Peek("payload")))
-		}
+		system.Generate(user)
 
 		return nil
 	},

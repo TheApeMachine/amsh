@@ -5,8 +5,8 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/pkoukk/tiktoken-go"
-	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/errnie"
 )
 
@@ -31,18 +31,16 @@ func NewBuffer() *Buffer {
 
 func (buffer *Buffer) Read(p []byte) (n int, err error) {
 	// Read directly from provider first
-	n, err = buffer.provider.Read(p)
-	if err != nil {
-		return n, err
+	if n = errnie.SafeMust(func() (int, error) {
+		return buffer.provider.Read(p)
+	}); n == 0 {
+		return 0, io.EOF
 	}
 
 	// Only try to unmarshal if we successfully read data
 	if n > 0 {
 		artifact := data.Empty()
-		if err := artifact.Unmarshal(p[:n]); err != nil {
-			errnie.Error(err)
-			// Continue even if unmarshal fails - the raw data will still be returned
-		}
+		errnie.Error(artifact.Unmarshal(p[:n]))
 	}
 
 	return n, nil
@@ -54,10 +52,7 @@ func (buffer *Buffer) Write(p []byte) (n int, err error) {
 	}
 
 	artifact := data.Empty()
-	if err := artifact.Unmarshal(p); err != nil {
-		errnie.Error(err)
-		return 0, err
-	}
+	errnie.Error(artifact.Unmarshal(p))
 
 	// Store in messages
 	buffer.messages = append(buffer.messages, artifact)

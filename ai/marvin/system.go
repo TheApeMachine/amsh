@@ -2,90 +2,26 @@ package marvin
 
 import (
 	"context"
-	"io"
 
-	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/errnie"
+	"github.com/theapemachine/amsh/twoface"
 )
 
 type System struct {
-	pr *io.PipeReader
-	pw *io.PipeWriter
+	accumulator *twoface.Accumulator
 }
 
 func NewSystem() *System {
-	pr, pw := io.Pipe()
-
 	return &System{
-		pr: pr,
-		pw: pw,
+		accumulator: twoface.NewAccumulator(),
 	}
 }
 
-func (system *System) Read(p []byte) (n int, err error) {
-	n, err = system.pr.Read(p)
-	if err != nil {
-		return n, err
-	}
+func (system *System) Generate(user *data.Data) (err error) {
+	agent := provider.NewAgent(context.Background(), "test")
 
-	if n > 0 {
-		artifact := data.Empty()
-		if err := artifact.Unmarshal(p[:n]); err != nil {
-			errnie.Error(err)
-			// Continue even if unmarshal fails - the raw data will still be returned
-		}
-	}
-
-	return n, nil
-}
-
-func (system *System) Write(p []byte) (n int, err error) {
-	if len(p) > 0 {
-		artifact := data.Empty()
-		if err := artifact.Unmarshal(p); err != nil {
-			errnie.Error(err)
-		}
-	}
-
-	// Create an agent
-	agent := NewAgent(context.Background(), "assistant")
-
-	// Write to agent and copy response back to system pipe
 	go func() {
-		defer system.pw.Close()
-
-		// Write to agent
-		if _, err := agent.Write(p); err != nil {
+		if _, err = io.Copy(agent, user); err != nil {
 			errnie.Error(err)
-			return
-		}
-
-		// Copy from agent to system pipe
-		buf := make([]byte, 1024)
-		for {
-			n, err := agent.Read(buf)
-			if err != nil {
-				if err != io.EOF {
-					errnie.Error(err)
-				}
-				return
-			}
-			if n > 0 {
-				if _, err := system.pw.Write(buf[:n]); err != nil {
-					errnie.Error(err)
-					return
-				}
-			}
 		}
 	}()
-
-	return len(p), nil
-}
-
-func (system *System) Close() error {
-	if err := system.pw.Close(); err != nil {
-		return err
-	}
-
-	return system.pr.Close()
 }
