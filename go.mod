@@ -9,7 +9,6 @@ require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v0.13.0
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/fasthttp/websocket v1.5.10
 	github.com/gdamore/tcell/v2 v2.7.4
 	github.com/gofiber/utils/v2 v2.0.0-beta.4
@@ -17,12 +16,15 @@ require (
 	github.com/google/go-github/v66 v66.0.0
 	github.com/google/uuid v1.6.0
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
+	github.com/muesli/gamut v0.3.1
 	github.com/openai/openai-go v0.1.0-alpha.26
 	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.1
+	github.com/theapemachine/errnie v0.0.1
 	github.com/theckman/yacspin v0.13.12
 	github.com/tmc/langchaingo v0.1.12
+	github.com/treilik/bubbleboxer v0.2.0
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
 	golang.org/x/oauth2 v0.23.0
 	google.golang.org/api v0.199.0
@@ -39,6 +41,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.21 // indirect
@@ -55,10 +58,12 @@ require (
 	github.com/charmbracelet/x/term v0.2.0 // indirect
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/containerd/log v0.1.0 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
@@ -87,6 +92,8 @@ require (
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/user v0.3.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
+	github.com/muesli/clusters v0.0.0-20200529215643-2700303c1762 // indirect
+	github.com/muesli/kmeans v0.3.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
@@ -107,6 +114,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/ysmood/fetchup v0.2.3 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect
 	github.com/ysmood/got v0.40.0 // indirect
@@ -170,7 +178,6 @@ require (
 	github.com/smartystreets/goconvey v1.8.1
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.19.0
-	github.com/theapemachine/errnie v0.0.1
 	github.com/theapemachine/qpool v0.0.1
 	github.com/valyala/fasthttp v1.56.0
 	golang.org/x/sync v0.8.0 // indirect

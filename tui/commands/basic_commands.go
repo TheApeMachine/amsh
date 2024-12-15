@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 // EditorCommands holds the command implementations

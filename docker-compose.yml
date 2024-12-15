@@ -75,7 +75,7 @@ services:
   #           - driver: nvidia
   #             count: 1
   #             capabilities: [gpu]
-  
+
   # ollama-pull-llama:
   #   image: ollama/ollama:latest
   #   container_name: ollama-pull-llama
@@ -107,6 +107,8 @@ services:
     image: qdrant/qdrant
     container_name: qdrant
     restart: unless-stopped
+    environment:
+      - QDRANT__SERVICE__API_KEY=qdrant-api-key
     ports:
       - 6333:6333
     volumes:

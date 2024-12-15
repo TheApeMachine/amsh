@@ -14,7 +14,7 @@ import (
 	"github.com/go-rod/stealth"
 	"github.com/invopop/jsonschema"
 	"github.com/spf13/cast"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type BrowserArgs struct {

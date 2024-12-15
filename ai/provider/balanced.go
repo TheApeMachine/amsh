@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"math/rand"
 	"os"
@@ -12,7 +11,7 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type ProviderStatus struct {
@@ -104,73 +103,76 @@ func NewBalancedProvider() *BalancedProvider {
 }
 
 func (lb *BalancedProvider) Read(p []byte) (n int, err error) {
-	errnie.Trace("%s", "BalancedProvider.Read", "reading bytes")
+	errnie.Trace("BalancedProvider.Read START with buffer size: %d", len(p))
 
 	if lb.pr == nil {
+		errnie.Trace("BalancedProvider.Read pipe reader is nil")
 		return 0, io.EOF
 	}
 
-	// Read from pipe
 	n, err = lb.pr.Read(p)
-	if err != nil {
-		if err == io.EOF {
-			lb.pr = nil
-		}
-		errnie.Trace("%s", "BalancedProvider.Read", "completed with status: "+err.Error())
-		return n, err
-	}
-
-	errnie.Trace("%s", "BalancedProvider.Read", "read bytes: "+fmt.Sprintf("%d", n))
-	return n, nil
+	errnie.Trace("BalancedProvider.Read got %d bytes, err: %v", n, err)
+	return n, err
 }
 
 func (lb *BalancedProvider) Write(p []byte) (n int, err error) {
-	errnie.Trace("%s", "BalancedProvider.Write", "writing bytes: "+fmt.Sprintf("%d", len(p)))
-
-	// Get available provider
+	errnie.Trace("BalancedProvider.Write START with %d bytes", len(p))
 	ps := lb.getAvailableProvider()
 	if ps == nil {
 		return 0, errors.New("no provider available")
 	}
 
-	// Write to provider
+	errnie.Trace("BalancedProvider.Write got provider: %s", ps.name)
+
+	// Start a goroutine to handle the response
 	go func() {
 		defer func() {
+			errnie.Trace("BalancedProvider.Write goroutine CLEANUP")
 			ps.mu.Lock()
 			ps.occupied = false
 			ps.mu.Unlock()
 		}()
 
 		// Write to provider
+		errnie.Trace("BalancedProvider.Write WRITING to provider")
 		if _, err := ps.provider.Write(p); err != nil {
 			errnie.Error(err)
+			errnie.Trace("BalancedProvider.Write failed to write to provider: %v", err)
 			return
 		}
 
-		errnie.Trace("%s", "BalancedProvider.Write", "reading response from provider")
+		errnie.Trace("BalancedProvider.Write STARTING to read response")
 
-		// Read response from provider and write to our pipe
+		// Read from provider and write to balanced provider's pipe
 		buf := make([]byte, 1024)
 		for {
-			if n = errnie.SafeMust(func() (int, error) {
-				return ps.provider.Read(buf)
-			}); n == 0 {
-				break
+			errnie.Trace("BalancedProvider.Write reading loop START")
+			n, err := ps.provider.Read(buf)
+			errnie.Trace("BalancedProvider.Write read %d bytes, err: %v", n, err)
+			
+			if err != nil {
+				if err != io.EOF {
+					errnie.Error(err)
+				}
+				errnie.Trace("BalancedProvider.Write closing pipe due to error/EOF")
+				lb.pw.Close()
+				return
 			}
 
-			errnie.Trace("%s", "BalancedProvider.Write", "forwarding response bytes: "+fmt.Sprintf("%d", n))
-
-			if _, err := lb.pw.Write(buf[:n]); err != nil {
-				errnie.Error(err)
-				break
+			if n > 0 {
+				errnie.Trace("BalancedProvider.Write writing %d bytes to pipe", n)
+				if _, err := lb.pw.Write(buf[:n]); err != nil {
+					errnie.Error(err)
+					errnie.Trace("BalancedProvider.Write failed to write to pipe: %v", err)
+					lb.pw.Close()
+					return
+				}
+				errnie.Trace("BalancedProvider.Write successfully wrote to pipe")
 			}
 		}
-
-		errnie.Trace("%s", "BalancedProvider.Write", "completed writing response")
-		// Close pipe writer when done
-		lb.pw.Close()
 	}()
 
+	errnie.Trace("BalancedProvider.Write returning with len: %d", len(p))
 	return len(p), nil
 }
 

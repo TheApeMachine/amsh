@@ -4,7 +4,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 /*

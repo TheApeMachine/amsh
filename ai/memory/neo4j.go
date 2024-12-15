@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 // Neo4j represents the Neo4j client.

@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui"
+	"github.com/theapemachine/errnie"
 )
 
 /*
@@ -23,9 +23,10 @@ var runCmd = &cobra.Command{
 		// Initialize logger explicitly
 		errnie.InitLogger()
 
-		// Create and run the editor
 		app := tui.NewApp()
-		return app.Run()
+		app.Run()
+
+		return nil
 	},
 }
 

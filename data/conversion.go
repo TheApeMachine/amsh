@@ -2,7 +2,8 @@ package data
 
 import (
 	"capnproto.org/go/capnp/v3"
-	"github.com/theapemachine/amsh/errnie"
+	"fmt"
+	"github.com/theapemachine/errnie"
 )
 
 func (artifact *Artifact) Marshal(p []byte) {
@@ -24,37 +25,29 @@ func (artifact *Artifact) Marshal(p []byte) {
 	copy(p, buf)
 }
 
-func (artifact *Artifact) Unmarshal(buf []byte) {
-	// Check if buffer is empty or too small
-	if len(buf) == 0 {
-		errnie.Trace("empty buffer, skipping unmarshal")
-		return
-	}
-
+func (artifact *Artifact) Unmarshal(buf []byte) error {
 	var (
 		msg    *capnp.Message
 		artfct Artifact
 		err    error
 	)
 
-	// Unmarshal is a bit of a misnomer in the world of Cap 'n Proto,
-	// but they went with it anyway.
+	if len(buf) == 0 {
+		return fmt.Errorf("empty buffer")
+	}
+
 	if msg, err = capnp.Unmarshal(buf); err != nil {
-		errnie.Error(err)
-		return
+		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	// Read a Datagram instance from the message.
+	if msg == nil {
+		return fmt.Errorf("nil message after unmarshal")
+	}
+
 	if artfct, err = ReadRootArtifact(msg); err != nil {
-		errnie.Error(err)
-		return
+		return fmt.Errorf("failed to read root artifact: %w", err)
 	}
 
-	// Overwrite the pointer to our empty instance with the one
-	// pointing to our root Datagram.
-	artifact = &artfct
-
-	if payload := artifact.Peek("payload"); payload != "" {
-		errnie.Trace("%s", "payload", payload)
-	}
+	*artifact = artfct
+	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/errnie"
 )
@@ -25,54 +24,63 @@ func NewSystem() *System {
 }
 
 func (system *System) Read(p []byte) (n int, err error) {
-	// First read from the pipe
 	n, err = system.pr.Read(p)
 	if err != nil {
 		return n, err
 	}
 
-	// Only try to unmarshal if we have valid data
 	if n > 0 {
 		artifact := data.Empty()
-		artifact.Unmarshal(p[:n]) // Only use the valid portion of the buffer
-		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+		if err := artifact.Unmarshal(p[:n]); err != nil {
+			errnie.Error(err)
+			// Continue even if unmarshal fails - the raw data will still be returned
+		} else {
+			errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+		}
 	}
+
 	return n, nil
 }
 
 func (system *System) Write(p []byte) (n int, err error) {
-	// Only try to unmarshal if we have data
 	if len(p) > 0 {
 		artifact := data.Empty()
-		artifact.Unmarshal(p)
-		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+		if err := artifact.Unmarshal(p); err != nil {
+			errnie.Error(err)
+		} else {
+			errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+		}
 	}
 
-	// Write to pipe in goroutine to prevent blocking
+	// Create an agent
+	agent := NewAgent(context.Background(), "assistant")
+
+	// Write to agent and copy response back to system pipe
 	go func() {
 		defer system.pw.Close()
 
-		// Create an agent with a balanced provider
-		agent := NewAgent(context.Background(), "assistant")
-		prvdr := provider.NewBalancedProvider()
-
-		// Write the input artifact to provider through agent
+		// Write to agent
 		if _, err := agent.Write(p); err != nil {
 			errnie.Error(err)
 			return
 		}
 
-		// Copy from provider to system pipe
+		// Copy from agent to system pipe
 		buf := make([]byte, 1024)
 		for {
-			n, err := prvdr.Read(buf)
+			n, err := agent.Read(buf)
 			if err != nil {
 				if err != io.EOF {
 					errnie.Error(err)
 				}
-				break
+				return
 			}
-			system.pw.Write(buf[:n])
+			if n > 0 {
+				if _, err := system.pw.Write(buf[:n]); err != nil {
+					errnie.Error(err)
+					return
+				}
+			}
 		}
 	}()
 

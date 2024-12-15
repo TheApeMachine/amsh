@@ -57,13 +57,23 @@ func (agent *Agent) AddSidekick(key string, sidekick *Agent) {
 }
 
 func (agent *Agent) Read(p []byte) (n int, err error) {
-	// Only try to unmarshal if we have data
-	if len(p) > 0 {
-		artifact := data.Empty()
-		artifact.Unmarshal(p)
-		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+	// Read from buffer first
+	n, err = agent.buffer.Read(p)
+	if err != nil {
+		return n, err
 	}
-	return agent.buffer.Read(p)
+
+	// Only try to unmarshal if we successfully read data
+	if n > 0 {
+		artifact := data.Empty()
+		if err := artifact.Unmarshal(p[:n]); err != nil {
+			errnie.Error(err)
+			// Continue even if unmarshal fails - the raw data will still be returned
+		} else {
+			errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+		}
+	}
+	return n, nil
 }
 
 func (agent *Agent) Write(p []byte) (n int, err error) {

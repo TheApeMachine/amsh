@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -18,7 +17,6 @@ const bufferThreshold = 1024 * 4 // 4KB
 type OpenAI struct {
 	pr     *io.PipeReader
 	pw     *io.PipeWriter
-	buffer *bytes.Buffer
 	client *sdk.Client
 	model  string
 }
@@ -33,9 +31,8 @@ func NewOpenAI(endpoint, apiKey, model string) *OpenAI {
 
 	pr, pw := io.Pipe()
 	return &OpenAI{
-		pr:     pr,
-		pw:     pw,
-		buffer: bytes.NewBuffer(nil),
+		pr: pr,
+		pw: pw,
 		client: sdk.NewClient(
 			option.WithBaseURL(endpoint),
 			option.WithAPIKey(apiKey),
@@ -45,99 +42,90 @@ func NewOpenAI(endpoint, apiKey, model string) *OpenAI {
 }
 
 func (openai *OpenAI) Read(p []byte) (n int, err error) {
-	artifact := data.Empty()
-	artifact.Unmarshal(p)
-	errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+	errnie.Trace("OpenAI.Read START with buffer size: %d", len(p))
 
 	if openai.pr == nil {
+		errnie.Trace("OpenAI.Read pipe reader is nil")
 		return 0, io.EOF
 	}
 
-	// Read into buffer first
-	if n = errnie.SafeMust(func() (int, error) {
-		return openai.pr.Read(p)
-	}); n == 0 {
-		return 0, io.EOF
-	}
+	n, err = openai.pr.Read(p)
+	errnie.Trace("OpenAI.Read got %d bytes, err: %v", n, err)
 
-	openai.buffer.Write(p[:n])
-
-	// Process when we have enough data or on EOF
-	if err == io.EOF || openai.buffer.Len() > bufferThreshold {
-		openai.processBuffer(context.Background())
-	}
-
-	return n, nil
-}
-
-func (openai *OpenAI) processBuffer(ctx context.Context) {
-	errnie.Trace("%s", "OpenAI.processBuffer", "processing buffer")
-
-	buf := openai.buffer.Bytes()
-	openai.buffer.Reset()
-
-	// Convert bytes back to Artifact using package function
-	artifact := data.Empty()
-	artifact.Unmarshal(buf)
-
-	errnie.Trace("%s", "OpenAI.processBuffer", fmt.Sprintf("processing message from role: %s", artifact.Peek("role")))
-
-	messages := []sdk.ChatCompletionMessageParamUnion{
-		openai.makeMessages(artifact),
-	}
-
-	stream := openai.client.Chat.Completions.NewStreaming(ctx, sdk.ChatCompletionNewParams{
-		Messages: sdk.F(messages),
-		Model:    sdk.F(openai.model),
-	})
-
-	var (
-		chunk sdk.ChatCompletionChunk
-		delta sdk.ChatCompletionChunkChoicesDelta
-	)
-
-	for stream.Next() {
-		if chunk = stream.Current(); len(chunk.Choices) > 0 {
-			if delta = chunk.Choices[0].Delta; delta.Content != "" {
-				errnie.Trace("%s", "OpenAI.processBuffer", fmt.Sprintf("received chunk: %d bytes", len(delta.Content)))
-				_ = errnie.SafeMust(func() (int64, error) {
-					return io.Copy(openai.pw, data.New(
-						"openai", "assistant", "chunk", []byte(delta.Content),
-					))
-				})
-			}
+	if err == nil && n > 0 {
+		// Try to unmarshal and log the content for debugging
+		artifact := data.Empty()
+		if err := artifact.Unmarshal(p[:n]); err == nil {
+			errnie.Trace("OpenAI.Read content: %s", artifact.Peek("payload"))
 		}
 	}
 
-	if err := stream.Err(); err != nil {
-		errnie.Error(err)
-		return
-	}
-
-	errnie.Trace("%s", "OpenAI.processBuffer", "completed processing buffer")
+	return n, err
 }
 
 func (openai *OpenAI) Write(p []byte) (n int, err error) {
+	errnie.Trace("OpenAI.Write START with %d bytes", len(p))
+
 	artifact := data.Empty()
-	artifact.Unmarshal(p)
-	errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
-
-	if openai.pw == nil {
-		return 0, io.ErrClosedPipe
+	if err := artifact.Unmarshal(p); err != nil {
+		errnie.Error(err)
+		return 0, fmt.Errorf("failed to unmarshal artifact: %w", err)
 	}
+	errnie.Trace("OpenAI.Write unmarshaled artifact with payload: %s", artifact.Peek("payload"))
 
-	// Write directly to pipe
-	n, err = openai.pw.Write(p)
-	if err != nil {
-		if err == io.EOF {
-			openai.pw = nil
+	// Process the request in a goroutine
+	go func() {
+		defer func() {
+			errnie.Trace("OpenAI.Write goroutine CLEANUP")
+			openai.pw.Close()
+		}()
+
+		errnie.Trace("OpenAI.Write preparing messages")
+		messages := []sdk.ChatCompletionMessageParamUnion{
+			openai.makeMessages(artifact),
 		}
-		errnie.Trace("%s", "OpenAI.Write", "completed with status: "+err.Error())
-		return n, err
-	}
 
-	errnie.Trace("%s", "OpenAI.Write", fmt.Sprintf("wrote %d bytes", n))
-	return n, nil
+		errnie.Trace("OpenAI.Write starting stream")
+		stream := openai.client.Chat.Completions.NewStreaming(context.Background(), sdk.ChatCompletionNewParams{
+			Messages: sdk.F(messages),
+			Model:    sdk.F(openai.model),
+		})
+
+		errnie.Trace("OpenAI.Write entering stream loop")
+		for stream.Next() {
+			if chunk := stream.Current(); len(chunk.Choices) > 0 {
+				if delta := chunk.Choices[0].Delta; delta.Content != "" {
+					errnie.Trace("OpenAI.Write received chunk: %s", delta.Content)
+
+					responseArtifact := data.New(
+						"openai", "assistant", "chunk", []byte(delta.Content),
+					)
+
+					errnie.Trace("OpenAI.Write marshaling response")
+					buf := make([]byte, 1024)
+					responseArtifact.Marshal(buf)
+
+					errnie.Trace("OpenAI.Write writing chunk to pipe")
+					if _, err := openai.pw.Write(buf); err != nil {
+						errnie.Error(err)
+						errnie.Trace("OpenAI.Write failed to write to pipe: %v", err)
+						return
+					}
+					errnie.Trace("OpenAI.Write successfully wrote chunk")
+				}
+			}
+		}
+
+		if err := stream.Err(); err != nil {
+			errnie.Error(err)
+			errnie.Trace("OpenAI.Write stream error: %v", err)
+			return
+		}
+		errnie.Trace("OpenAI.Write stream completed")
+	}()
+
+	errnie.Trace("OpenAI.Write returning with len: %d", len(p))
+	return len(p), nil
 }
 
 func (openai *OpenAI) Close() error {

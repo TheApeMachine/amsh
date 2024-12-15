@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/errnie"
 )
 
@@ -14,6 +15,7 @@ type Buffer struct {
 	maxContextTokens int
 	pr               *io.PipeReader
 	pw               *io.PipeWriter
+	provider         provider.Provider
 }
 
 func NewBuffer() *Buffer {
@@ -25,49 +27,48 @@ func NewBuffer() *Buffer {
 		maxContextTokens: 128000,
 		pr:               pr,
 		pw:               pw,
+		provider:         provider.NewBalancedProvider(),
 	}
 }
 
 func (buffer *Buffer) Read(p []byte) (n int, err error) {
-	// Only try to unmarshal if we have data
-	if len(p) > 0 {
+	// Read directly from provider first
+	n, err = buffer.provider.Read(p)
+	if err != nil {
+		return n, err
+	}
+
+	// Only try to unmarshal if we successfully read data
+	if n > 0 {
 		artifact := data.Empty()
-		artifact.Unmarshal(p)
-		errnie.Trace("%s", "payload", artifact.Peek("payload"))
+		if err := artifact.Unmarshal(p[:n]); err != nil {
+			errnie.Error(err)
+			// Continue even if unmarshal fails - the raw data will still be returned
+		} else {
+			errnie.Trace("%s", "payload", artifact.Peek("payload"))
+		}
 	}
 
-	if buffer.pr == nil {
-		return 0, io.EOF
-	}
-
-	buffer.truncate()
-
-	// Marshal all messages into a single artifact
-	artifact := data.New("buffer", "system", "context", nil)
-	for _, msg := range buffer.messages {
-		artifact.Append(msg.Peek("payload"))
-	}
-
-	// Write to pipe in goroutine to prevent blocking
-	go func() {
-		defer buffer.pw.Close()
-		artifact.Marshal(p)
-	}()
-
-	return buffer.pr.Read(p)
+	return n, nil
 }
 
 func (buffer *Buffer) Write(p []byte) (n int, err error) {
-	// Only try to unmarshal if we have data
 	if len(p) == 0 {
 		return 0, nil
 	}
 
 	artifact := data.Empty()
-	artifact.Unmarshal(p)
+	if err := artifact.Unmarshal(p); err != nil {
+		errnie.Error(err)
+		return 0, err
+	}
 	errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+
+	// Store in messages
 	buffer.messages = append(buffer.messages, artifact)
-	return len(p), nil
+
+	// Forward to provider
+	return buffer.provider.Write(p)
 }
 
 func (buffer *Buffer) Close() error {

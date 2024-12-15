@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/invopop/jsonschema"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Inspect struct {

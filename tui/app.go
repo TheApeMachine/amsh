@@ -5,9 +5,9 @@ import (
 	"os"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/commands"
 	"github.com/theapemachine/amsh/tui/types"
+	"github.com/theapemachine/errnie"
 )
 
 // App represents the main application state

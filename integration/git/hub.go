@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/go-github/v66/github"
 	"github.com/invopop/jsonschema"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 	"golang.org/x/oauth2"
 )
 

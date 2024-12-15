@@ -2,8 +2,8 @@ package tui
 
 import (
 	"github.com/gdamore/tcell/v2"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/tui/types"
+	"github.com/theapemachine/errnie"
 )
 
 // handleEvent processes keyboard input

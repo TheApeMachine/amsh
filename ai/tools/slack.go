@@ -8,7 +8,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/slack-go/slack"
-	"github.com/theapemachine/amsh/errnie"
+	"github.com/theapemachine/errnie"
 )
 
 type Slack struct {

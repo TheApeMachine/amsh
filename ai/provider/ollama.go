@@ -6,8 +6,8 @@ import (
 	"net/url"
 
 	"github.com/ollama/ollama/api"
-	"github.com/theapemachine/amsh/errnie"
 	"github.com/theapemachine/amsh/utils"
+	"github.com/theapemachine/errnie"
 )
 
 type Ollama struct {
