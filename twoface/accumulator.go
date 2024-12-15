@@ -20,8 +20,6 @@ type Accumulator struct {
 }
 
 func NewAccumulator() *Accumulator {
-	errnie.Trace("%s", "Accumulator.NewAccumulator", "new")
-
 	pr, pw := io.Pipe()
 	return &Accumulator{
 		pr:     pr,
@@ -37,38 +35,31 @@ the accumulated data. After that, it will return EOF.
 Any further calls will return EOF.
 */
 func (accumulator *Accumulator) Read(p []byte) (n int, err error) {
-	// Only try to unmarshal if we have data
-	if len(p) > 0 {
-		artifact := data.Empty()
-		artifact.Unmarshal(p)
-		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
-	}
+    // First try to read from pipe
+    if accumulator.pr != nil {
+        n, err = accumulator.pr.Read(p)
+        if err != nil && err != io.EOF {
+            return n, err
+        }
 
-	if accumulator.pr != nil {
-		n = errnie.SafeMust(func() (int, error) {
-			return accumulator.pr.Read(p)
-		})
+        // Only try to unmarshal if we have valid data
+        if n > 0 {
+            artifact := data.Empty()
+            if err := artifact.Unmarshal(p[:n]); err != nil {
+                errnie.Error(err)
+                // Continue even if unmarshal fails - the raw data will still be returned
+            }
+        }
 
-		accumulator.pr = nil
-		return n, io.EOF
-	}
+        return n, err
+    }
 
-	// Return EOF if buffer is empty
-	if accumulator.buffer.Len() == 0 {
-		return 0, io.EOF
-	}
+    // If pipe is closed, try to read from buffer
+    if accumulator.buffer != nil && accumulator.buffer.Len() > 0 {
+        return accumulator.buffer.Read(p)
+    }
 
-	// Read only up to len(p) bytes
-	n = copy(p, accumulator.buffer.Bytes())
-
-	// If we couldn't read everything, only advance the buffer by what we did read
-	if n < accumulator.buffer.Len() {
-		accumulator.buffer.Next(n)
-		return n, nil
-	}
-
-	// If we read everything, return EOF
-	return n, io.EOF
+    return 0, io.EOF
 }
 
 func (accumulator *Accumulator) Write(p []byte) (n int, err error) {
@@ -76,7 +67,6 @@ func (accumulator *Accumulator) Write(p []byte) (n int, err error) {
 	if len(p) > 0 {
 		artifact := data.Empty()
 		artifact.Unmarshal(p)
-		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
 	}
 
 	// Write in a goroutine to prevent blocking
@@ -89,8 +79,6 @@ func (accumulator *Accumulator) Write(p []byte) (n int, err error) {
 }
 
 func (accumulator *Accumulator) Close() error {
-	errnie.Trace("%s", "Accumulator.Close", "close")
-
 	if err := accumulator.pw.Close(); err != nil {
 		return err
 	}

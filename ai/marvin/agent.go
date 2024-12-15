@@ -24,8 +24,6 @@ type Agent struct {
 }
 
 func NewAgent(ctx context.Context, role string) *Agent {
-	errnie.Trace("%s", "role", role)
-
 	return &Agent{
 		ID:        uuid.New().String(),
 		ctx:       ctx,
@@ -39,20 +37,16 @@ func NewAgent(ctx context.Context, role string) *Agent {
 }
 
 func (agent *Agent) AddTools(tools ...ai.Tool) {
-	errnie.Trace("%s", "tools", tools)
 	agent.tools = append(agent.tools, tools...)
 }
 
 func (agent *Agent) AddProcesses(processes ...*data.Artifact) {
-	errnie.Trace("%s", "processes", processes)
-
 	for _, process := range processes {
 		agent.processes[process.Peek("context")] = process
 	}
 }
 
 func (agent *Agent) AddSidekick(key string, sidekick *Agent) {
-	errnie.Trace("%s", "key", key, "sidekick", sidekick.ID)
 	agent.sidekicks[key] = append(agent.sidekicks[key], sidekick)
 }
 
@@ -69,10 +63,9 @@ func (agent *Agent) Read(p []byte) (n int, err error) {
 		if err := artifact.Unmarshal(p[:n]); err != nil {
 			errnie.Error(err)
 			// Continue even if unmarshal fails - the raw data will still be returned
-		} else {
-			errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
 		}
 	}
+
 	return n, nil
 }
 
@@ -81,7 +74,6 @@ func (agent *Agent) Write(p []byte) (n int, err error) {
 	if len(p) > 0 {
 		artifact := data.Empty()
 		artifact.Unmarshal(p)
-		errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
 	}
 	return agent.buffer.Write(p)
 }

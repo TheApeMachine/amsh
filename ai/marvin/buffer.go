@@ -19,8 +19,6 @@ type Buffer struct {
 }
 
 func NewBuffer() *Buffer {
-	errnie.Trace("%s", "Buffer.NewBuffer", "new")
-
 	pr, pw := io.Pipe()
 	return &Buffer{
 		messages:         make([]*data.Artifact, 0),
@@ -44,8 +42,6 @@ func (buffer *Buffer) Read(p []byte) (n int, err error) {
 		if err := artifact.Unmarshal(p[:n]); err != nil {
 			errnie.Error(err)
 			// Continue even if unmarshal fails - the raw data will still be returned
-		} else {
-			errnie.Trace("%s", "payload", artifact.Peek("payload"))
 		}
 	}
 
@@ -62,7 +58,6 @@ func (buffer *Buffer) Write(p []byte) (n int, err error) {
 		errnie.Error(err)
 		return 0, err
 	}
-	errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
 
 	// Store in messages
 	buffer.messages = append(buffer.messages, artifact)
@@ -72,8 +67,6 @@ func (buffer *Buffer) Write(p []byte) (n int, err error) {
 }
 
 func (buffer *Buffer) Close() error {
-	errnie.Trace("%s", "Buffer.Close", "close")
-
 	buffer.messages = buffer.messages[:0]
 	return nil
 }
@@ -83,8 +76,6 @@ Truncate the buffer to the maximum context tokens, making sure to always keep th
 first two messages, which are the system prompt and the user message.
 */
 func (buffer *Buffer) truncate() {
-	errnie.Trace("%s", "Buffer.truncate", "truncate")
-
 	// Always include first two messages (system prompt and user message)
 	if len(buffer.messages) < 2 {
 		return
@@ -115,8 +106,6 @@ func (buffer *Buffer) truncate() {
 }
 
 func (buffer *Buffer) estimateTokens(msg *data.Artifact) int { // Use tiktoken-go to estimate tokens
-	errnie.Trace("%s", "msg", msg.Peek("role"))
-
 	encoding, err := tiktoken.EncodingForModel("gpt-4o-mini")
 	if err != nil {
 		log.Error("Error getting encoding", "error", err)

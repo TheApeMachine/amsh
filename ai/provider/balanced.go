@@ -42,8 +42,6 @@ NewBalancedProvider creates a new BalancedProvider as an ambient context,
 so multiple calls to NewBalancedProvider will return the same instance.
 */
 func NewBalancedProvider() *BalancedProvider {
-	errnie.Trace("%s", "provider.NewBalancedProvider", "new")
-
 	onceBalancedProvider.Do(func() {
 		pr, pw := io.Pipe()
 		balancedProviderInstance = &BalancedProvider{
@@ -53,7 +51,6 @@ func NewBalancedProvider() *BalancedProvider {
 				{
 					name: "gpt-4o",
 					provider: NewOpenAI(
-						"https://api.openai.com/v1",
 						os.Getenv("OPENAI_API_KEY"),
 						openai.ChatModelGPT4oMini2024_07_18,
 					),
@@ -103,82 +100,61 @@ func NewBalancedProvider() *BalancedProvider {
 }
 
 func (lb *BalancedProvider) Read(p []byte) (n int, err error) {
-	errnie.Trace("BalancedProvider.Read START with buffer size: %d", len(p))
-
 	if lb.pr == nil {
-		errnie.Trace("BalancedProvider.Read pipe reader is nil")
 		return 0, io.EOF
 	}
 
 	n, err = lb.pr.Read(p)
-	errnie.Trace("BalancedProvider.Read got %d bytes, err: %v", n, err)
 	return n, err
 }
 
 func (lb *BalancedProvider) Write(p []byte) (n int, err error) {
-	errnie.Trace("BalancedProvider.Write START with %d bytes", len(p))
 	ps := lb.getAvailableProvider()
 	if ps == nil {
 		return 0, errors.New("no provider available")
 	}
 
-	errnie.Trace("BalancedProvider.Write got provider: %s", ps.name)
-
 	// Start a goroutine to handle the response
 	go func() {
 		defer func() {
-			errnie.Trace("BalancedProvider.Write goroutine CLEANUP")
 			ps.mu.Lock()
 			ps.occupied = false
 			ps.mu.Unlock()
 		}()
 
 		// Write to provider
-		errnie.Trace("BalancedProvider.Write WRITING to provider")
 		if _, err := ps.provider.Write(p); err != nil {
 			errnie.Error(err)
-			errnie.Trace("BalancedProvider.Write failed to write to provider: %v", err)
 			return
 		}
-
-		errnie.Trace("BalancedProvider.Write STARTING to read response")
 
 		// Read from provider and write to balanced provider's pipe
 		buf := make([]byte, 1024)
 		for {
-			errnie.Trace("BalancedProvider.Write reading loop START")
 			n, err := ps.provider.Read(buf)
-			errnie.Trace("BalancedProvider.Write read %d bytes, err: %v", n, err)
 			
 			if err != nil {
 				if err != io.EOF {
 					errnie.Error(err)
 				}
-				errnie.Trace("BalancedProvider.Write closing pipe due to error/EOF")
 				lb.pw.Close()
 				return
 			}
 
 			if n > 0 {
-				errnie.Trace("BalancedProvider.Write writing %d bytes to pipe", n)
 				if _, err := lb.pw.Write(buf[:n]); err != nil {
 					errnie.Error(err)
-					errnie.Trace("BalancedProvider.Write failed to write to pipe: %v", err)
 					lb.pw.Close()
 					return
 				}
-				errnie.Trace("BalancedProvider.Write successfully wrote to pipe")
 			}
 		}
 	}()
 
-	errnie.Trace("BalancedProvider.Write returning with len: %d", len(p))
 	return len(p), nil
 }
 
 func (lb *BalancedProvider) Close() error {
-	errnie.Trace("%s", "BalancedProvider.Close", "close")
-
 	if lb.pw != nil {
 		lb.pw.Close()
 	}
@@ -189,8 +165,6 @@ func (lb *BalancedProvider) Close() error {
 }
 
 func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Trace("%s", "BalancedProvider.Generate", "generate")
-
 	out := make(chan Event)
 
 	go func() {
@@ -234,8 +208,6 @@ func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParam
 }
 
 func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
-	errnie.Trace("%s", "BalancedProvider.getAvailableProvider", "get")
-
 	// Handle first request with random selection
 	if provider := lb.handleFirstRequest(); provider != nil {
 		return provider
@@ -245,8 +217,6 @@ func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
 }
 
 func (lb *BalancedProvider) handleFirstRequest() *ProviderStatus {
-	errnie.Trace("%s", "BalancedProvider.handleFirstRequest", "handle")
-
 	lb.initMu.Lock()
 	defer lb.initMu.Unlock()
 
@@ -267,8 +237,6 @@ func (lb *BalancedProvider) handleFirstRequest() *ProviderStatus {
 }
 
 func (lb *BalancedProvider) findBestAvailableProvider() *ProviderStatus {
-	errnie.Trace("%s", "BalancedProvider.findBestAvailableProvider", "find")
-
 	maxAttempts := 10
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if provider := lb.selectBestProvider(); provider != nil {
@@ -283,8 +251,6 @@ func (lb *BalancedProvider) findBestAvailableProvider() *ProviderStatus {
 }
 
 func (lb *BalancedProvider) selectBestProvider() *ProviderStatus {
-	errnie.Trace("%s", "BalancedProvider.selectBestProvider", "select")
-
 	var bestProvider *ProviderStatus
 	oldestUse := time.Now()
 	cooldownPeriod := 60 * time.Second
@@ -312,8 +278,6 @@ func (lb *BalancedProvider) selectBestProvider() *ProviderStatus {
 }
 
 func (lb *BalancedProvider) getUnoccupiedProviders() []*ProviderStatus {
-	errnie.Trace("%s", "BalancedProvider.getUnoccupiedProviders", "get")
-
 	available := make([]*ProviderStatus, 0)
 	for _, ps := range lb.providers {
 		ps.mu.Lock()
@@ -326,8 +290,6 @@ func (lb *BalancedProvider) getUnoccupiedProviders() []*ProviderStatus {
 }
 
 func (lb *BalancedProvider) isProviderAvailable(ps *ProviderStatus, cooldownPeriod time.Duration, maxFailures int) bool {
-	errnie.Trace("%s", "BalancedProvider.isProviderAvailable", "is")
-
 	if ps.occupied {
 		return false
 	}
@@ -344,22 +306,16 @@ func (lb *BalancedProvider) isProviderAvailable(ps *ProviderStatus, cooldownPeri
 }
 
 func (lb *BalancedProvider) isBetterProvider(candidate, current *ProviderStatus, oldestUse time.Time) bool {
-	errnie.Trace("%s", "BalancedProvider.isBetterProvider", "is")
-
 	return current == nil ||
 		candidate.failures < current.failures ||
 		(candidate.failures == current.failures && candidate.lastUsed.Before(oldestUse))
 }
 
 func (lb *BalancedProvider) markProviderAsOccupied(ps *ProviderStatus) {
-	errnie.Trace("%s", "BalancedProvider.markProviderAsOccupied", "mark")
-
 	ps.occupied = true
 	ps.lastUsed = time.Now()
 }
 
 func (lb *BalancedProvider) Configure(config map[string]interface{}) {
-	errnie.Trace("%s", "BalancedProvider.Configure", "configure")
-
 	// Configuration can be added here
 }

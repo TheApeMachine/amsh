@@ -7,8 +7,6 @@ import (
 )
 
 func (artifact *Artifact) Marshal(p []byte) {
-	errnie.Trace("%s", "Artifact.Marshal", "marshal")
-
 	var (
 		buf []byte
 		err error

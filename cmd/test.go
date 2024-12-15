@@ -17,22 +17,44 @@ var testCmd = &cobra.Command{
 	Short: "Run the AI system integration test",
 	Long:  `Run a practical test of the AI system.`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
-		errnie.Trace("%s", "test", "test")
-
 		system := marvin.NewSystem()
 		user := data.New("test", "user", "prompt", []byte("How many times do we find the letter r in the word strawberry?"))
 
 		accumulator := twoface.NewAccumulator()
-		if _, err = io.Copy(system, user); err != nil {
-			return errnie.Error(err)
-		}
 
-		if _, err = io.Copy(accumulator, system); err != nil {
-			return errnie.Error(err)
-		}
+		go func() {
+			if _, err = io.Copy(system, user); err != nil {
+				errnie.Error(err)
+			}
 
-		if _, err = io.Copy(os.Stdout, accumulator); err != nil {
-			return errnie.Error(err)
+			if _, err = io.Copy(accumulator, system); err != nil {
+				errnie.Error(err)
+			}
+
+			if _, err = io.Copy(os.Stdout, accumulator); err != nil {
+				errnie.Error(err)
+			}
+		}()
+
+		buf := make([]byte, 32768)
+		artifact := data.Empty()
+
+		for {
+			n, err := accumulator.Read(buf)
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				errnie.Error(err)
+				break
+			}
+
+			if err := artifact.Unmarshal(buf[:n]); err != nil {
+				errnie.Error(err)
+				continue
+			}
+
+			os.Stdout.Write([]byte(artifact.Peek("payload")))
 		}
 
 		return nil

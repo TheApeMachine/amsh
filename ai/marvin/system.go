@@ -14,7 +14,6 @@ type System struct {
 }
 
 func NewSystem() *System {
-	errnie.Trace("%s", "System.NewSystem", "new")
 	pr, pw := io.Pipe()
 
 	return &System{
@@ -34,8 +33,6 @@ func (system *System) Read(p []byte) (n int, err error) {
 		if err := artifact.Unmarshal(p[:n]); err != nil {
 			errnie.Error(err)
 			// Continue even if unmarshal fails - the raw data will still be returned
-		} else {
-			errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
 		}
 	}
 
@@ -47,8 +44,6 @@ func (system *System) Write(p []byte) (n int, err error) {
 		artifact := data.Empty()
 		if err := artifact.Unmarshal(p); err != nil {
 			errnie.Error(err)
-		} else {
-			errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
 		}
 	}
 
@@ -88,8 +83,6 @@ func (system *System) Write(p []byte) (n int, err error) {
 }
 
 func (system *System) Close() error {
-	errnie.Trace("%s", "System.Close", "close")
-
 	if err := system.pw.Close(); err != nil {
 		return err
 	}
