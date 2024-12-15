@@ -1,65 +1,98 @@
 package marvin
 
 import (
-	"fmt"
+	"io"
 
 	"github.com/charmbracelet/log"
 	"github.com/pkoukk/tiktoken-go"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/ai/provider"
-	"github.com/theapemachine/amsh/utils"
+	"github.com/theapemachine/errnie"
 )
 
 type Buffer struct {
-	messages         []provider.Message
+	messages         []*data.Artifact
 	maxContextTokens int
+	pr               *io.PipeReader
+	pw               *io.PipeWriter
+	provider         provider.Provider
 }
 
 func NewBuffer() *Buffer {
+	errnie.Trace("%s", "Buffer.NewBuffer", "new")
+
+	pr, pw := io.Pipe()
 	return &Buffer{
-		messages:         make([]provider.Message, 0),
+		messages:         make([]*data.Artifact, 0),
 		maxContextTokens: 128000,
+		pr:               pr,
+		pw:               pw,
+		provider:         provider.NewBalancedProvider(),
 	}
 }
 
-func (buffer *Buffer) Poke(message provider.Message) *Buffer {
-	buffer.messages = append(buffer.messages, message)
-	return buffer
+func (buffer *Buffer) Read(p []byte) (n int, err error) {
+	// Read directly from provider first
+	n, err = buffer.provider.Read(p)
+	if err != nil {
+		return n, err
+	}
+
+	// Only try to unmarshal if we successfully read data
+	if n > 0 {
+		artifact := data.Empty()
+		if err := artifact.Unmarshal(p[:n]); err != nil {
+			errnie.Error(err)
+			// Continue even if unmarshal fails - the raw data will still be returned
+		} else {
+			errnie.Trace("%s", "payload", artifact.Peek("payload"))
+		}
+	}
+
+	return n, nil
 }
 
-func (buffer *Buffer) Peek() []provider.Message {
-	return buffer.messages
+func (buffer *Buffer) Write(p []byte) (n int, err error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	artifact := data.Empty()
+	if err := artifact.Unmarshal(p); err != nil {
+		errnie.Error(err)
+		return 0, err
+	}
+	errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+
+	// Store in messages
+	buffer.messages = append(buffer.messages, artifact)
+
+	// Forward to provider
+	return buffer.provider.Write(p)
 }
 
-func (buffer *Buffer) Clear() *Buffer {
+func (buffer *Buffer) Close() error {
+	errnie.Trace("%s", "Buffer.Close", "close")
+
 	buffer.messages = buffer.messages[:0]
-	return buffer
-}
-
-func (buffer *Buffer) String() string {
-	out := []string{
-		"<buffer>",
-	}
-
-	for _, msg := range buffer.messages {
-		out = append(out, fmt.Sprintf("\t<%s>\n\t\t%s\n\t</%s>", msg.Role, msg.Content, msg.Role))
-	}
-
-	return utils.JoinWith("\n\n", out...) + "\n</buffer>"
+	return nil
 }
 
 /*
 Truncate the buffer to the maximum context tokens, making sure to always keep the
 first two messages, which are the system prompt and the user message.
 */
-func (buffer *Buffer) Truncate() []provider.Message {
+func (buffer *Buffer) truncate() {
+	errnie.Trace("%s", "Buffer.truncate", "truncate")
+
 	// Always include first two messages (system prompt and user message)
 	if len(buffer.messages) < 2 {
-		return buffer.messages
+		return
 	}
 
 	maxTokens := buffer.maxContextTokens - 500 // Reserve tokens for response
 	totalTokens := 0
-	var truncatedMessages []provider.Message
+	var truncatedMessages []*data.Artifact
 
 	// Add first two messages
 	truncatedMessages = append(truncatedMessages, buffer.messages[0], buffer.messages[1])
@@ -71,7 +104,7 @@ func (buffer *Buffer) Truncate() []provider.Message {
 		msg := buffer.messages[i]
 		messageTokens := buffer.estimateTokens(msg)
 		if totalTokens+messageTokens <= maxTokens {
-			truncatedMessages = append([]provider.Message{msg}, truncatedMessages[2:]...)
+			truncatedMessages = append([]*data.Artifact{msg}, truncatedMessages[2:]...)
 			truncatedMessages = append(buffer.messages[0:2], truncatedMessages...)
 			totalTokens += messageTokens
 		} else {
@@ -79,10 +112,11 @@ func (buffer *Buffer) Truncate() []provider.Message {
 		}
 	}
 
-	return truncatedMessages
 }
 
-func (buffer *Buffer) estimateTokens(msg provider.Message) int { // Use tiktoken-go to estimate tokens
+func (buffer *Buffer) estimateTokens(msg *data.Artifact) int { // Use tiktoken-go to estimate tokens
+	errnie.Trace("%s", "msg", msg.Peek("role"))
+
 	encoding, err := tiktoken.EncodingForModel("gpt-4o-mini")
 	if err != nil {
 		log.Error("Error getting encoding", "error", err)
@@ -92,9 +126,9 @@ func (buffer *Buffer) estimateTokens(msg provider.Message) int { // Use tiktoken
 	tokensPerMessage := 4 // As per OpenAI's token estimation guidelines
 
 	numTokens := tokensPerMessage
-	numTokens += len(encoding.Encode(msg.Content, nil, nil))
-	if msg.Role == "user" || msg.Role == "assistant" || msg.Role == "system" || msg.Role == "function" {
-		numTokens += len(encoding.Encode(msg.Role, nil, nil))
+	numTokens += len(encoding.Encode(msg.Peek("payload"), nil, nil))
+	if msg.Peek("role") == "user" || msg.Peek("role") == "assistant" || msg.Peek("role") == "system" || msg.Peek("role") == "tool" {
+		numTokens += len(encoding.Encode(msg.Peek("role"), nil, nil))
 	}
 
 	return numTokens

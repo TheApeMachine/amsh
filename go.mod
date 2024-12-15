@@ -10,12 +10,13 @@ require (
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v0.13.0
 	github.com/fasthttp/websocket v1.5.10
+	github.com/gdamore/tcell/v2 v2.7.4
 	github.com/gofiber/utils/v2 v2.0.0-beta.4
 	github.com/google/generative-ai-go v0.18.0
 	github.com/google/go-github/v66 v66.0.0
 	github.com/google/uuid v1.6.0
 	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
-	github.com/muesli/reflow v0.3.0
+	github.com/muesli/gamut v0.3.1
 	github.com/openai/openai-go v0.1.0-alpha.26
 	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/spf13/cast v1.6.0
@@ -23,6 +24,7 @@ require (
 	github.com/theapemachine/errnie v0.0.1
 	github.com/theckman/yacspin v0.13.12
 	github.com/tmc/langchaingo v0.1.12
+	github.com/treilik/bubbleboxer v0.2.0
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
 	golang.org/x/oauth2 v0.23.0
 	google.golang.org/api v0.199.0
@@ -64,6 +66,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -129,6 +132,7 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/term v0.25.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240924160255-9d4c2d233b61 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240924160255-9d4c2d233b61 // indirect
@@ -162,12 +166,10 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.2.0
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
-	github.com/mattn/go-runewidth v0.0.16
+	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
-	github.com/mistakenelf/teacup v0.4.1
-	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6
+	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/gamut v0.3.1
 	github.com/muesli/termenv v0.15.3-0.20240618155329-98d742f6907a
 	github.com/neo4j/neo4j-go-driver/v5 v5.24.0
 	github.com/ollama/ollama v0.3.14
@@ -177,7 +179,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.19.0
 	github.com/theapemachine/qpool v0.0.1
-	github.com/treilik/bubbleboxer v0.2.0
 	github.com/valyala/fasthttp v1.56.0
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect

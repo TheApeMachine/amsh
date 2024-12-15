@@ -1,15 +1,11 @@
 package features
 
 import (
-	"os"
-
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/theapemachine/amsh/tui/types"
-	"github.com/theapemachine/errnie"
 )
 
 const (
@@ -151,11 +147,11 @@ func (editor *Editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		editor.height = msg.Height
 		editor.width = msg.Width
-	case types.LoadFileMsg:
-		fh := errnie.SafeMust(func() (*os.File, error) {
-			return os.Open(msg.Filepath)
-		})
-		defer fh.Close()
+		// case types.LoadFileMsg:
+		// 	fh := errnie.SafeMust(func() (*os.File, error) {
+		// 		return os.Open(msg.Filepath)
+		// 	})
+		// 	defer fh.Close()
 	}
 
 	editor.updateKeybindings()

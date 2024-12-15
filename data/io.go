@@ -1,7 +1,6 @@
 package data
 
 import (
-	"errors"
 	"io"
 	"sync"
 
@@ -22,35 +21,16 @@ Read implements the io.Reader interface for the Artifact.
 It marshals the entire artifact into the provided byte slice.
 */
 func (artifact *Artifact) Read(p []byte) (n int, err error) {
-	// Marshal the artifact.
-	buf := artifact.Marshal()
-	if buf == nil {
-		return 0, errnie.Error(errors.New("failed to marshal artifact"))
-	}
-
-	copy(p, buf)
-
+	artifact.Marshal(p)
 	return len(p), io.EOF
 }
 
 /*
 Write implements the io.Writer interface for the Artifact.
-It writes the entire artifact to the provided stream.
+It unmarshals the provided bytes into the current artifact.
 */
 func (artifact *Artifact) Write(p []byte) (n int, err error) {
-	payload, err := artifact.Payload()
-
-	if err != nil {
-		return 0, errnie.Error(err)
-	}
-
-	payload = append(payload, p...)
-	err = artifact.SetPayload(payload)
-
-	if err != nil {
-		return 0, errnie.Error(err)
-	}
-
+	artifact.Unmarshal(p)
 	return len(p), nil
 }
 

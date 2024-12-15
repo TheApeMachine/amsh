@@ -4,7 +4,6 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/theapemachine/amsh/tui/types"
 	"github.com/theapemachine/errnie"
 )
 
@@ -69,9 +68,9 @@ func (chat *ChatWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		case tea.KeyEnter:
 			chat.focused = false
-			cmds = append(cmds, func() tea.Msg {
-				return types.AIPromptMsg{Prompt: chat.textarea.Value()}
-			})
+			// cmds = append(cmds, func() tea.Msg {
+			// 	return types.AIPromptMsg{Prompt: chat.textarea.Value()}
+			// })
 
 			cmds = append(cmds, func() tea.Msg {
 				return tea.KeyMsg{Type: tea.KeyEsc}

@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/tui"
 	"github.com/theapemachine/errnie"
@@ -24,10 +23,8 @@ var runCmd = &cobra.Command{
 		// Initialize logger explicitly
 		errnie.InitLogger()
 
-		// Then start the program
-		errnie.SafeMust(func() (tea.Model, error) {
-			return tea.NewProgram(tui.NewApp(), tea.WithAltScreen()).Run()
-		})
+		app := tui.NewApp()
+		app.Run()
 
 		return nil
 	},

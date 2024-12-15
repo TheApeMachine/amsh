@@ -1,45 +1,53 @@
 package data
 
 import (
-	"fmt"
-
 	"capnproto.org/go/capnp/v3"
+	"fmt"
 	"github.com/theapemachine/errnie"
 )
 
-func (artifact *Artifact) Marshal() []byte {
+func (artifact *Artifact) Marshal(p []byte) {
+	errnie.Trace("%s", "Artifact.Marshal", "marshal")
+
 	var (
 		buf []byte
 		err error
 	)
 
 	if buf, err = artifact.Message().Marshal(); err != nil {
-		errnie.Error(fmt.Errorf("marshal error: %w", err))
-		return nil
+		// Log the error, we don't need to return here, because we
+		// rely on the caller handling things if the buffer does not
+		// contain the expected data.
+		errnie.Error(err)
 	}
 
-	return buf
+	// Return the buffer in whatever state it may be.
+	copy(p, buf)
 }
 
-func Unmarshal(buf []byte) *Artifact {
+func (artifact *Artifact) Unmarshal(buf []byte) error {
 	var (
-		msg *capnp.Message
-		af  Artifact
-		err error
+		msg    *capnp.Message
+		artfct Artifact
+		err    error
 	)
 
-	if msg, err = capnp.Unmarshal(buf); errnie.Error(err) != nil {
-		errnie.Error(fmt.Errorf("unmarshal error: %w", err))
-		return nil
+	if len(buf) == 0 {
+		return fmt.Errorf("empty buffer")
 	}
 
-	if errnie.Error(err) != nil {
-		return nil
+	if msg, err = capnp.Unmarshal(buf); err != nil {
+		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	if af, err = ReadRootArtifact(msg); errnie.Error(err) != nil {
-		return nil
+	if msg == nil {
+		return fmt.Errorf("nil message after unmarshal")
 	}
 
-	return &af
+	if artfct, err = ReadRootArtifact(msg); err != nil {
+		return fmt.Errorf("failed to read root artifact: %w", err)
+	}
+
+	*artifact = artfct
+	return nil
 }

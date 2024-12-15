@@ -2,37 +2,97 @@ package marvin
 
 import (
 	"context"
+	"io"
 
-	"github.com/theapemachine/amsh/ai/process/fractal"
-	"github.com/theapemachine/amsh/ai/process/temporal"
-	"github.com/theapemachine/amsh/ai/provider"
+	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/errnie"
 )
 
-type System struct{}
-
-func NewSystem() *System {
-	return &System{}
+type System struct {
+	pr *io.PipeReader
+	pw *io.PipeWriter
 }
 
-func (system *System) Process(input string) <-chan provider.Event {
-	out := make(chan provider.Event)
+func NewSystem() *System {
+	errnie.Trace("%s", "System.NewSystem", "new")
+	pr, pw := io.Pipe()
 
+	return &System{
+		pr: pr,
+		pw: pw,
+	}
+}
+
+func (system *System) Read(p []byte) (n int, err error) {
+	n, err = system.pr.Read(p)
+	if err != nil {
+		return n, err
+	}
+
+	if n > 0 {
+		artifact := data.Empty()
+		if err := artifact.Unmarshal(p[:n]); err != nil {
+			errnie.Error(err)
+			// Continue even if unmarshal fails - the raw data will still be returned
+		} else {
+			errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+		}
+	}
+
+	return n, nil
+}
+
+func (system *System) Write(p []byte) (n int, err error) {
+	if len(p) > 0 {
+		artifact := data.Empty()
+		if err := artifact.Unmarshal(p); err != nil {
+			errnie.Error(err)
+		} else {
+			errnie.Trace("%s", "artifact.Payload", artifact.Peek("payload"))
+		}
+	}
+
+	// Create an agent
+	agent := NewAgent(context.Background(), "assistant")
+
+	// Write to agent and copy response back to system pipe
 	go func() {
-		defer close(out)
+		defer system.pw.Close()
 
-		for _, process := range []Process{
-			temporal.NewProcess(),
-			fractal.NewProcess(),
-		} {
-			agent := NewAgent(context.Background(), "reasoner")
-			agent.AddProcess(process)
-			agent.SetUserPrompt(input)
+		// Write to agent
+		if _, err := agent.Write(p); err != nil {
+			errnie.Error(err)
+			return
+		}
 
-			accumulator := provider.NewAccumulator()
-			accumulator.Stream(agent.Generate(), out)
-			input = accumulator.String()
+		// Copy from agent to system pipe
+		buf := make([]byte, 1024)
+		for {
+			n, err := agent.Read(buf)
+			if err != nil {
+				if err != io.EOF {
+					errnie.Error(err)
+				}
+				return
+			}
+			if n > 0 {
+				if _, err := system.pw.Write(buf[:n]); err != nil {
+					errnie.Error(err)
+					return
+				}
+			}
 		}
 	}()
 
-	return out
+	return len(p), nil
+}
+
+func (system *System) Close() error {
+	errnie.Trace("%s", "System.Close", "close")
+
+	if err := system.pw.Close(); err != nil {
+		return err
+	}
+
+	return system.pr.Close()
 }

@@ -14,21 +14,32 @@ func Empty() *Artifact {
 	return New("new", "new", "new", []byte{})
 }
 
+func root() (*Artifact, error) {
+	arena := capnp.SingleSegment(nil)
+
+	_, seg, err := capnp.NewMessage(arena)
+	if errnie.Error(err) != nil {
+		return nil, err
+	}
+
+	artfct, err := NewRootArtifact(seg)
+	if errnie.Error(err) != nil {
+		return nil, err
+	}
+
+	return &artfct, nil
+}
+
 /*
 New creates a new artifact with the given origin, role, scope, and data.
 */
 func New(origin, role, scope string, data []byte) *Artifact {
 	var (
-		seg      *capnp.Segment
 		err      error
-		artifact Artifact
+		artifact *Artifact
 	)
 
-	if _, seg, err = capnp.NewMessage(capnp.SingleSegment(nil)); err != nil {
-		return Empty()
-	}
-
-	if artifact, err = NewArtifact(seg); err != nil {
+	if artifact, err = root(); errnie.Error(err) != nil {
 		return Empty()
 	}
 
@@ -54,7 +65,18 @@ func New(origin, role, scope string, data []byte) *Artifact {
 		return Empty()
 	}
 
-	return &artifact
+	// Add an empty attribute list.
+	attrs, err := NewAttribute_List(artifact.Segment(), 0)
+	if err != nil {
+		errnie.Error(err)
+		return Empty()
+	}
+	if err := artifact.SetAttributes(attrs); err != nil {
+		errnie.Error(err)
+		return Empty()
+	}
+
+	return artifact
 }
 
 /*
