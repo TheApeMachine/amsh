@@ -2,38 +2,36 @@ package marvin
 
 import (
 	"context"
-	"io"
 
-	"github.com/google/uuid"
 	"github.com/theapemachine/amsh/ai"
+	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/errnie"
+	"github.com/theapemachine/amsh/utils"
 )
 
-/*
-Agent is a type that can communicate with an AI provider and execute operations.
-*/
 type Agent struct {
-	ID        string
+	Name      string
+	Role      string
+	Scope     string
 	ctx       context.Context
 	buffer    *Buffer
 	processes map[string]*data.Artifact
 	sidekicks map[string][]*Agent
-	prompt    *Prompt
-	role      string
 	tools     []ai.Tool
+	provider  *provider.Provider
 }
 
-func NewAgent(ctx context.Context, role string) *Agent {
+func NewAgent(ctx context.Context, role, scope string) *Agent {
 	return &Agent{
-		ID:        uuid.New().String(),
+		Name:      utils.NewName(),
+		Role:      role,
+		Scope:     scope,
 		ctx:       ctx,
 		buffer:    NewBuffer(),
 		processes: make(map[string]*data.Artifact),
 		sidekicks: make(map[string][]*Agent),
-		prompt:    NewPrompt(role),
-		role:      role,
 		tools:     make([]ai.Tool, 0),
+		provider:  provider.NewBalancedProvider(),
 	}
 }
 
@@ -51,23 +49,16 @@ func (agent *Agent) AddSidekick(key string, sidekick *Agent) {
 	agent.sidekicks[key] = append(agent.sidekicks[key], sidekick)
 }
 
-func (agent *Agent) Read(p []byte) (n int, err error) {
-	if n = errnie.SafeMust(func() (int, error) {
-		return agent.buffer.Read(p)
-	}); n == 0 {
-		return 0, io.EOF
+func (agent *Agent) GetCapabilities() []string {
+	capabilities := make([]string, 0)
+
+	for _, tool := range agent.tools {
+		capabilities = append(capabilities, tool.Name())
 	}
 
-	artifact := data.Empty()
-	errnie.Error(artifact.Unmarshal(p[:n]))
-
-	return
+	return capabilities
 }
 
-func (agent *Agent) Write(p []byte) (n int, err error) {
-	n = errnie.SafeMust(func() (int, error) {
-		return agent.buffer.Write(p)
-	})
-
-	return
+func (agent *Agent) Generate(prompt *data.Artifact) chan *data.Artifact {
+	return nil
 }

@@ -1,9 +1,7 @@
 package provider
 
 import (
-	"context"
 	"errors"
-	"io"
 	"math/rand"
 	"os"
 	"sync"
@@ -97,56 +95,14 @@ func NewBalancedProvider() *BalancedProvider {
 	return balancedProviderInstance
 }
 
-func (lb *BalancedProvider) Read(p []byte) (n int, err error) {
-	return lb.accumulator.Read(p)
-}
-
-func (lb *BalancedProvider) Write(p []byte) (n int, err error) {
-	return lb.accumulator.Write(p)
-}
-
-func (lb *BalancedProvider) Close() error {
-	return lb.accumulator.Close()
-}
-
-func (lb *BalancedProvider) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	out := make(chan Event)
+func (lb *BalancedProvider) Generate(artifact *data.Artifact) <-chan *data.Artifact {
+	out := make(chan *data.Artifact)
 
 	go func() {
 		defer close(out)
 
-		// Create artifact from params
-		artifact := data.New("balanced", "user", "generate", []byte(params.String()))
-
-		// Write artifact to provider
-		if _, err := io.Copy(lb, artifact); err != nil {
-			errnie.Error(err)
-			return
-		}
-
-		// Read responses
-		buf := make([]byte, 1024)
-		for {
-			n, err := lb.Read(buf)
-			if err != nil {
-				if err != io.EOF {
-					errnie.Error(err)
-				}
-				break
-			}
-
-			// Convert response to event
-			responseArtifact := data.Empty()
-			responseArtifact.Unmarshal(buf[:n])
-			if responseArtifact != nil {
-				out <- Event{
-					Type:    EventToken,
-					Content: responseArtifact.Peek("payload"),
-				}
-			}
-		}
-
-		out <- Event{Type: EventDone}
+		provider := lb.getAvailableProvider()
+		provider.Generate(artifact)
 	}()
 
 	return out

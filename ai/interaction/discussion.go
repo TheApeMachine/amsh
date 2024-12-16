@@ -1,19 +1,20 @@
 package interaction
 
-import (
-	"github.com/theapemachine/amsh/ai/marvin"
-)
-
 type Discussion struct {
-	agents map[string][]*marvin.Agent
 }
 
 func NewDiscussion() *Discussion {
-	return &Discussion{
-		agents: make(map[string][]*marvin.Agent),
-	}
+	return &Discussion{}
 }
 
-func (discussion *Discussion) AddAgent(role string, agent *marvin.Agent) {
-	discussion.agents[role] = append(discussion.agents[role], agent)
+func (discussion *Discussion) DeterminePattern(task string) string {
+	// This could be expanded with more sophisticated pattern recognition
+	// For now, returns a basic pattern type
+	return "sequential"
 }
+
+// Other interaction patterns could include:
+// - Parallel: Multiple agents working simultaneously
+// - Chain: Agents working in sequence, passing results forward
+// - Tree: Hierarchical problem decomposition
+// - Collaborative: Agents working together on shared state

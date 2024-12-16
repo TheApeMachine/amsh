@@ -34,63 +34,6 @@ func NewOpenAI(apiKey, model string) *OpenAI {
 	}
 }
 
-func (openai *OpenAI) Read(p []byte) (n int, err error) {
-	return openai.accumulator.Read(p)
-}
-
-func (openai *OpenAI) Write(p []byte) (n int, err error) {
-	artifact := data.Empty()
-	if err := artifact.Unmarshal(p); err != nil {
-		errnie.Error(err)
-		return 0, err
-	}
-
-	// Process the request in a goroutine
-	go func() {
-		defer func() {
-			openai.accumulator.Close()
-		}()
-
-		messages := []sdk.ChatCompletionMessageParamUnion{
-			openai.makeMessages(artifact),
-		}
-
-		stream := openai.client.Chat.Completions.NewStreaming(context.Background(), sdk.ChatCompletionNewParams{
-			Messages: sdk.F(messages),
-			Model:    sdk.F(openai.model),
-		})
-
-		for stream.Next() {
-			if chunk := stream.Current(); len(chunk.Choices) > 0 {
-				if delta := chunk.Choices[0].Delta; delta.Content != "" {
-					responseArtifact := data.New(
-						"openai", "assistant", "chunk", []byte(delta.Content),
-					)
-
-					buf := make([]byte, 1024)
-					responseArtifact.Marshal(buf)
-
-					if _, err := openai.accumulator.Write(buf); err != nil {
-						errnie.Error(err)
-						return
-					}
-				}
-			}
-		}
-
-		if err := stream.Err(); err != nil {
-			errnie.Error(err)
-			return
-		}
-	}()
-
-	return len(p), nil
-}
-
-func (openai *OpenAI) Close() error {
-	return openai.accumulator.Close()
-}
-
 func (openai *OpenAI) makeMessages(artifact *data.Artifact) sdk.ChatCompletionMessageParamUnion {
 	switch artifact.Peek("role") {
 	case "user":
@@ -104,14 +47,14 @@ func (openai *OpenAI) makeMessages(artifact *data.Artifact) sdk.ChatCompletionMe
 	return nil
 }
 
-func (openai *OpenAI) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	events := make(chan Event, 64)
+func (openai *OpenAI) Generate(artifact *data.Artifact) <-chan *data.Artifact {
+	events := make(chan *data.Artifact, 64)
 
 	go func() {
 		defer close(events)
 
-		openAIMessages := make([]sdk.ChatCompletionMessageParamUnion, len(params.Messages))
-		for i, msg := range params.Messages {
+		openAIMessages := make([]sdk.ChatCompletionMessageParamUnion, len(artifact.Messages))
+		for i, msg := range artifact.Messages {
 			switch msg.Role {
 			case "user":
 				openAIMessages[i] = sdk.UserMessage(msg.Content)

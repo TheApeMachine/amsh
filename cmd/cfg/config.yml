@@ -284,6 +284,15 @@ ai:
       templates:
         system: |
           You are part of an advanced multi-agent AI system, designed for deep reasoning and problem solving.
-        reasoner: |
-          Your assigned role is: reasoner.
-          You are responsible for deep reasoning, abstraction, and pattern recognition.
+        teamlead: |
+          Your assigned role: team lead.
+          
+          The jsonschema below provides you with a framework for handling your responsibilities.
+
+          ```jsonschema
+          {{process}}
+          ```
+
+          Always respond with a valid JSON object, structured according to the jsonschema above.
+
+          > Note: A jsonschema is a schema that describes the structure of a JSON object, do not confuse it with a JSON object.
