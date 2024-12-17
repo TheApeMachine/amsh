@@ -27,7 +27,6 @@ type BalancedProvider struct {
 	selectIndex int
 	initMu      sync.Mutex
 	initialized bool
-	accumulator *twoface.Accumulator
 }
 
 var (
@@ -42,13 +41,12 @@ so multiple calls to NewBalancedProvider will return the same instance.
 func NewBalancedProvider() *BalancedProvider {
 	onceBalancedProvider.Do(func() {
 		balancedProviderInstance = &BalancedProvider{
-			accumulator: twoface.NewAccumulator(),
 			providers: []*ProviderStatus{
 				{
-					name: "gpt-4o",
+					name: "gpt-4o-mini",
 					provider: NewOpenAI(
 						os.Getenv("OPENAI_API_KEY"),
-						openai.ChatModelGPT4oMini2024_07_18,
+						openai.ChatModelGPT4oMini,
 					),
 					occupied: false,
 				},
@@ -95,17 +93,22 @@ func NewBalancedProvider() *BalancedProvider {
 	return balancedProviderInstance
 }
 
-func (lb *BalancedProvider) Generate(artifact *data.Artifact) <-chan *data.Artifact {
-	out := make(chan *data.Artifact)
-
-	go func() {
-		defer close(out)
-
+func (lb *BalancedProvider) Generate(artifacts []*data.Artifact) <-chan *data.Artifact {
+	return twoface.NewAccumulator(
+		"balanced",
+		"provider",
+		"completion",
+		artifacts...,
+	).Wrap(func(artifacts []*data.Artifact, out chan<- *data.Artifact, accumulator *twoface.Accumulator) *twoface.Accumulator {
 		provider := lb.getAvailableProvider()
-		provider.Generate(artifact)
-	}()
 
-	return out
+		// Forward all artifacts from the provider's stream
+		for artifact := range provider.provider.Generate(artifacts) {
+			out <- artifact
+		}
+
+		return accumulator
+	}).Generate()
 }
 
 func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {

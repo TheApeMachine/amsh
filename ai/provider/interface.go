@@ -72,5 +72,5 @@ func (params GenerationParams) String() string {
 
 // Provider defines the interface for AI providers
 type Provider interface {
-	Generate(*data.Artifact) <-chan *data.Artifact
+	Generate([]*data.Artifact) <-chan *data.Artifact
 }

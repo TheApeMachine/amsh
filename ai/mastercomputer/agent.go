@@ -43,17 +43,5 @@ func (agent *Agent) Generate(input string) <-chan provider.Event {
 
 	errnie.Log("%s", agent.buffer.Truncate())
 
-	go func() {
-		defer close(out)
-
-		prvdr := provider.NewBalancedProvider()
-		accumulator := provider.NewAccumulator()
-		accumulator.Stream(prvdr.Generate(agent.ctx, provider.GenerationParams{
-			Messages: agent.buffer.Truncate(),
-		}), out)
-
-		errnie.Log("%s", accumulator.String())
-	}()
-
 	return out
 }

@@ -2,7 +2,10 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/theapemachine/amsh/ai/marvin"
@@ -14,10 +17,20 @@ var testCmd = &cobra.Command{
 	Short: "Run the AI system integration test",
 	Long:  `Run a practical test of the AI system.`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
-		system := marvin.NewSystem()
+		agent := marvin.NewAgent(context.Background(), "test", "prompt", data.New("test", "system", "prompt", []byte("You are a helpful assistant.")))
 		user := data.New("test", "user", "prompt", []byte("How many times do we find the letter r in the word strawberry?"))
 
-		system.Generate(user)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		for artifact := range agent.Generate(user) {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				fmt.Print(string(artifact.Peek("payload")))
+			}
+		}
 
 		return nil
 	},

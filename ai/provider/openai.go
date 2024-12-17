@@ -6,7 +6,6 @@ import (
 	sdk "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/errnie"
 )
 
@@ -14,9 +13,8 @@ import (
 const bufferThreshold = 1024 * 4 // 4KB
 
 type OpenAI struct {
-	accumulator *twoface.Accumulator
-	client      *sdk.Client
-	model       string
+	client *sdk.Client
+	model  string
 }
 
 /*
@@ -26,7 +24,6 @@ specifications.
 */
 func NewOpenAI(apiKey, model string) *OpenAI {
 	return &OpenAI{
-		accumulator: twoface.NewAccumulator(),
 		client: sdk.NewClient(
 			option.WithAPIKey(apiKey),
 		),
@@ -34,66 +31,53 @@ func NewOpenAI(apiKey, model string) *OpenAI {
 	}
 }
 
-func (openai *OpenAI) makeMessages(artifact *data.Artifact) sdk.ChatCompletionMessageParamUnion {
-	switch artifact.Peek("role") {
-	case "user":
-		return sdk.UserMessage(artifact.Peek("payload"))
-	case "assistant":
-		return sdk.AssistantMessage(artifact.Peek("payload"))
-	case "system":
-		return sdk.SystemMessage(artifact.Peek("payload"))
-	}
-
-	return nil
-}
-
-func (openai *OpenAI) Generate(artifact *data.Artifact) <-chan *data.Artifact {
-	events := make(chan *data.Artifact, 64)
+func (openai *OpenAI) Generate(artifacts []*data.Artifact) <-chan *data.Artifact {
+	out := make(chan *data.Artifact)
 
 	go func() {
-		defer close(events)
+		defer close(out)
 
-		openAIMessages := make([]sdk.ChatCompletionMessageParamUnion, len(artifact.Messages))
-		for i, msg := range artifact.Messages {
-			switch msg.Role {
+		openAIMessages := make([]sdk.ChatCompletionMessageParamUnion, len(artifacts))
+
+		errnie.Trace("OpenAI.Generate", "artifacts_count", len(artifacts))
+
+		for i, msg := range artifacts {
+			role := msg.Peek("role")
+			payload := msg.Peek("payload")
+			errnie.Trace("OpenAI.Generate", "processing_message", i, "role", role, "payload", payload)
+
+			switch role {
 			case "user":
-				openAIMessages[i] = sdk.UserMessage(msg.Content)
+				openAIMessages[i] = sdk.UserMessage(payload)
 			case "assistant":
-				openAIMessages[i] = sdk.AssistantMessage(msg.Content)
+				openAIMessages[i] = sdk.AssistantMessage(payload)
 			case "system":
-				openAIMessages[i] = sdk.SystemMessage(msg.Content)
+				openAIMessages[i] = sdk.SystemMessage(payload)
 			case "tool":
-				openAIMessages[i] = sdk.ToolMessage(msg.Name, msg.Content)
+				openAIMessages[i] = sdk.ToolMessage(msg.Peek("name"), payload)
+			default:
+				errnie.Warn("OpenAI.Generate", "unknown_role", role)
 			}
 		}
 
-		stream := openai.client.Chat.Completions.NewStreaming(ctx, sdk.ChatCompletionNewParams{
+		stream := openai.client.Chat.Completions.NewStreaming(context.Background(), sdk.ChatCompletionNewParams{
 			Messages: sdk.F(openAIMessages),
 			Model:    sdk.F(openai.model),
-			// Temperature:      openai.F(params.Temperature),
-			// FrequencyPenalty: openai.F(params.FrequencyPenalty),
-			// PresencePenalty:  openai.F(params.PresencePenalty),
 		})
 
 		for stream.Next() {
 			evt := stream.Current()
-			if len(evt.Choices) > 0 {
-				events <- Event{Type: EventToken, Content: evt.Choices[0].Delta.Content}
+			if len(evt.Choices) > 0 && evt.Choices[0].Delta.Content != "" {
+				response := data.New("test", "assistant", "payload", []byte(evt.Choices[0].Delta.Content))
+				errnie.Trace("OpenAI.Generate", "generated_response", string(response.Peek("payload")))
+				out <- response
 			}
 		}
 
 		if err := stream.Err(); err != nil {
 			errnie.Error(err)
-			events <- Event{Type: EventError, Error: err}
-			return
 		}
-
-		events <- Event{Type: EventDone}
 	}()
-
-	return events
-}
-
-func (openai *OpenAI) Configure(config map[string]interface{}) {
-	// OpenAI-specific configuration can be added here if needed
+	errnie.Trace("OpenAI.Generate", "status", "Generator started")
+	return out
 }

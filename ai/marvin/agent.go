@@ -6,7 +6,9 @@ import (
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
+	"github.com/theapemachine/errnie"
 )
 
 type Agent struct {
@@ -18,16 +20,16 @@ type Agent struct {
 	processes map[string]*data.Artifact
 	sidekicks map[string][]*Agent
 	tools     []ai.Tool
-	provider  *provider.Provider
+	provider  provider.Provider
 }
 
-func NewAgent(ctx context.Context, role, scope string) *Agent {
+func NewAgent(ctx context.Context, role, scope string, induction *data.Artifact) *Agent {
 	return &Agent{
 		Name:      utils.NewName(),
 		Role:      role,
 		Scope:     scope,
 		ctx:       ctx,
-		buffer:    NewBuffer(),
+		buffer:    NewBuffer().Poke(induction),
 		processes: make(map[string]*data.Artifact),
 		sidekicks: make(map[string][]*Agent),
 		tools:     make([]ai.Tool, 0),
@@ -41,7 +43,7 @@ func (agent *Agent) AddTools(tools ...ai.Tool) {
 
 func (agent *Agent) AddProcesses(processes ...*data.Artifact) {
 	for _, process := range processes {
-		agent.processes[process.Peek("context")] = process
+		agent.processes[process.Peek("role")] = process
 	}
 }
 
@@ -59,6 +61,21 @@ func (agent *Agent) GetCapabilities() []string {
 	return capabilities
 }
 
-func (agent *Agent) Generate(prompt *data.Artifact) chan *data.Artifact {
-	return nil
+func (agent *Agent) Generate(prompt *data.Artifact) <-chan *data.Artifact {
+	return twoface.NewAccumulator(
+		"agent",
+		agent.Role,
+		agent.Name,
+		prompt,
+	).Wrap(func(artifacts []*data.Artifact, out chan<- *data.Artifact, accumulator *twoface.Accumulator) *twoface.Accumulator {
+		messages := agent.buffer.Poke(prompt).Peek()
+		errnie.Trace("Agent.Generate", "messages_count", len(messages))
+		for _, msg := range messages {
+			errnie.Trace("Message in buffer", "role", msg.Peek("role"), "payload", msg.Peek("payload"))
+		}
+		for artifact := range agent.provider.Generate(messages) {
+			out <- artifact
+		}
+		return accumulator
+	}).Generate()
 }

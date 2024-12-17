@@ -1,8 +1,9 @@
 package data
 
 import (
-	"capnproto.org/go/capnp/v3"
 	"fmt"
+
+	"capnproto.org/go/capnp/v3"
 	"github.com/theapemachine/errnie"
 )
 

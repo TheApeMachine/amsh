@@ -1,11 +1,8 @@
 package marvin
 
 import (
-	"io"
-
 	"github.com/charmbracelet/log"
 	"github.com/pkoukk/tiktoken-go"
-	"github.com/theapemachine/amsh/ai/provider"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/errnie"
 )
@@ -13,57 +10,27 @@ import (
 type Buffer struct {
 	messages         []*data.Artifact
 	maxContextTokens int
-	pr               *io.PipeReader
-	pw               *io.PipeWriter
-	provider         provider.Provider
 }
 
 func NewBuffer() *Buffer {
-	pr, pw := io.Pipe()
 	return &Buffer{
 		messages:         make([]*data.Artifact, 0),
 		maxContextTokens: 128000,
-		pr:               pr,
-		pw:               pw,
-		provider:         provider.NewBalancedProvider(),
 	}
 }
 
-func (buffer *Buffer) Read(p []byte) (n int, err error) {
-	// Read directly from provider first
-	if n = errnie.SafeMust(func() (int, error) {
-		return buffer.provider.Read(p)
-	}); n == 0 {
-		return 0, io.EOF
-	}
-
-	// Only try to unmarshal if we successfully read data
-	if n > 0 {
-		artifact := data.Empty()
-		errnie.Error(artifact.Unmarshal(p[:n]))
-	}
-
-	return n, nil
+func (buffer *Buffer) Peek() []*data.Artifact {
+	errnie.Trace("Peek", "messages_count_before_truncate", len(buffer.messages))
+	buffer.truncate()
+	errnie.Trace("Peek", "messages_count_after_truncate", len(buffer.messages))
+	return buffer.messages
 }
 
-func (buffer *Buffer) Write(p []byte) (n int, err error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	artifact := data.Empty()
-	errnie.Error(artifact.Unmarshal(p))
-
-	// Store in messages
+func (buffer *Buffer) Poke(artifact *data.Artifact) *Buffer {
+	errnie.Trace("Poke", "artifact_payload", artifact.Peek("payload"))
 	buffer.messages = append(buffer.messages, artifact)
-
-	// Forward to provider
-	return buffer.provider.Write(p)
-}
-
-func (buffer *Buffer) Close() error {
-	buffer.messages = buffer.messages[:0]
-	return nil
+	errnie.Trace("Poke", "messages_count", len(buffer.messages))
+	return buffer
 }
 
 /*
@@ -98,6 +65,8 @@ func (buffer *Buffer) truncate() {
 		}
 	}
 
+	buffer.messages = truncatedMessages
+	errnie.Trace("Buffer.truncate", "message_count", len(buffer.messages))
 }
 
 func (buffer *Buffer) estimateTokens(msg *data.Artifact) int { // Use tiktoken-go to estimate tokens

@@ -2,6 +2,7 @@ package comms
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
-	"github.com/theapemachine/amsh/ai/system"
+	"github.com/theapemachine/amsh/ai/marvin"
+	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/errnie"
 )
 
@@ -105,18 +107,9 @@ func (srv *Events) handleMessage(ev *slackevents.MessageEvent) {
 	// Add custom logic for handling regular messages
 	if ev.User != "D07Q5CSP2MS" && ev.Text != "" {
 		if _, err := srv.api.GetUserInfo(ev.User); errnie.Error(err) == nil {
-			// Marshal the message
-			buf, err := json.Marshal(ev)
-			if errnie.Error(err) != nil {
-				return
-			}
-
-			var accumulator string
-			pm := system.NewProcessManager("marvin", "slack")
-
-			for event := range pm.Execute(string(buf)) {
-				accumulator += event.Content
-				fmt.Print(event.Content)
+			agent := marvin.NewAgent(context.Background(), ev.User, ev.Text, data.New("user", "user", "payload", []byte(ev.Text)))
+			for artifact := range agent.Generate(data.New("user", "user", "payload", []byte(ev.Text))) {
+				fmt.Print(string(artifact.Peek("payload")))
 			}
 		}
 	}
