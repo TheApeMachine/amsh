@@ -4,7 +4,6 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/errnie"
 )
 
 type Buffer struct {
@@ -20,16 +19,12 @@ func NewBuffer() *Buffer {
 }
 
 func (buffer *Buffer) Peek() []*data.Artifact {
-	errnie.Trace("Peek", "messages_count_before_truncate", len(buffer.messages))
 	buffer.truncate()
-	errnie.Trace("Peek", "messages_count_after_truncate", len(buffer.messages))
 	return buffer.messages
 }
 
 func (buffer *Buffer) Poke(artifact *data.Artifact) *Buffer {
-	errnie.Trace("Poke", "artifact_payload", artifact.Peek("payload"))
 	buffer.messages = append(buffer.messages, artifact)
-	errnie.Trace("Poke", "messages_count", len(buffer.messages))
 	return buffer
 }
 
@@ -66,7 +61,6 @@ func (buffer *Buffer) truncate() {
 	}
 
 	buffer.messages = truncatedMessages
-	errnie.Trace("Buffer.truncate", "message_count", len(buffer.messages))
 }
 
 func (buffer *Buffer) estimateTokens(msg *data.Artifact) int { // Use tiktoken-go to estimate tokens

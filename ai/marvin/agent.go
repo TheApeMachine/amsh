@@ -69,6 +69,8 @@ func (agent *Agent) Generate(prompt *data.Artifact) <-chan *data.Artifact {
 	).Yield(func(artifacts []*data.Artifact, out chan<- *data.Artifact) {
 		messages := agent.buffer.Poke(prompt).Peek()
 
+		defer close(out)
+
 		for artifact := range agent.provider.Generate(messages) {
 			out <- artifact
 		}

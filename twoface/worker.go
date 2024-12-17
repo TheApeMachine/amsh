@@ -2,8 +2,6 @@ package twoface
 
 import (
 	"time"
-
-	"github.com/theapemachine/errnie"
 )
 
 type PoolWorker interface {
@@ -78,7 +76,6 @@ Drain the worker, which means it will finish its current job first
 before it will stop.
 */
 func (worker *Worker) Drain() {
-	errnie.Trace("draining worker %d", worker.ID)
 	worker.drain = true
 }
 

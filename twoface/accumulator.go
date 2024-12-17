@@ -2,7 +2,6 @@ package twoface
 
 import (
 	"github.com/theapemachine/amsh/data"
-	"github.com/theapemachine/errnie"
 )
 
 // Generator is a function type that processes artifacts and writes results to a channel
@@ -21,8 +20,6 @@ type Accumulator struct {
 
 // NewAccumulator creates a new Accumulator instance
 func NewAccumulator(origin, role, scope string, artifacts ...*data.Artifact) *Accumulator {
-	errnie.Trace("NewAccumulator", "origin", origin, "role", role, "scope", scope, "artifacts", artifacts)
-
 	return &Accumulator{
 		buffer:  data.New(origin, role, scope, []byte{}),
 		in:      artifacts,
@@ -36,8 +33,6 @@ func NewAccumulator(origin, role, scope string, artifacts ...*data.Artifact) *Ac
 
 // Generate starts the wrapped generator and returns a read-only channel for results
 func (accumulator *Accumulator) Generate() <-chan *data.Artifact {
-	errnie.Trace("Accumulator.Generate", "origin", accumulator.origin, "role", accumulator.role, "scope", accumulator.scope)
-
 	go func() {
 		defer close(accumulator.through)
 
