@@ -6,22 +6,15 @@ import (
 	sdk "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/errnie"
 )
-
-// Define a threshold for buffer processing
-const bufferThreshold = 1024 * 4 // 4KB
 
 type OpenAI struct {
 	client *sdk.Client
 	model  string
 }
 
-/*
-NewOpenAI creates an OpenAI provider, which is configurable with an endpoint,
-api key, and model, given that a lot of other providers use the OpenAI API
-specifications.
-*/
 func NewOpenAI(apiKey, model string) *OpenAI {
 	return &OpenAI{
 		client: sdk.NewClient(
@@ -32,14 +25,16 @@ func NewOpenAI(apiKey, model string) *OpenAI {
 }
 
 func (openai *OpenAI) Generate(artifacts []*data.Artifact) <-chan *data.Artifact {
-	out := make(chan *data.Artifact)
-
-	go func() {
-		defer close(out)
-
+	return twoface.NewAccumulator(
+		"openai",
+		"provider",
+		"completion",
+		artifacts...,
+	).Yield(func(artifacts []*data.Artifact, out chan<- *data.Artifact) {
 		openAIMessages := make([]sdk.ChatCompletionMessageParamUnion, len(artifacts))
-
 		errnie.Trace("OpenAI.Generate", "artifacts_count", len(artifacts))
+
+		defer close(out)
 
 		for i, msg := range artifacts {
 			role := msg.Peek("role")
@@ -56,7 +51,7 @@ func (openai *OpenAI) Generate(artifacts []*data.Artifact) <-chan *data.Artifact
 			case "tool":
 				openAIMessages[i] = sdk.ToolMessage(msg.Peek("name"), payload)
 			default:
-				errnie.Warn("OpenAI.Generate", "unknown_role", role)
+				errnie.Warn("OpenAI.Generate unknown_role %s", role)
 			}
 		}
 
@@ -77,7 +72,5 @@ func (openai *OpenAI) Generate(artifacts []*data.Artifact) <-chan *data.Artifact
 		if err := stream.Err(); err != nil {
 			errnie.Error(err)
 		}
-	}()
-	errnie.Trace("OpenAI.Generate", "status", "Generator started")
-	return out
+	}).Generate()
 }

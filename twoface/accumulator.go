@@ -5,48 +5,54 @@ import (
 	"github.com/theapemachine/errnie"
 )
 
-type Generator func(artifacts []*data.Artifact, out chan<- *data.Artifact, accumulator *Accumulator) *Accumulator
+// Generator is a function type that processes artifacts and writes results to a channel
+type Generator func(artifacts []*data.Artifact, out chan<- *data.Artifact)
 
+// Accumulator provides a reusable generator pattern with consistent channel management
 type Accumulator struct {
-	in     []*data.Artifact
-	out    chan *data.Artifact
-	origin string
-	role   string
-	scope  string
+	buffer  *data.Artifact
+	in      []*data.Artifact
+	out     chan *data.Artifact
+	through chan *data.Artifact
+	origin  string
+	role    string
+	scope   string
 }
 
+// NewAccumulator creates a new Accumulator instance
 func NewAccumulator(origin, role, scope string, artifacts ...*data.Artifact) *Accumulator {
 	errnie.Trace("NewAccumulator", "origin", origin, "role", role, "scope", scope, "artifacts", artifacts)
 
 	return &Accumulator{
-		in:     artifacts,
-		out:    make(chan *data.Artifact),
-		origin: origin,
-		role:   role,
-		scope:  scope,
+		buffer:  data.New(origin, role, scope, []byte{}),
+		in:      artifacts,
+		out:     make(chan *data.Artifact),
+		through: make(chan *data.Artifact),
+		origin:  origin,
+		role:    role,
+		scope:   scope,
 	}
 }
 
+// Generate starts the wrapped generator and returns a read-only channel for results
 func (accumulator *Accumulator) Generate() <-chan *data.Artifact {
 	errnie.Trace("Accumulator.Generate", "origin", accumulator.origin, "role", accumulator.role, "scope", accumulator.scope)
-	out := make(chan *data.Artifact)
 
 	go func() {
-		defer close(accumulator.out)
-		defer close(out)
+		defer close(accumulator.through)
 
-		// Then stream any results from wrapped generators
+		// Forward all results from the wrapped generator
 		for artifact := range accumulator.out {
-			errnie.Trace("Accumulator.Generate", "status", "Passing through wrapped generator artifact", "artifact_payload", artifact.Peek("payload"))
-			out <- artifact
+			accumulator.buffer.Append(artifact.Peek("payload"))
+			accumulator.through <- artifact
 		}
 	}()
-	errnie.Trace("Accumulator.Generate", "status", "Generator started")
-	return out
+
+	return accumulator.through
 }
 
-func (accumulator *Accumulator) Wrap(generator Generator) *Accumulator {
-	errnie.Trace("Wrap", "generator", generator)
-
-	return generator(accumulator.in, accumulator.out, accumulator)
+// Wrap applies the generator function to process artifacts
+func (accumulator *Accumulator) Yield(generator Generator) *Accumulator {
+	go generator(accumulator.in, accumulator.out)
+	return accumulator
 }

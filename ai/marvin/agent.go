@@ -8,7 +8,6 @@ import (
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
-	"github.com/theapemachine/errnie"
 )
 
 type Agent struct {
@@ -67,15 +66,11 @@ func (agent *Agent) Generate(prompt *data.Artifact) <-chan *data.Artifact {
 		agent.Role,
 		agent.Name,
 		prompt,
-	).Wrap(func(artifacts []*data.Artifact, out chan<- *data.Artifact, accumulator *twoface.Accumulator) *twoface.Accumulator {
+	).Yield(func(artifacts []*data.Artifact, out chan<- *data.Artifact) {
 		messages := agent.buffer.Poke(prompt).Peek()
-		errnie.Trace("Agent.Generate", "messages_count", len(messages))
-		for _, msg := range messages {
-			errnie.Trace("Message in buffer", "role", msg.Peek("role"), "payload", msg.Peek("payload"))
-		}
+
 		for artifact := range agent.provider.Generate(messages) {
 			out <- artifact
 		}
-		return accumulator
 	}).Generate()
 }

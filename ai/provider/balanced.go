@@ -34,10 +34,6 @@ var (
 	onceBalancedProvider     sync.Once
 )
 
-/*
-NewBalancedProvider creates a new BalancedProvider as an ambient context,
-so multiple calls to NewBalancedProvider will return the same instance.
-*/
 func NewBalancedProvider() *BalancedProvider {
 	onceBalancedProvider.Do(func() {
 		balancedProviderInstance = &BalancedProvider{
@@ -50,41 +46,7 @@ func NewBalancedProvider() *BalancedProvider {
 					),
 					occupied: false,
 				},
-				// {
-				// 	name:     "claude-3-5-sonnet",
-				// 	provider: NewAnthropic(os.Getenv("ANTHROPIC_API_KEY"), anthropic.ModelClaude3_5Sonnet20241022),
-				// 	occupied: false,
-				// },
-				// {
-				// 	name:     "gemini-1.5-flash",
-				// 	provider: NewGoogle(os.Getenv("GEMINI_API_KEY"), "gemini-1.5-flash"),
-				// 	occupied: false,
-				// },
-				// {
-				// 	name:     "command-r",
-				// 	provider: NewCohere(os.Getenv("COHERE_API_KEY"), "command-r"),
-				// 	occupied: false,
-				// },
-				// {
-				// 	name:     "LM Studio",
-				// 	provider: NewOpenAI(
-				// 		os.Getenv("LM_STUDIO_API_KEY"),
-				// 		"https://api.openai.com/v1",
-				// 		"bartowski/Llama-3.1-8B-Lexi-Uncensored-V2-GGUF",
-				// 	),
-				// 	occupied: false,
-				// },
-				// {
-				// 	name:     "NVIDIA",
-				// 	provider: NewOpenAI(
-				// 		os.Getenv("NVIDIA_API_KEY"),
-				// 		"https://api.openai.com/v1",
-				// 		"nvidia/llama-3.1-nemotron-70b-instruct",
-				// 	),
-				// 	occupied: false,
-				// },
 			},
-
 			selectIndex: 0,
 			initialized: false,
 		}
@@ -99,24 +61,32 @@ func (lb *BalancedProvider) Generate(artifacts []*data.Artifact) <-chan *data.Ar
 		"provider",
 		"completion",
 		artifacts...,
-	).Wrap(func(artifacts []*data.Artifact, out chan<- *data.Artifact, accumulator *twoface.Accumulator) *twoface.Accumulator {
+	).Yield(func(artifacts []*data.Artifact, out chan<- *data.Artifact) {
 		provider := lb.getAvailableProvider()
+		if provider == nil {
+			errnie.Error(errors.New("no available provider found"))
+		}
 
-		// Forward all artifacts from the provider's stream
-		for artifact := range provider.provider.Generate(artifacts) {
+		provider.mu.Lock()
+		provider.occupied = true
+		provider.lastUsed = time.Now()
+		provider.mu.Unlock()
+
+		providerOut := provider.provider.Generate(artifacts)
+		for artifact := range providerOut {
 			out <- artifact
 		}
 
-		return accumulator
+		provider.mu.Lock()
+		provider.occupied = false
+		provider.mu.Unlock()
 	}).Generate()
 }
 
 func (lb *BalancedProvider) getAvailableProvider() *ProviderStatus {
-	// Handle first request with random selection
 	if provider := lb.handleFirstRequest(); provider != nil {
 		return provider
 	}
-
 	return lb.findBestAvailableProvider()
 }
 
@@ -162,9 +132,9 @@ func (lb *BalancedProvider) selectBestProvider() *ProviderStatus {
 
 	for _, ps := range lb.providers {
 		ps.mu.Lock()
-		defer ps.mu.Unlock()
 
 		if !lb.isProviderAvailable(ps, cooldownPeriod, maxFailures) {
+			ps.mu.Unlock()
 			continue
 		}
 
@@ -172,6 +142,7 @@ func (lb *BalancedProvider) selectBestProvider() *ProviderStatus {
 			bestProvider = ps
 			oldestUse = ps.lastUsed
 		}
+		ps.mu.Unlock()
 	}
 
 	if bestProvider != nil {
@@ -216,10 +187,10 @@ func (lb *BalancedProvider) isBetterProvider(candidate, current *ProviderStatus,
 }
 
 func (lb *BalancedProvider) markProviderAsOccupied(ps *ProviderStatus) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	ps.occupied = true
 	ps.lastUsed = time.Now()
 }
 
-func (lb *BalancedProvider) Configure(config map[string]interface{}) {
-	// Configuration can be added here
-}
+func (lb *BalancedProvider) Configure(config map[string]interface{}) {}
