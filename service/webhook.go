@@ -2,6 +2,8 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/theapemachine/amsh/data"
@@ -50,22 +52,22 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 
 			if contentType == "application/x-www-form-urlencoded" {
 				// Parse the body as a URL-encoded query string
-				// values, err := url.ParseQuery(string(ctx.Body()))
-				if err != nil {
-					errnie.Error(err)
-					return ctx.SendStatus(fiber.StatusBadRequest)
+				values := errnie.SafeMust(func() (url.Values, error) {
+					return url.ParseQuery(string(ctx.Body()))
+				})
+
+				ticket = []string{
+					fmt.Sprintf("message_id: %s", values.Get("message_id")),
+					fmt.Sprintf("ticket_id: %s", values.Get("ticket_id")),
+					fmt.Sprintf("message: %s", values.Get("message")),
+					fmt.Sprintf("channel_id: %s", values.Get("channel_id")),
+					fmt.Sprintf("contact_id: %s", values.Get("contact_id")),
+					fmt.Sprintf("contact_name: %s", values.Get("contact_name")),
+					fmt.Sprintf("contact_email: %s", values.Get("contact_email")),
+					fmt.Sprintf("event_type: %s", values.Get("event_type")),
 				}
 
-				// ticket = []string{
-				// 	fmt.Sprintf("message_id: %s", values.Get("message_id")),
-				// 	fmt.Sprintf("ticket_id: %s", values.Get("ticket_id")),
-				// 	fmt.Sprintf("message: %s", values.Get("message")),
-				// 	fmt.Sprintf("channel_id: %s", values.Get("channel_id")),
-				// 	fmt.Sprintf("contact_id: %s", values.Get("contact_id")),
-				// 	fmt.Sprintf("contact_name: %s", values.Get("contact_name")),
-				// 	fmt.Sprintf("contact_email: %s", values.Get("contact_email")),
-				// 	fmt.Sprintf("event_type: %s", values.Get("event_type")),
-				// }
+				
 			} else {
 				// Handle JSON payload (fallback or unexpected case)
 				if err := json.Unmarshal(ctx.Body(), &payload); err != nil {

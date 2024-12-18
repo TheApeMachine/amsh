@@ -37,7 +37,7 @@ func NewHTTPS() *HTTPS {
 		app: fiber.New(fiber.Config{
 			CaseSensitive: true,
 			StrictRouting: true,
-			ServerHeader:  "Fiber",
+			ServerHeader:  "AM",
 			AppName:       "AMSH Service",
 			JSONEncoder:   json.Marshal,
 			JSONDecoder:   json.Unmarshal,
