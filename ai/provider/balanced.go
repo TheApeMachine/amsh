@@ -61,7 +61,7 @@ func (lb *BalancedProvider) Generate(artifacts []*data.Artifact) <-chan *data.Ar
 		"provider",
 		"completion",
 		artifacts...,
-	).Yield(func(artifacts []*data.Artifact, out chan<- *data.Artifact) {
+	).Yield(func(accumulator *twoface.Accumulator) {
 		provider := lb.getAvailableProvider()
 		if provider == nil {
 			errnie.Error(errors.New("no available provider found"))
@@ -72,10 +72,10 @@ func (lb *BalancedProvider) Generate(artifacts []*data.Artifact) <-chan *data.Ar
 		provider.lastUsed = time.Now()
 		provider.mu.Unlock()
 
-		defer close(out)
+		defer close(accumulator.Out)
 
 		for artifact := range provider.provider.Generate(artifacts) {
-			out <- artifact
+			accumulator.Out <- artifact
 		}
 
 		provider.mu.Lock()

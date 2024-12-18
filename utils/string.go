@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"time"
@@ -77,4 +78,28 @@ func ContainsAny(strs []string, str string) bool {
 	}
 
 	return false
+}
+
+// ExtractJSONBlocks finds and parses JSON objects from a string
+func ExtractJSONBlocks(s string) []map[string]interface{} {
+	// Extract blocks marked with json language identifier
+	codeBlocks := ExtractCodeBlocks(s)
+
+	var results []map[string]interface{}
+	for _, blocks := range codeBlocks["json"] {
+		if block := ParseJSON(blocks); block != nil {
+			results = append(results, block)
+		}
+	}
+
+	return results
+}
+
+// ParseJSON safely parses a JSON string into a map
+func ParseJSON(s string) map[string]interface{} {
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(s), &result); err == nil {
+		return result
+	}
+	return nil
 }

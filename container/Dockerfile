@@ -15,8 +15,7 @@ RUN install_packages \
 
 
 WORKDIR /root/.ssh
-RUN echo "Host github.com\n\tStrictHostKeyChecking no\n" >> /root/.ssh/config
+RUN echo "Host github.com\n\tStrictHostKeyChecking no\n" >> /root/.ssh/config \
+    && echo "Use /tmp/workspace to examine the code and try out fixes, then clone the actual repository (github.com/TheApeMachine/amsh) into /tmp/workspace/out and create a proper bugfix/<branchname> and pull request." > /etc/motd
 
-RUN echo "Use /tmp/workspace to examine the code and try out fixes, then clone the actual repository (github.com/TheApeMachine/amsh) into /tmp/workspace/out and create a proper bugfix/<branchname> and pull request." > /etc/motd
-
-WORKDIR /tmp/workspace/amsh
+WORKDIR /root

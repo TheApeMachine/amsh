@@ -5,13 +5,13 @@ import (
 )
 
 // Generator is a function type that processes artifacts and writes results to a channel
-type Generator func(artifacts []*data.Artifact, out chan<- *data.Artifact)
+type Generator func(*Accumulator)
 
 // Accumulator provides a reusable generator pattern with consistent channel management
 type Accumulator struct {
 	buffer  *data.Artifact
-	in      []*data.Artifact
-	out     chan *data.Artifact
+	In      []*data.Artifact
+	Out     chan *data.Artifact
 	through chan *data.Artifact
 	origin  string
 	role    string
@@ -22,8 +22,8 @@ type Accumulator struct {
 func NewAccumulator(origin, role, scope string, artifacts ...*data.Artifact) *Accumulator {
 	return &Accumulator{
 		buffer:  data.New(origin, role, scope, []byte{}),
-		in:      artifacts,
-		out:     make(chan *data.Artifact),
+		In:      artifacts,
+		Out:     make(chan *data.Artifact),
 		through: make(chan *data.Artifact),
 		origin:  origin,
 		role:    role,
@@ -37,7 +37,7 @@ func (accumulator *Accumulator) Generate() <-chan *data.Artifact {
 		defer close(accumulator.through)
 
 		// Forward all results from the wrapped generator
-		for artifact := range accumulator.out {
+		for artifact := range accumulator.Out {
 			accumulator.buffer.Append(artifact.Peek("payload"))
 			accumulator.through <- artifact
 		}
@@ -48,6 +48,10 @@ func (accumulator *Accumulator) Generate() <-chan *data.Artifact {
 
 // Wrap applies the generator function to process artifacts
 func (accumulator *Accumulator) Yield(generator Generator) *Accumulator {
-	go generator(accumulator.in, accumulator.out)
+	go generator(accumulator)
 	return accumulator
+}
+
+func (accumulator *Accumulator) Take() *data.Artifact {
+	return accumulator.buffer
 }

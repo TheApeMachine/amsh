@@ -2,11 +2,18 @@ package ai
 
 import (
 	"context"
+	"io"
 )
 
-// Tool interface defines the contract for all tools
+// Tool represents a capability that can be used by an agent
 type Tool interface {
-	Name() string
-	Use(ctx context.Context, args map[string]any) string
 	GenerateSchema() string
+	Use(ctx context.Context, args map[string]any) string
+}
+
+// InteractiveTool represents a tool that requires ongoing IO communication
+type InteractiveTool interface {
+	Tool
+	GetIO() io.ReadWriteCloser
+	IsInteractive() bool
 }

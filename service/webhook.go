@@ -6,7 +6,10 @@ import (
 	"net/url"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/spf13/viper"
+	"github.com/theapemachine/amsh/ai/marvin"
 	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/utils"
 	"github.com/theapemachine/errnie"
 )
 
@@ -56,7 +59,7 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 					return url.ParseQuery(string(ctx.Body()))
 				})
 
-				ticket = []string{
+				ticket := []string{
 					fmt.Sprintf("message_id: %s", values.Get("message_id")),
 					fmt.Sprintf("ticket_id: %s", values.Get("ticket_id")),
 					fmt.Sprintf("message: %s", values.Get("message")),
@@ -67,7 +70,14 @@ func (https *HTTPS) NewWebhook(origin, scope string) fiber.Handler {
 					fmt.Sprintf("event_type: %s", values.Get("event_type")),
 				}
 
-				
+				agent := marvin.NewAgent(ctx.Context(), "webhook", "helpdesk", data.New(
+					"webhook",
+					"helpdesk",
+					"inbound",
+					[]byte(viper.GetViper().GetString("ai.setups.marvin.templates.system")),
+				))
+
+				agent.Generate(data.New("webhook", "helpdesk", "inbound", []byte(utils.JoinWith("\n", ticket...))))
 			} else {
 				// Handle JSON payload (fallback or unexpected case)
 				if err := json.Unmarshal(ctx.Body(), &payload); err != nil {

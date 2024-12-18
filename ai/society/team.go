@@ -39,9 +39,9 @@ func (team *Team) Generate(prompt *data.Artifact) <-chan *data.Artifact {
 		"lead",
 		team.lead.Name,
 		prompt,
-	).Yield(func(artifacts []*data.Artifact, out chan<- *data.Artifact) {
+	).Yield(func(accumulator *twoface.Accumulator) {
 		for artifact := range team.lead.Generate(prompt) {
-			out <- artifact
+			accumulator.Out <- artifact
 		}
 	}).Generate()
 }

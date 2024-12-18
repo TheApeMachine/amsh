@@ -52,14 +52,14 @@ Returns:
   - out: A channel for receiving output from the container
   - err: Any error encountered during the process
 */
-func (r *Runner) RunContainer(ctx context.Context, imageName string) (io.WriteCloser, io.ReadCloser, error) {
+func (r *Runner) RunContainer(ctx context.Context, imageName string) (io.ReadWriteCloser, error) {
 	// Create host config with volume mount
 	hostConfig := &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
 				Type:   mount.TypeBind,
-				Source: "/tmp/workspace",
-				Target: "/tmp/workspace",
+				Source: "/tmp/out",
+				Target: "/tmp/out",
 			},
 			{
 				Type:   mount.TypeBind,
@@ -82,12 +82,12 @@ func (r *Runner) RunContainer(ctx context.Context, imageName string) (io.WriteCl
 		WorkingDir: "/tmp/workspace", // Set the working directory to the mounted volume
 	}, hostConfig, nil, nil, "")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Start the container
 	if err := r.client.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Attach to the container
@@ -99,14 +99,14 @@ func (r *Runner) RunContainer(ctx context.Context, imageName string) (io.WriteCl
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	fmt.Printf("Container %s is running\n", resp.ID)
 
 	r.containerID = resp.ID
 
-	return attachResp.Conn, attachResp.Conn, nil
+	return attachResp.Conn, nil
 }
 
 /*
