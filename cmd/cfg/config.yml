@@ -296,3 +296,7 @@ ai:
           Always respond with a valid JSON object, structured according to the jsonschema above.
 
           > Note: A jsonschema is a schema that describes the structure of a JSON object, do not confuse it with a JSON object.
+      tools:
+        - name: "docker"
+          description: |
+            You are an A.I. powered agent, 

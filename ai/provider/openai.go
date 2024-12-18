@@ -32,14 +32,12 @@ func (openai *OpenAI) Generate(artifacts []*data.Artifact) <-chan *data.Artifact
 		artifacts...,
 	).Yield(func(artifacts []*data.Artifact, out chan<- *data.Artifact) {
 		openAIMessages := make([]sdk.ChatCompletionMessageParamUnion, len(artifacts))
-		errnie.Trace("OpenAI.Generate", "artifacts_count", len(artifacts))
 
 		defer close(out)
 
 		for i, msg := range artifacts {
 			role := msg.Peek("role")
 			payload := msg.Peek("payload")
-			errnie.Trace("OpenAI.Generate", "processing_message", i, "role", role, "payload", payload)
 
 			switch role {
 			case "user":
@@ -64,7 +62,6 @@ func (openai *OpenAI) Generate(artifacts []*data.Artifact) <-chan *data.Artifact
 			evt := stream.Current()
 			if len(evt.Choices) > 0 && evt.Choices[0].Delta.Content != "" {
 				response := data.New("test", "assistant", "payload", []byte(evt.Choices[0].Delta.Content))
-				errnie.Trace("OpenAI.Generate", "generated_response", string(response.Peek("payload")))
 				out <- response
 			}
 		}

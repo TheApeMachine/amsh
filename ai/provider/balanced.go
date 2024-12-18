@@ -72,8 +72,9 @@ func (lb *BalancedProvider) Generate(artifacts []*data.Artifact) <-chan *data.Ar
 		provider.lastUsed = time.Now()
 		provider.mu.Unlock()
 
-		providerOut := provider.provider.Generate(artifacts)
-		for artifact := range providerOut {
+		defer close(out)
+
+		for artifact := range provider.provider.Generate(artifacts) {
 			out <- artifact
 		}
 
@@ -192,5 +193,3 @@ func (lb *BalancedProvider) markProviderAsOccupied(ps *ProviderStatus) {
 	ps.occupied = true
 	ps.lastUsed = time.Now()
 }
-
-func (lb *BalancedProvider) Configure(config map[string]interface{}) {}

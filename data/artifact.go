@@ -76,8 +76,6 @@ func New(origin, role, scope string, data []byte) *Artifact {
 		return Empty()
 	}
 
-	errnie.Trace("NewArtifact", "origin", origin, "role", role, "scope", scope, "payload", string(data))
-
 	return artifact
 }
 
