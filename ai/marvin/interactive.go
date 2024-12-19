@@ -13,46 +13,64 @@ import (
 	"github.com/theapemachine/errnie"
 )
 
-// handleInteractiveTool manages the IO stream for interactive tools
-func handleInteractiveTool(tool ai.InteractiveTool, agent *Agent, prompt string) <-chan *data.Artifact {
-	response := tool.Use(context.Background(), map[string]any{"task": prompt})
-	inout := tool.GetIO()
-	if inout == nil {
-		errnie.Error(fmt.Errorf("tool IO not available"))
-		return
-	}
+type ToolHandler struct {
+	agent *Agent
+	inout io.ReadWriteCloser
+}
 
-	// Generate next command using nested accumulator
+func NewToolHandler(agent *Agent) *ToolHandler {
+	return &ToolHandler{
+		agent: agent,
+	}
+}
+
+func (toolHandler *ToolHandler) Initialize() {
+	_ = toolHandler.agent.tool.Use(
+		context.Background(),
+		map[string]any{"task": "system ready"},
+	)
+
+	toolHandler.inout = toolHandler.agent.tool.(ai.InteractiveTool).GetIO()
+
+	if toolHandler.inout == nil {
+		errnie.Error(fmt.Errorf("tool IO not available"))
+	}
+}
+
+// handleInteractiveTool manages the IO stream for interactive tools
+func (toolHandler *ToolHandler) Accumulator() *twoface.Accumulator {
 	return twoface.NewAccumulator(
-		agent.Name,
+		toolHandler.agent.Name,
 		"assistant",
 		"command",
 	).Yield(func(acc *twoface.Accumulator) {
 		defer close(acc.Out)
 
-		for artifact := range agent.provider.Generate(agent.buffer.Peek()) {
+		// Generate next command
+		for artifact := range toolHandler.agent.provider.Generate(toolHandler.agent.buffer.Peek()) {
 			acc.Out <- artifact
 		}
 
-		command := acc.Take().Peek("payload")
-		if command == "" || command == "exit" {
-			return
-		}
-
 		// Execute command and handle response
-		if err := executeCommand(inout, command, acc.Out); err != nil {
+		command := acc.Take().Peek("payload")
+		if err := toolHandler.executeCommand(command, acc.Out); err != nil {
 			errnie.Error(err)
 			return
 		}
 
-		// Update message history
-		agent.buffer.Poke(acc.Take())
-	}).Generate()
+		// Update message history with both command and response
+		toolHandler.agent.buffer.Poke(data.New(
+			toolHandler.agent.Name,
+			"assistant",
+			"command",
+			[]byte(command),
+		))
+	})
 }
 
 // Helper function to execute commands and handle responses
-func executeCommand(inout io.ReadWriter, command string, out chan<- *data.Artifact) error {
-	if _, err := inout.Write([]byte(command + "\n")); err != nil {
+func (toolHandler *ToolHandler) executeCommand(command string, out chan<- *data.Artifact) error {
+	if _, err := toolHandler.inout.Write([]byte(command + "\n")); err != nil {
 		return err
 	}
 
@@ -66,7 +84,7 @@ func executeCommand(inout io.ReadWriter, command string, out chan<- *data.Artifa
 	done := make(chan bool)
 	go func() {
 		for {
-			n, err := inout.Read(buffer)
+			n, err := toolHandler.inout.Read(buffer)
 			if err != nil && err != io.EOF {
 				errnie.Error(err)
 				done <- true

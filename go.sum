@@ -410,8 +410,6 @@ github.com/theapemachine/errnie v0.0.2 h1:8KfcmlfF3gwidbYfG0FA8zgiBf4AC7MJ/KLelC
 github.com/theapemachine/errnie v0.0.2/go.mod h1:b5TD/mCOSXuRa9+qqYRSWZPkulhRtRxSoVa9b8K85Lg=
 github.com/theapemachine/qpool v0.0.1 h1:c97Jp0qBdaWXWMwd7WLTOZTZ5ryWpaDEUw4JFASi1WE=
 github.com/theapemachine/qpool v0.0.1/go.mod h1:DiYpHPqpl5rrVjJ2QJjo2IMTQVSQlKDFQ/W04JCT7mc=
-github.com/theckman/yacspin v0.13.12 h1:CdZ57+n0U6JMuh2xqjnjRq5Haj6v1ner2djtLQRzJr4=
-github.com/theckman/yacspin v0.13.12/go.mod h1:Rd2+oG2LmQi5f3zC3yeZAOl245z8QOvrH4OPOJNZxLg=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/gjson v1.18.0 h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
 github.com/tidwall/gjson v1.18.0/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=

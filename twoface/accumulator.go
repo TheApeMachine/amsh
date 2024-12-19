@@ -36,6 +36,9 @@ func (accumulator *Accumulator) Generate() <-chan *data.Artifact {
 	go func() {
 		defer close(accumulator.through)
 
+		// Clear the buffer.
+		accumulator.buffer.Poke("payload", "")
+
 		// Forward all results from the wrapped generator
 		for artifact := range accumulator.Out {
 			accumulator.buffer.Append(artifact.Peek("payload"))

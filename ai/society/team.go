@@ -49,7 +49,6 @@ func (team *Team) Generate(prompt *data.Artifact) <-chan *data.Artifact {
 func (team *Team) Add(role string, tools ...ai.Tool) {
 	team.pool.Schedule(role, func() (any, error) {
 		agent := marvin.NewAgent(team.ctx, role, role, data.New("test", "system", "prompt", []byte("You are a helpful assistant.")))
-		agent.AddTools(tools...)
 		team.members[role] = agent
 
 		team.broadcast.Send(qpool.QuantumValue{

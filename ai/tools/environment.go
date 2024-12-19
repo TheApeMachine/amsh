@@ -52,7 +52,7 @@ func (environment *Environment) Use(ctx context.Context, args map[string]any) st
 	environment.IO = conn
 
 	// Send an initial command to get the prompt
-	if _, err := conn.Write([]byte("echo 'ready'\n")); err != nil {
+	if _, err := conn.Write([]byte("echo '" + args["task"].(string) + "'\n")); err != nil {
 		errnie.Error(err)
 		return "failed to initialize connection"
 	}

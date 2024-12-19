@@ -46,7 +46,7 @@ var testCmd = &cobra.Command{
 				viper.GetViper().GetString("ai.setups.marvin.tools.docker.description")),
 			),
 		)
-		sidekick.AddTools(tools.NewEnvironment())
+		sidekick.AddTool(tools.NewEnvironment())
 
 		agent.AddSidekick("developer", sidekick)
 

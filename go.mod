@@ -22,7 +22,6 @@ require (
 	github.com/spf13/cast v1.6.0
 	github.com/spf13/cobra v1.8.1
 	github.com/theapemachine/errnie v0.0.2
-	github.com/theckman/yacspin v0.13.12
 	github.com/tmc/langchaingo v0.1.12
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
 	golang.org/x/oauth2 v0.23.0
