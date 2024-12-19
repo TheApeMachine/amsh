@@ -79,6 +79,8 @@ func (agent *Agent) AddSidekick(key string, sidekick *Agent) {
 func (agent *Agent) Generate(prompt *data.Artifact) <-chan *data.Artifact {
 	errnie.Info("Generating agent %s %s %s", agent.Name, agent.Role, agent.Scope)
 
+	agent.buffer.Poke(prompt)
+
 	return twoface.NewAccumulator(
 		"agent",
 		agent.Role,
@@ -123,6 +125,7 @@ func (agent *Agent) handleAgent(accumulator *twoface.Accumulator) {
 
 func (agent *Agent) handleSidekick(accumulator *twoface.Accumulator) {
 	toolHandler := NewToolHandler(agent)
+	toolHandler.Initialize()
 
 	for toolHandler.Accumulator().Take().Peek("payload") != "exit" {
 		for artifact := range toolHandler.Accumulator().Generate() {

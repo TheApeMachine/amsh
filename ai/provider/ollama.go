@@ -6,66 +6,98 @@ import (
 	"net/url"
 
 	"github.com/ollama/ollama/api"
+	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/amsh/utils"
 	"github.com/theapemachine/errnie"
 )
 
 type Ollama struct {
-	Model string
+	client *api.Client
+	model  string
+	system string
 }
 
 func NewOllama(model string) *Ollama {
-	return &Ollama{Model: model}
+	client := api.NewClient(
+		&url.URL{Scheme: "http", Host: "localhost:11434"},
+		&http.Client{},
+	)
+
+	return &Ollama{
+		client: client,
+		model:  model,
+	}
 }
 
-func (ollama *Ollama) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with %s", ollama.Model)
-	eventChan := make(chan Event)
+func (o *Ollama) Generate(artifacts []*data.Artifact) <-chan *data.Artifact {
+	return twoface.NewAccumulator(
+		"ollama",
+		"provider",
+		"completion",
+		artifacts...,
+	).Yield(func(accumulator *twoface.Accumulator) {
+		defer close(accumulator.Out)
 
-	go func() {
-		defer close(eventChan)
-
-		client := api.NewClient(
-			&url.URL{Scheme: "http", Host: "localhost:11434"},
-			&http.Client{},
-		)
-
-		// Convert messages into a prompt
-		prompt := params.Messages[len(params.Messages)-1].Content
+		errnie.Log("===START===")
+		prompt := o.convertToOllamaPrompt(artifacts)
+		errnie.Log("===END===")
 
 		req := &api.GenerateRequest{
-			Model:  ollama.Model,
+			Model:  o.model,
 			Prompt: prompt,
 			Stream: utils.BoolPtr(true),
-			// Convert temperature and other params if needed
 			Options: map[string]interface{}{
-				"temperature": params.Temperature,
+				"temperature": 0.7, // You might want to make this configurable
 			},
 		}
 
 		respFunc := func(resp api.GenerateResponse) error {
-			eventChan <- Event{
-				Type:    EventToken,
-				Content: resp.Response,
-			}
+			response := data.New("ollama", "assistant", o.model, []byte(resp.Response))
+			accumulator.Out <- response
 			return nil
 		}
 
-		if err := client.Generate(ctx, req, respFunc); err != nil {
-			eventChan <- Event{Type: EventError, Error: err}
-			return
+		if err := o.client.Generate(context.Background(), req, respFunc); err != nil {
+			errnie.Error(err)
 		}
-
-		eventChan <- Event{Type: EventDone}
-	}()
-
-	return eventChan
+	}).Generate()
 }
 
-func (ollama *Ollama) Configure(config map[string]interface{}) {
-	// Handle any Ollama-specific configuration here
-	// For example, if we need to update the model:
+func (o *Ollama) convertToOllamaPrompt(artifacts []*data.Artifact) string {
+	var prompt string
+
+	// Add system message if available
+	if o.system != "" {
+		prompt += "System: " + o.system + "\n"
+	}
+
+	for _, artifact := range artifacts {
+		role := artifact.Peek("role")
+		payload := artifact.Peek("payload")
+
+		errnie.Log("Ollama.Generate role %s payload %s", role, payload)
+
+		switch role {
+		case "system":
+			o.system = payload
+		case "user":
+			prompt += "Human: " + payload + "\n"
+		case "assistant":
+			prompt += "Assistant: " + payload + "\n"
+		default:
+			errnie.Warn("Ollama.Generate unknown_role %s", role)
+		}
+	}
+
+	return prompt
+}
+
+func (o *Ollama) Configure(config map[string]interface{}) {
+	if systemMsg, ok := config["system_message"].(string); ok {
+		o.system = systemMsg
+	}
 	if model, ok := config["model"].(string); ok {
-		ollama.Model = model
+		o.model = model
 	}
 }

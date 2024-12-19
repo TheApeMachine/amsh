@@ -2,9 +2,12 @@ package provider
 
 import (
 	"context"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/errnie"
 )
 
@@ -12,7 +15,7 @@ type Anthropic struct {
 	client    *anthropic.Client
 	model     string
 	maxTokens int64
-	system    string // Add system message field
+	system    string
 }
 
 func NewAnthropic(apiKey string, model string) *Anthropic {
@@ -33,78 +36,132 @@ func (a *Anthropic) Configure(config map[string]interface{}) {
 	}
 }
 
-func (a *Anthropic) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with %s", a.model)
-	events := make(chan Event, 64)
+func (a *Anthropic) Generate(artifacts []*data.Artifact) <-chan *data.Artifact {
+	return twoface.NewAccumulator(
+		"anthropic",
+		"provider",
+		"completion",
+		artifacts...,
+	).Yield(func(accumulator *twoface.Accumulator) {
+		defer close(accumulator.Out)
 
-	go func() {
-		defer close(events)
-		a.handleMessageStream(ctx, params, events)
-	}()
+		errnie.Log("===START===")
+		requestParams := a.buildRequestParams(artifacts)
+		stream := a.client.Messages.NewStreaming(context.Background(), requestParams)
+		errnie.Log("===END===")
 
-	return events
-}
+		for stream.Next() {
+			event := stream.Current()
 
-func (a *Anthropic) handleMessageStream(ctx context.Context, params GenerationParams, events chan<- Event) {
-	requestParams := a.buildRequestParams(params)
-	stream := a.client.Messages.NewStreaming(ctx, requestParams)
-
-	for stream.Next() {
-		event := stream.Current()
-
-		switch event := event.AsUnion().(type) {
-		case anthropic.ContentBlockDeltaEvent:
-			if event.Delta.Text != "" {
-				events <- Event{Type: EventToken, Content: event.Delta.Text}
+			switch event := event.AsUnion().(type) {
+			case anthropic.ContentBlockDeltaEvent:
+				if event.Delta.Text != "" {
+					response := data.New("anthropic", "assistant", a.model, []byte(event.Delta.Text))
+					accumulator.Out <- response
+				}
 			}
-		case anthropic.MessageStopEvent:
-			events <- Event{Type: EventDone}
-			return
 		}
-	}
 
-	if err := stream.Err(); err != nil {
-		errnie.Error(err)
-		events <- Event{Type: EventError, Error: err}
-	}
+		if err := stream.Err(); err != nil {
+			errnie.Error(err)
+		}
+	}).Generate()
 }
 
-func (a *Anthropic) buildRequestParams(params GenerationParams) anthropic.MessageNewParams {
-	requestParams := anthropic.MessageNewParams{
-		Model:       anthropic.F(anthropic.ModelClaude_3_5_Sonnet_20240620),
-		Messages:    anthropic.F(convertToAnthropicMessages(params.Messages)),
-		MaxTokens:   anthropic.F(a.maxTokens),
-		Temperature: anthropic.F(params.Temperature),
+func (a *Anthropic) buildRequestParams(artifacts []*data.Artifact) anthropic.MessageNewParams {
+	messages := make([]anthropic.MessageParam, 0)
+	var systemMessage string
+
+	// First pass to extract system message and build regular messages
+	for _, artifact := range artifacts {
+		role := artifact.Peek("role")
+		payload := artifact.Peek("payload")
+
+		errnie.Log("Anthropic.Generate role %s payload %s", role, payload)
+
+		if role == "system" {
+			systemMessage = payload
+			continue
+		}
+
+		var anthropicRole anthropic.MessageParamRole
+		switch role {
+		case "user":
+			anthropicRole = anthropic.MessageParamRoleUser
+		case "assistant":
+			anthropicRole = anthropic.MessageParamRoleAssistant
+		default:
+			errnie.Warn("Anthropic.Generate unknown_role %s", role)
+			continue
+		}
+
+		messages = append(messages, anthropic.MessageParam{
+			Role: anthropic.F(anthropicRole),
+			Content: anthropic.F([]anthropic.MessageParamContentUnion{
+				anthropic.MessageParamContent{
+					Type: anthropic.F(anthropic.MessageParamContentTypeText),
+					Text: anthropic.F(payload),
+				},
+			}),
+		})
 	}
 
-	if a.system != "" {
-		requestParams.System = anthropic.F([]anthropic.TextBlockParam{{
-			Text: anthropic.F(a.system),
-			Type: anthropic.F(anthropic.TextBlockParamTypeText),
-		}})
+	// Build request params
+	requestParams := anthropic.MessageNewParams{
+		Model:       anthropic.F(a.model),
+		Messages:    anthropic.F(messages),
+		MaxTokens:   anthropic.F(a.maxTokens),
+		Temperature: anthropic.F(0.7),
+	}
+
+	// Add system message if present (either from artifacts or Configure)
+	if systemMessage != "" || a.system != "" {
+		// Prefer system message from artifacts over configured one
+		finalSystemMsg := systemMessage
+		if finalSystemMsg == "" {
+			finalSystemMsg = a.system
+		}
+
+		requestParams.System = anthropic.F([]anthropic.TextBlockParam{
+			{
+				Text: anthropic.F(finalSystemMsg),
+				Type: anthropic.F(anthropic.TextBlockParamTypeText),
+			},
+		})
 	}
 
 	return requestParams
 }
 
-// Helper function to convert our messages to Anthropic format
-func convertToAnthropicMessages(msgs []Message) []anthropic.MessageParam {
-	anthropicMsgs := make([]anthropic.MessageParam, len(msgs))
-	for i, msg := range msgs {
-		role := anthropic.MessageParamRoleUser
-		if msg.Role == "assistant" {
-			role = anthropic.MessageParamRoleAssistant
+func (a *Anthropic) convertToAnthropicMessages(artifacts []*data.Artifact) []anthropic.MessageParam {
+	anthropicMsgs := make([]anthropic.MessageParam, 0, len(artifacts))
+
+	for _, artifact := range artifacts {
+		role := artifact.Peek("role")
+		payload := strings.TrimSpace(artifact.Peek("payload"))
+
+		errnie.Log("Anthropic.Generate role %s payload %s", role, payload)
+
+		var anthropicRole anthropic.MessageParamRole
+		switch role {
+		case "user":
+			anthropicRole = anthropic.MessageParamRoleUser
+		case "assistant":
+			anthropicRole = anthropic.MessageParamRoleAssistant
+		default:
+			errnie.Warn("Anthropic.Generate unknown_role %s", role)
+			continue
 		}
 
-		anthropicMsgs[i] = anthropic.MessageParam{
-			Role: anthropic.F(role),
+		anthropicMsgs = append(anthropicMsgs, anthropic.MessageParam{
+			Role: anthropic.F(anthropicRole),
 			Content: anthropic.F([]anthropic.MessageParamContentUnion{
 				anthropic.MessageParamContent{
 					Type: anthropic.F(anthropic.MessageParamContentTypeText),
-					Text: anthropic.F(msg.Content),
+					Text: anthropic.F(payload),
 				},
 			}),
-		}
+		})
 	}
 
 	return anthropicMsgs

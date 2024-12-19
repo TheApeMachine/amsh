@@ -2,11 +2,12 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"io"
 
-	cohere "github.com/cohere-ai/cohere-go/v2"
+	cohereCore "github.com/cohere-ai/cohere-go/v2"
 	cohereclient "github.com/cohere-ai/cohere-go/v2/client"
+	"github.com/theapemachine/amsh/data"
+	"github.com/theapemachine/amsh/twoface"
 	"github.com/theapemachine/errnie"
 )
 
@@ -36,31 +37,25 @@ func NewCohere(apiKey string, model string) *Cohere {
 		maxTokens: 4096,
 	}
 }
+func (cohere *Cohere) Generate(artifacts []*data.Artifact) <-chan *data.Artifact {
+	return twoface.NewAccumulator(
+		"cohere",
+		"provider",
+		"completion",
+		artifacts...,
+	).Yield(func(accumulator *twoface.Accumulator) {
+		defer close(accumulator.Out)
 
-func (c *Cohere) Generate(ctx context.Context, params GenerationParams) <-chan Event {
-	errnie.Info("generating with %s", c.model)
-	events := make(chan Event, 64)
+		errnie.Log("===START===")
+		prompt := cohere.convertMessagesToCoherePrompt(artifacts)
+		errnie.Log("===END===")
 
-	go func() {
-		defer close(events)
-
-		// Check for nil client
-		if c.client == nil {
-			events <- Event{Type: EventError, Error: fmt.Errorf("cohere: client not initialized")}
-			return
-		}
-
-		prompt := convertMessagesToCoherePrompt(params.Messages)
-
-		stream, err := c.client.ChatStream(ctx, &cohere.ChatStreamRequest{
-			Message:          prompt,
-			Model:            &c.model,
-			Temperature:      &params.Temperature,
-			FrequencyPenalty: &params.FrequencyPenalty,
-			PresencePenalty:  &params.PresencePenalty,
+		stream, err := cohere.client.ChatStream(context.Background(), &cohereCore.ChatStreamRequest{
+			Message: prompt,
+			Model:   &cohere.model,
 		})
 		if err != nil {
-			events <- Event{Type: EventError, Error: err}
+			errnie.Error(err)
 			return
 		}
 		defer stream.Close()
@@ -68,42 +63,34 @@ func (c *Cohere) Generate(ctx context.Context, params GenerationParams) <-chan E
 		for {
 			resp, err := stream.Recv()
 			if err == io.EOF {
-				events <- Event{Type: EventDone}
-				return
+				break
 			}
 			if err != nil {
-				events <- Event{Type: EventError, Error: err}
-				return
+				errnie.Error(err)
+				break
 			}
 
-			// Check if response has text content
 			if resp.TextGeneration != nil {
-				events <- Event{Type: EventToken, Content: resp.TextGeneration.Text}
+				response := data.New("cohere", "assistant", cohere.model, []byte(resp.TextGeneration.Text))
+				accumulator.Out <- response
 			}
 		}
-	}()
-
-	return events
+	}).Generate()
 }
 
 // convertMessagesToCoherePrompt converts the message array into a string prompt
 // that Cohere can understand
-func convertMessagesToCoherePrompt(messages []Message) string {
+func (cohere *Cohere) convertMessagesToCoherePrompt(artifacts []*data.Artifact) string {
 	var prompt string
-	for _, msg := range messages {
-		switch msg.Role {
+	for _, artifact := range artifacts {
+		switch artifact.Peek("role") {
 		case "system":
-			prompt += "System: " + msg.Content + "\n"
+			prompt += "System: " + artifact.Peek("payload") + "\n"
 		case "user":
-			prompt += "Human: " + msg.Content + "\n"
+			prompt += "Human: " + artifact.Peek("payload") + "\n"
 		case "assistant":
-			prompt += "Assistant: " + msg.Content + "\n"
+			prompt += "Assistant: " + artifact.Peek("payload") + "\n"
 		}
 	}
 	return prompt
-}
-
-// Add Configure method
-func (cohere *Cohere) Configure(config map[string]interface{}) {
-	// Cohere-specific configuration can be added here if needed
 }

@@ -67,7 +67,7 @@ func (openai *OpenAI) Generate(artifacts []*data.Artifact) <-chan *data.Artifact
 		for stream.Next() {
 			evt := stream.Current()
 			if len(evt.Choices) > 0 && evt.Choices[0].Delta.Content != "" {
-				response := data.New("test", "assistant", "payload", []byte(evt.Choices[0].Delta.Content))
+				response := data.New("openai", "assistant", openai.model, []byte(evt.Choices[0].Delta.Content))
 				accumulator.Out <- response
 			}
 		}

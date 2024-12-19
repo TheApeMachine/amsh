@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/openai/openai-go"
 	"github.com/theapemachine/amsh/data"
 	"github.com/theapemachine/amsh/twoface"
@@ -46,6 +47,44 @@ func NewBalancedProvider() *BalancedProvider {
 					),
 					occupied: false,
 				},
+				{
+					name:     "claude-3-5-sonnet",
+					provider: NewAnthropic(os.Getenv("ANTHROPIC_API_KEY"), anthropic.ModelClaude3_5Sonnet20241022),
+					occupied: false,
+				},
+				{
+					name:     "gemini-1.5-flash",
+					provider: NewGoogle(os.Getenv("GEMINI_API_KEY"), "gemini-1.5-flash"),
+					occupied: false,
+				},
+				{
+					name:     "command-r",
+					provider: NewCohere(os.Getenv("COHERE_API_KEY"), "command-r"),
+					occupied: false,
+				},
+				// {
+				// 	name:     "llama3.2:3b",
+				// 	provider: NewOllama("llama3.2:3b"),
+				// 	occupied: false,
+				// },
+				// {
+				// 	name:     "LM Studio",
+				// 	provider: NewOpenAI(
+				// 		os.Getenv("LM_STUDIO_API_KEY"),
+				// 		"https://api.openai.com/v1",
+				// 		"bartowski/Llama-3.1-8B-Lexi-Uncensored-V2-GGUF",
+				// 	),
+				// 	occupied: false,
+				// },
+				// {
+				// 	name:     "NVIDIA",
+				// 	provider: NewOpenAI(
+				// 		os.Getenv("NVIDIA_API_KEY"),
+				// 		"https://api.openai.com/v1",
+				// 		"nvidia/llama-3.1-nemotron-70b-instruct",
+				// 	),
+				// 	occupied: false,
+				// },
 			},
 			selectIndex: 0,
 			initialized: false,

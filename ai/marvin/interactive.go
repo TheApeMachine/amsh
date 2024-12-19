@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/theapemachine/amsh/ai"
 	"github.com/theapemachine/amsh/data"
@@ -70,41 +69,27 @@ func (toolHandler *ToolHandler) Accumulator() *twoface.Accumulator {
 
 // Helper function to execute commands and handle responses
 func (toolHandler *ToolHandler) executeCommand(command string, out chan<- *data.Artifact) error {
+	// Write command
 	if _, err := toolHandler.inout.Write([]byte(command + "\n")); err != nil {
 		return err
 	}
 
 	buffer := make([]byte, 4096)
-	var response []byte
+	promptEnd := []byte("# ")
 
-	// Read with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	for {
+		n, err := toolHandler.inout.Read(buffer)
+		if err != nil {
+			return err
+		}
 
-	done := make(chan bool)
-	go func() {
-		for {
-			n, err := toolHandler.inout.Read(buffer)
-			if err != nil && err != io.EOF {
-				errnie.Error(err)
-				done <- true
-				return
-			}
-			if n > 0 {
-				response = append(response, buffer[:n]...)
-				out <- data.New("tool", "output", "stream", buffer[:n])
-			}
-			if bytes.HasSuffix(response, []byte("# ")) {
-				done <- true
-				return
+		if n > 0 {
+			chunk := buffer[:n]
+			out <- data.New(toolHandler.agent.Name, "assistant", "tool", chunk)
+
+			if bytes.HasSuffix(chunk, promptEnd) {
+				return nil
 			}
 		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-done:
-		return nil
 	}
 }
