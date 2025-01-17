@@ -213,7 +213,7 @@ export const setupCodeSmellDetector = ({ addLog, overlay }: { addLog: Function; 
             // Fallback if we still don't have any identifying information
             if (elementInfo === `<${tag}>`) {
                 // Try to get some context from parent elements
-                let parent = element.parentElement;
+                const parent = element.parentElement;
                 let parentInfo = '';
                 if (parent) {
                     const parentId = parent.id ? `#${parent.id}` : '';

@@ -17,7 +17,7 @@ interface ChoreographyMove {
 export const setupDebugChoreographer = ({ addLog, overlay }: { addLog: Function; overlay: HTMLElement }) => {
     const dancers = new Map<HTMLElement, Dancer>();
     let isPerforming = false;
-    let musicContext: AudioContext | null = null;
+    const musicContext: AudioContext | null = null;
     let danceObserver: MutationObserver | null = null;
     const danceBook = new Map<string, ChoreographyMove>();
 
